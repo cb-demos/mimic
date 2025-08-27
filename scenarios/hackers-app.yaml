@@ -1,0 +1,85 @@
+id: hackers-app
+name: Hackers App
+description: The full Hackers App RO demo
+repositories:
+  - source: cloudbees-days/hackers-web
+    repo_name_template: "${project_name}-web"
+    create_component: true
+    target_org: "${target_org}"
+    replacements:
+      PROJECT_NAME: "${project_name}"
+    files_to_modify:
+      - README.md
+  - source: cloudbees-days/hackers-api
+    target_org: "${target_org}"
+    create_component: true
+    repo_name_template: "${project_name}-api"
+    replacements:
+      PROJECT_NAME: "${project_name}"
+    files_to_modify:
+      - README.md
+  - source: cloudbees-days/hackers-auth
+    target_org: "${target_org}"
+    create_component: true
+    repo_name_template: "${project_name}-auth"
+    replacements:
+      PROJECT_NAME: "${project_name}"
+    files_to_modify:
+      - README.md
+  - source: cloudbees-days/hackers-app
+    target_org: "${target_org}"
+    create_component: false
+    repo_name_template: "${project_name}-app"
+    replacements:
+      PROJECT_NAME: "${project_name}"
+    files_to_modify:
+      - README.md
+applications:
+  - name: "${project_name}-app"
+    repository: "${target_org}/${project_name}-app"
+    components:
+      - "${project_name}-web"
+      - "${project_name}-api"
+      - "${project_name}-auth"
+    environments:
+      - "${project_name}-qa"
+      - "${project_name}-staging"
+      - "${project_name}-prod"
+environments:
+  - name: "${project_name}-qa"
+    env:
+      - name: "namespace"
+        value: "${project_name}-qa"
+    create_fm_token_var: true # This will create an env var named FM_TOKEN using the token value (generated after env is created)
+    flags:
+      - "enable-feature-x"
+  - name: "${project_name}-staging"
+    env:
+      - name: "namespace"
+        value: "${project_name}-staging"
+    create_fm_token_var: true
+    flags:
+      - "enable-feature-x"
+  - name: "${project_name}-prod"
+    env:
+      - name: "namespace"
+        value: "${project_name}-prod"
+    create_fm_token_var: true
+    flags:
+      - "enable-feature-x"
+flags:
+  - name: "enable-feature-x"
+    type: boolean
+parameter_schema:
+  properties:
+    project_name:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      description: The name of the project (lowercase, alphanumeric with hyphens)
+    target_org:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      description: The GitHub organization to create the repository in
+  required:
+    - project_name
+    - target_org

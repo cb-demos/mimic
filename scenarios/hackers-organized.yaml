@@ -1,0 +1,24 @@
+id: hackers-organized
+name: Hackers Organized
+description: The standard Hackers Organized demo
+repositories:
+  - source: cloudbees-days/hackers-source
+    target_org: "${target_org}"
+    repo_name_template: "${project_name}"
+    replacements:
+      "vue-hn-clone": "${project_name}"
+    files_to_modify:
+      - README.md
+parameter_schema:
+  properties:
+    project_name:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      description: The name of the project (lowercase, alphanumeric with hyphens)
+    target_org:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      description: The GitHub organization to create the repository in
+  required:
+    - project_name
+    - target_org
