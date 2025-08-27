@@ -68,3 +68,10 @@ uv.lock.backup
 
 .ruff_cache/
 test.md
+
+# Terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+.terraform.lock.hcl

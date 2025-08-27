@@ -15,41 +15,32 @@
                 <div class="settings-grid">
                     <div class="form-group">
                         <label for="target_org">GitHub Organization</label>
-                        <input type="text" 
-                               name="target_org" 
-                               id="target_org" 
-                               placeholder="e.g., ldorg">
+                        <input type="text" name="target_org" id="target_org" placeholder="e.g., my-org">
                     </div>
 
                     <div class="form-group">
                         <label for="organization_id">CloudBees Organization ID</label>
-                        <input type="text" 
-                               name="organization_id" 
-                               id="organization_id" 
-                               placeholder="e.g., a2742702-d1f3-4f3c-a309-30220c1a0504">
+                        <input type="text" name="organization_id" id="organization_id"
+                            placeholder="e.g., b2742702-d1f3-4f3c-a309-30220c1a0504">
                     </div>
 
                     <div class="form-group">
                         <label for="invitee_username">GitHub Username</label>
-                        <input type="text" 
-                               name="invitee_username" 
-                               id="invitee_username" 
-                               placeholder="e.g., ldonleycb">
+                        <input type="text" name="invitee_username" id="invitee_username" placeholder="myusername">
                     </div>
 
                     <div class="form-group">
                         <label for="unify_pat">CloudBees Unify Personal Access Token</label>
-                        <input type="password" 
-                               name="unify_pat" 
-                               id="unify_pat" 
-                               placeholder="Enter your Unify PAT">
-                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this secure.</div>
+                        <input type="password" name="unify_pat" id="unify_pat" placeholder="Enter your Unify PAT">
+                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this
+                            secure.</div>
                     </div>
                 </div>
-                
+
                 <div class="form-actions">
                     <button type="submit" class="btn primary">Save Settings</button>
-                    <button type="button" class="btn" onclick="if(confirm('Clear all saved settings?')) { Settings.clear(); location.reload(); }">Clear</button>
+                    <button type="button" class="btn"
+                        onclick="if(confirm('Clear all saved settings?')) { Settings.clear(); location.reload(); }">Clear</button>
                 </div>
             </form>
         </div>
@@ -64,44 +55,36 @@
                     <div class="title">{{ scenario.name }}</div>
                     <div class="description">{{ scenario.description }}</div>
                     <div class="stats">
-                        {{ scenario.repositories }} repositories, 
+                        {{ scenario.repositories }} repositories,
                         {{ scenario.applications }} applications,
                         {{ scenario.environments }} environments
                     </div>
                 </div>
-                
+
                 <div class="scenario-form">
                     <form class="scenario-execute-form" data-scenario-id="{{ scenario.id }}">
                         <h3>Configuration</h3>
-                        
+
                         <!-- CloudBees Settings -->
                         <div class="form-group">
                             <label for="organization_id_{{ scenario.id }}">CloudBees Organization ID *</label>
-                            <input type="text" 
-                                   name="organization_id" 
-                                   id="organization_id_{{ scenario.id }}" 
-                                   required
-                                   placeholder="e.g., a2742702-d1f3-4f3c-a309-30220c1a0504">
+                            <input type="text" name="organization_id" id="organization_id_{{ scenario.id }}" required
+                                placeholder="e.g., b2742702-d1f3-4f3c-a309-30220c1a0504">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="invitee_username_{{ scenario.id }}">GitHub Username to Invite (optional)</label>
-                            <input type="text" 
-                                   name="invitee_username" 
-                                   id="invitee_username_{{ scenario.id }}" 
-                                   placeholder="e.g., ldonleycb">
+                            <input type="text" name="invitee_username" id="invitee_username_{{ scenario.id }}"
+                                placeholder="myusername">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="unify_pat_{{ scenario.id }}">CloudBees Unify Personal Access Token *</label>
-                            <input type="password" 
-                                   name="unify_pat" 
-                                   id="unify_pat_{{ scenario.id }}" 
-                                   required
-                                   placeholder="Enter your Unify PAT">
+                            <input type="password" name="unify_pat" id="unify_pat_{{ scenario.id }}" required
+                                placeholder="Enter your Unify PAT">
                             <div class="description">Your personal access token for CloudBees Platform API access.</div>
                         </div>
-                        
+
                         <!-- Scenario Parameters -->
                         {% if scenario.parameters %}
                         <h4>Scenario Parameters</h4>
@@ -111,35 +94,33 @@
                                 {{ param_name.replace('_', ' ').title() }}
                                 {% if param_info.required %}*{% endif %}
                             </label>
-                            
+
                             {% if param_info.enum %}
-                            <select name="{{ param_name }}" 
-                                    id="{{ param_name }}_{{ scenario.id }}"
-                                    {% if param_info.required %}required{% endif %}>
+                            <select name="{{ param_name }}" id="{{ param_name }}_{{ scenario.id }}" {% if
+                                param_info.required %}required{% endif %}>
                                 <option value="">Select {{ param_name.replace('_', ' ') }}</option>
                                 {% for option in param_info.enum %}
                                 <option value="{{ option }}">{{ option }}</option>
                                 {% endfor %}
                             </select>
                             {% else %}
-                            <input type="text" 
-                                   name="{{ param_name }}" 
-                                   id="{{ param_name }}_{{ scenario.id }}"
-                                   {% if param_info.required %}required{% endif %}
-                                   {% if param_info.pattern %}pattern="{{ param_info.pattern }}"{% endif %}
-                                   placeholder="{{ param_info.description or param_name.replace('_', ' ') }}">
+                            <input type="text" name="{{ param_name }}" id="{{ param_name }}_{{ scenario.id }}" {% if
+                                param_info.required %}required{% endif %} {% if param_info.pattern
+                                %}pattern="{{ param_info.pattern }}" {% endif %}
+                                placeholder="{{ param_info.description or param_name.replace('_', ' ') }}">
                             {% endif %}
-                            
+
                             {% if param_info.description %}
                             <div class="description">{{ param_info.description }}</div>
                             {% endif %}
                         </div>
                         {% endfor %}
                         {% endif %}
-                        
+
                         <div class="form-actions">
                             <button type="submit" class="btn primary">Execute Scenario</button>
-                            <button type="button" class="btn" onclick="this.closest('.scenario-item').classList.remove('expanded'); this.closest('.scenario-form').classList.remove('expanded');">Cancel</button>
+                            <button type="button" class="btn"
+                                onclick="this.closest('.scenario-item').classList.remove('expanded'); this.closest('.scenario-form').classList.remove('expanded');">Cancel</button>
                         </div>
                     </form>
                 </div>

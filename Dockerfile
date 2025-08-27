@@ -23,6 +23,8 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application code
 COPY src/ ./src/
 COPY scenarios/ ./scenarios/
+COPY static/ ./static/
+COPY templates/ ./templates/
 
 # Set Python path to use virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
@@ -42,4 +44,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD if [ "$MODE" = "api" ]; then python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"; else exit 0; fi
 
 # Run the application based on mode
-CMD ["sh", "-c", "if [ \"$MODE\" = \"mcp\" ]; then python -m src.mcp_main; else uvicorn src.main:app --host 0.0.0.0 --port 8000; fi"]
+CMD ["sh", "-c", "if [ \"$MODE\" = \"mcp\" ]; then python -m src.mcp_main; else uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000} --forwarded-allow-ips='*' --proxy-headers; fi"]

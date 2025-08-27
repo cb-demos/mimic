@@ -88,3 +88,10 @@ mcp.json
 # Test files  
 tests/
 test.md
+
+# Terraform
+terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
