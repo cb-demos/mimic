@@ -67,3 +67,4 @@ uv.lock.backup
 *.pid
 
 .ruff_cache/
+test.md
