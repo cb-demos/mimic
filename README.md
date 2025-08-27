@@ -56,6 +56,10 @@ services:
 
 Access the web UI at http://localhost:8000 or use the REST API.
 
+## Scenario Authoring
+
+See [scenarios/README.md](scenarios/README.md) for details on creating new demo scenarios.
+
 ## Development
 
 ```bash
