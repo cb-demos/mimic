@@ -8,8 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKER_HUB_USERNAME: cloudbeesdemo
-  DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+  DOCKERHUB_USERNAME: cloudbeesdemo
   
 jobs:
   build:
@@ -26,8 +25,8 @@ jobs:
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
-        username: ${{ env.DOCKER_HUB_USERNAME }}
-        password: ${{ env.DOCKER_HUB_TOKEN }}
+        username: ${{ env.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
         
     - name: Get version
       id: version
@@ -39,7 +38,7 @@ jobs:
         context: .
         push: ${{ github.event_name != 'pull_request' }}
         tags: |
-          cloudbeesdemo/mimic:latest
-          cloudbeesdemo/mimic:${{ steps.version.outputs.VERSION }}
+          ${{ env.DOCKERHUB_USERNAME }}/mimic:latest
+          ${{ env.DOCKERHUB_USERNAME }}/mimic:${{ steps.version.outputs.VERSION }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
