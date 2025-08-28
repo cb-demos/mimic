@@ -32,6 +32,10 @@ jobs:
       id: version
       run: echo "VERSION=$(python scripts/get-version.py)" >> $GITHUB_OUTPUT
       
+    - name: Replace commit SHA placeholder
+      run: |
+        sed -i 's/COMMIT_SHA_PLACEHOLDER/${{ github.sha }}/g' templates/base.html
+      
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
