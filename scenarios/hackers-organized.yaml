@@ -10,6 +10,7 @@ repositories:
       "REPLACE_ME_ENV": "${project_name}-prod"
     files_to_modify:
       - README.md
+      - workflow.yaml
 environments:
   - name: "${project_name}-prod"
     env:
