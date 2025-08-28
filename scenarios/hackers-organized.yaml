@@ -2,13 +2,25 @@ id: hackers-organized
 name: Hackers Organized
 description: The standard Hackers Organized demo
 repositories:
-  - source: cloudbees-days/hackers-source
+  - source: cb-demos/hackers-source
     target_org: "${target_org}"
     repo_name_template: "${project_name}"
     replacements:
-      "vue-hn-clone": "${project_name}"
+      "PROJECT_NAME": "${project_name}"
+      "REPLACE_ME_ENV": "${project_name}-prod"
     files_to_modify:
       - README.md
+environments:
+  - name: "${project_name}-prod"
+    env:
+      - name: "namespace"
+        value: "${project_name}-prod"
+    create_fm_token_var: true
+    flags:
+      - "default.score"
+flags:
+  - name: "default.score"
+    type: boolean
 parameter_schema:
   properties:
     project_name:
