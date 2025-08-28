@@ -172,6 +172,11 @@ a {
   box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.10);
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+}
+
+.scenario-item.wip {
+  opacity: 0.7;
 }
 
 .scenario-item:hover {
@@ -198,6 +203,22 @@ a {
   font-size: 14px;
   color: #666;
   margin-bottom: 1rem;
+}
+
+/* WIP Badge */
+.wip-badge {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: #806FF6;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  z-index: 1;
 }
 
 /* Forms */

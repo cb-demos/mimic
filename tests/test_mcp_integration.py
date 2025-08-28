@@ -16,17 +16,14 @@ class TestMCPIntegration:
         """Test that MCP server starts and registers tools correctly."""
         # Set up environment for the server
         env = os.environ.copy()
-        env.update({
-            'GITHUB_TOKEN': 'test_token',
-            'UNIFY_API_KEY': 'test_key'
-        })
+        env.update({"GITHUB_TOKEN": "test_token", "UNIFY_API_KEY": "test_key"})
 
         # Start the MCP server as subprocess
         server_params = StdioServerParameters(
             command="uv",
             args=["run", "python", "-m", "src.mcp_main"],
             cwd=str(Path(__file__).parent.parent),
-            env=env
+            env=env,
         )
 
         async with stdio_client(server_params) as (read, write):
@@ -39,11 +36,11 @@ class TestMCPIntegration:
                 tool_names = [tool.name for tool in tools.tools]
 
                 # Verify our tools are registered
-                assert 'list_scenarios' in tool_names
-                assert 'instantiate_scenario' in tool_names
+                assert "list_scenarios" in tool_names
+                assert "instantiate_scenario" in tool_names
 
                 # Test list_scenarios tool
-                result = await session.call_tool('list_scenarios', {})
+                result = await session.call_tool("list_scenarios", {})
                 assert result.isError is False
 
                 # Parse the result content
@@ -56,27 +53,24 @@ class TestMCPIntegration:
 
                 # Verify scenario structure
                 scenario = scenarios[0]
-                assert 'id' in scenario
-                assert 'name' in scenario
-                assert 'description' in scenario
+                assert "id" in scenario
+                assert "name" in scenario
+                assert "description" in scenario
 
                 # Should have at least the hackers-app scenario
-                scenario_ids = [s['id'] for s in scenarios]
-                assert 'hackers-app' in scenario_ids
+                scenario_ids = [s["id"] for s in scenarios]
+                assert "hackers-app" in scenario_ids
 
     async def test_mcp_instantiate_scenario_validation(self):
         """Test that instantiate_scenario validates parameters correctly."""
         env = os.environ.copy()
-        env.update({
-            'GITHUB_TOKEN': 'test_token',
-            'UNIFY_API_KEY': 'test_key'
-        })
+        env.update({"GITHUB_TOKEN": "test_token", "UNIFY_API_KEY": "test_key"})
 
         server_params = StdioServerParameters(
             command="uv",
             args=["run", "python", "-m", "src.mcp_main"],
             cwd=str(Path(__file__).parent.parent),
-            env=env
+            env=env,
         )
 
         async with stdio_client(server_params) as (read, write):
@@ -84,10 +78,10 @@ class TestMCPIntegration:
                 await session.initialize()
 
                 # Test with invalid scenario ID
-                result = await session.call_tool('instantiate_scenario', {
-                    'scenario_id': 'nonexistent',
-                    'organization_id': 'test-org'
-                })
+                result = await session.call_tool(
+                    "instantiate_scenario",
+                    {"scenario_id": "nonexistent", "organization_id": "test-org"},
+                )
 
                 assert result.isError is True
                 assert "not found" in str(result.content[0].text)

@@ -85,6 +85,7 @@ class Scenario(BaseModel):
     environments: list[EnvironmentConfig] = Field(default_factory=list)
     flags: list[FlagConfig] = Field(default_factory=list)
     parameter_schema: ParameterSchema | None = None
+    wip: bool = False
 
     def resolve_template_variables(self, values: dict[str, Any]) -> "Scenario":
         """

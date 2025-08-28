@@ -47,7 +47,10 @@
 
         <div class="scenario-grid">
             {% for scenario in scenarios %}
-            <div class="scenario-item" data-scenario-id="{{ scenario.id }}">
+            <div class="scenario-item{% if scenario.wip %} wip{% endif %}" data-scenario-id="{{ scenario.id }}">
+                {% if scenario.wip %}
+                <div class="wip-badge">WIP</div>
+                {% endif %}
                 <div class="scenario-header">
                     <div class="title">{{ scenario.name }}</div>
                     <div class="description">{{ scenario.description }}</div>

@@ -69,6 +69,7 @@ async def root(request: Request):
                 "applications": len(scenario.applications),
                 "environments": len(scenario.environments),
                 "parameters": {},
+                "wip": scenario.wip,
             }
 
             # Add parameter schema if available
@@ -83,6 +84,9 @@ async def root(request: Request):
                     }
 
             scenarios.append(scenario_info)
+
+    # Sort scenarios: non-WIP first, then by name
+    scenarios.sort(key=lambda x: (x["wip"], x["name"]))
 
     return templates.TemplateResponse(request, "index.html", {"scenarios": scenarios})
 

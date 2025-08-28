@@ -1,6 +1,7 @@
 id: hackers-app
 name: Hackers App
 description: The full Hackers App RO demo
+wip: true
 repositories:
   - source: cloudbees-days/hackers-web
     repo_name_template: "${project_name}-web"

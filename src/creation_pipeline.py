@@ -100,7 +100,7 @@ class CreationPipeline:
                     "name": repo_name,
                     "full_name": f"{target_org}/{repo_name}",
                     "html_url": f"https://github.com/{target_org}/{repo_name}",
-                    "existed": True
+                    "existed": True,
                 }
             else:
                 print(
@@ -117,13 +117,15 @@ class CreationPipeline:
                 )
 
                 print(f"   ✅ Repository created: {new_repo['html_url']}")
-                
+
                 # Track created repo for summary
                 self.created_repositories[repo_name] = {
                     "name": new_repo.get("name", repo_name),
                     "full_name": new_repo.get("full_name", f"{target_org}/{repo_name}"),
-                    "html_url": new_repo.get("html_url", f"https://github.com/{target_org}/{repo_name}"),
-                    "existed": False
+                    "html_url": new_repo.get(
+                        "html_url", f"https://github.com/{target_org}/{repo_name}"
+                    ),
+                    "existed": False,
                 }
 
                 # Wait for repo to be ready
