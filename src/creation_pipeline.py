@@ -29,6 +29,7 @@ class CreationPipeline:
         self.created_environments = {}  # name -> env_data
         self.created_flags = {}  # name -> flag_data
         self.created_applications = {}  # name -> app_data
+        self.created_repositories = {}  # name -> repo_data
 
     async def execute_scenario(
         self, scenario: Scenario, parameters: dict[str, str]
@@ -94,6 +95,13 @@ class CreationPipeline:
                 print(
                     f"   ⏭️  Repository {target_org}/{repo_name} already exists, skipping creation"
                 )
+                # Still track existing repo for summary
+                self.created_repositories[repo_name] = {
+                    "name": repo_name,
+                    "full_name": f"{target_org}/{repo_name}",
+                    "html_url": f"https://github.com/{target_org}/{repo_name}",
+                    "existed": True
+                }
             else:
                 print(
                     f"   Creating {target_org}/{repo_name} from {repo_config.source}..."
@@ -109,6 +117,14 @@ class CreationPipeline:
                 )
 
                 print(f"   ✅ Repository created: {new_repo['html_url']}")
+                
+                # Track created repo for summary
+                self.created_repositories[repo_name] = {
+                    "name": new_repo.get("name", repo_name),
+                    "full_name": new_repo.get("full_name", f"{target_org}/{repo_name}"),
+                    "html_url": new_repo.get("html_url", f"https://github.com/{target_org}/{repo_name}"),
+                    "existed": False
+                }
 
                 # Wait for repo to be ready
                 await asyncio.sleep(3)
@@ -431,5 +447,6 @@ class CreationPipeline:
             "environments": list(self.created_environments.keys()),
             "flags": list(self.created_flags.keys()),
             "applications": list(self.created_applications.keys()),
+            "repositories": list(self.created_repositories.values()),
             "success": True,
         }

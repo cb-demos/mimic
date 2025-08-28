@@ -313,6 +313,13 @@ class ScenarioForm {
                 html += '<ul>' + summary.flags.map(f => `<li>${f}</li>`).join('') + '</ul>';
             }
             
+            if (summary.repositories && summary.repositories.length > 0) {
+                html += '<p><strong>GitHub repositories:</strong></p>';
+                html += '<ul>' + summary.repositories.map(repo => 
+                    `<li><a href="${repo.html_url}" target="_blank" rel="noopener">${repo.full_name}</a>${repo.existed ? ' (existing)' : ''}</li>`
+                ).join('') + '</ul>';
+            }
+            
             html += '</div>';
         }
         
