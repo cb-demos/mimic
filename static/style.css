@@ -106,6 +106,83 @@ a {
   align-items: center;
   padding: 28px 40px;
   border-bottom: 1px solid #CAC3D1;
+  position: relative;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.settings-toggle-btn {
+  padding: 0.5rem;
+  background: white;
+  border: 1px solid #DFDFDF;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666;
+}
+
+.settings-toggle-btn:hover {
+  background: #F1F1FF;
+  color: #806FF6;
+}
+
+.settings-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 40px;
+  z-index: 1000;
+  margin-top: 0.5rem;
+}
+
+.settings-dropdown-content {
+  background: white;
+  border: 1px solid #DFDFDF;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 1.5rem;
+  min-width: 320px;
+}
+
+.settings-dropdown h3 {
+  margin: 0 0 1rem 0;
+  font-size: 18px;
+  color: #333;
+}
+
+/* Welcome card for new users */
+.welcome-card {
+  margin-bottom: 2rem;
+  padding: 2rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #F8F9FF 0%, #E6F3FF 100%);
+  border: 2px solid #B8D4FF;
+  box-shadow: 0 4px 12px rgba(128, 111, 246, 0.1);
+}
+
+.welcome-content h3 {
+  margin: 0 0 1rem 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.welcome-content p {
+  margin: 0 0 1.5rem 0;
+  font-size: 16px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.welcome-form .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.welcome-form .form-actions {
+  margin-top: 2rem;
 }
 
 .nav-group {
@@ -259,8 +336,7 @@ a {
 
 /* Password field specific styles */
 .form-group input[type="password"] {
-  font-family: monospace;
-  letter-spacing: 0.1em;
+  font-family: inherit;
 }
 
 .form-group input[type="password"]:focus {

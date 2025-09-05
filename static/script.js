@@ -294,6 +294,156 @@ class OrganizationManager {
     }
 }
 
+// Welcome card manager for new users
+class WelcomeManager {
+    static DISMISSED_KEY = 'mimic_welcome_dismissed';
+    
+    static shouldShow() {
+        // Show if user hasn't dismissed and doesn't have PAT set
+        const dismissed = localStorage.getItem(this.DISMISSED_KEY);
+        const settings = Settings.getAll();
+        const hasPAT = settings.unify_pat && settings.unify_pat.trim();
+        
+        return !dismissed && !hasPAT;
+    }
+    
+    static show() {
+        const welcomeCard = document.getElementById('welcome_card');
+        if (welcomeCard) {
+            welcomeCard.style.display = 'block';
+        }
+    }
+    
+    static hide() {
+        const welcomeCard = document.getElementById('welcome_card');
+        if (welcomeCard) {
+            welcomeCard.style.display = 'none';
+        }
+    }
+    
+    static dismiss() {
+        localStorage.setItem(this.DISMISSED_KEY, 'true');
+        this.hide();
+    }
+    
+    static init() {
+        // Show welcome card if needed
+        if (this.shouldShow()) {
+            this.show();
+        }
+        
+        // Handle welcome form submission
+        const welcomeForm = document.querySelector('.welcome-form');
+        if (welcomeForm) {
+            welcomeForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(welcomeForm);
+                const settings = {};
+                
+                for (const [key, value] of formData.entries()) {
+                    if (value.trim()) {
+                        settings[key] = value.trim();
+                    }
+                }
+                
+                if (Settings.save(settings)) {
+                    // Hide welcome card and mark as dismissed
+                    this.dismiss();
+                    
+                    // Show success message
+                    const btn = welcomeForm.querySelector('[type="submit"]');
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Saved!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 1000);
+                } else {
+                    alert('Failed to save settings');
+                }
+            });
+        }
+    }
+}
+
+// Settings manager for header dropdown
+class SettingsManager {
+    static toggleSettings() {
+        const dropdown = document.getElementById('settings_dropdown');
+        const isVisible = dropdown.style.display === 'block';
+        
+        if (isVisible) {
+            dropdown.style.display = 'none';
+        } else {
+            dropdown.style.display = 'block';
+            // Populate form with current settings
+            this.populateSettingsForm();
+        }
+    }
+    
+    static hideSettings() {
+        const dropdown = document.getElementById('settings_dropdown');
+        dropdown.style.display = 'none';
+    }
+    
+    static populateSettingsForm() {
+        const settings = Settings.getAll();
+        const form = document.querySelector('.settings-dropdown .settings-form');
+        
+        const fieldMapping = {
+            'invitee_username': 'invitee_username_settings',
+            'unify_pat': 'unify_pat_settings'
+        };
+        
+        Object.entries(fieldMapping).forEach(([settingKey, fieldId]) => {
+            const input = document.getElementById(fieldId);
+            const value = settings[settingKey];
+            if (input && value) {
+                input.value = value;
+            }
+        });
+    }
+    
+    static init() {
+        // Handle settings form submission
+        const settingsForm = document.querySelector('.settings-dropdown .settings-form');
+        if (settingsForm) {
+            settingsForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(settingsForm);
+                const settings = {};
+                
+                for (const [key, value] of formData.entries()) {
+                    if (value.trim()) {
+                        settings[key] = value.trim();
+                    }
+                }
+                
+                if (Settings.save(settings)) {
+                    // Show brief success message
+                    const btn = settingsForm.querySelector('[type="submit"]');
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Saved!';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                    }, 1500);
+                } else {
+                    alert('Failed to save settings');
+                }
+            });
+        }
+        
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('settings_dropdown');
+            const toggle = document.getElementById('settings_toggle');
+            
+            if (!dropdown.contains(e.target) && !toggle.contains(e.target)) {
+                this.hideSettings();
+            }
+        });
+    }
+}
+
 // Scenario form handling
 class ScenarioForm {
     constructor() {
@@ -391,29 +541,17 @@ class ScenarioForm {
     }
     
     populateFormWithSettings(form) {
-        const settings = Settings.getAll();
-        const selectedOrg = Organizations.getSelected();
-        
-        // Map settings to common form field names
-        const fieldMapping = {
-            'target_org': 'target_org',
-            'invitee_username': 'invitee_username',
-            'unify_pat': 'unify_pat'
-        };
-        
-        Object.entries(fieldMapping).forEach(([settingKey, fieldName]) => {
-            const input = form.querySelector(`[name="${fieldName}"]`);
-            const value = settings[settingKey];
-            if (input && value) {
-                input.value = value;
-            }
-        });
-        
         // Set organization dropdown to selected org (web component)
         const orgDropdown = form.querySelector('dropdown-selector[id*="organization_id"]');
-        if (orgDropdown && selectedOrg) {
+        if (orgDropdown) {
             // The web component will automatically load from localStorage
             orgDropdown.refresh();
+        }
+        
+        // Refresh any target_org dropdowns that might exist in scenario parameters
+        const targetOrgDropdown = form.querySelector('dropdown-selector[id*="target_org"]');
+        if (targetOrgDropdown) {
+            targetOrgDropdown.refresh();
         }
     }
     
@@ -430,11 +568,14 @@ class ScenarioForm {
         const orgDropdown = form.querySelector('dropdown-selector[id*="organization_id"]');
         const organizationId = orgDropdown ? orgDropdown.getSelectedValue() : null;
         
+        // Get global settings
+        const settings = Settings.getAll();
+        
         // Build request payload
         const payload = {
             organization_id: organizationId,
-            unify_pat: formData.get('unify_pat'),
-            invitee_username: formData.get('invitee_username') || null,
+            unify_pat: settings.unify_pat,
+            invitee_username: settings.invitee_username || null,
             parameters: {}
         };
         
@@ -607,6 +748,7 @@ class ScenarioForm {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    // OrganizationManager.init(); // Disabled - now using web components
+    WelcomeManager.init();
+    SettingsManager.init();
     new ScenarioForm();
 });

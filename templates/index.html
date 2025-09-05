@@ -4,65 +4,71 @@
 <div class="sheet">
     <header class="sheet-header">
         <p><strong>CloudBees Scenario Manager</strong></p>
+        <div class="header-actions">
+            <button type="button" class="settings-toggle-btn" id="settings_toggle" onclick="SettingsManager.toggleSettings()" title="Settings">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1.51-1V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82 1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+        </div>
+        
+        <!-- Settings Dropdown -->
+        <div class="settings-dropdown" id="settings_dropdown" style="display: none;">
+            <div class="settings-dropdown-content">
+                <h3>Settings</h3>
+                <form class="settings-form">
+                    <div class="form-group">
+                        <label for="invitee_username_settings">GitHub Username *</label>
+                        <input type="text" name="invitee_username" id="invitee_username_settings" required placeholder="myusername">
+                        <div class="description">Default username to invite to repositories</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="unify_pat_settings">CloudBees Unify Personal Access Token</label>
+                        <input type="password" name="unify_pat" id="unify_pat_settings" placeholder="Enter your Unify PAT">
+                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this secure.</div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn primary">Save Settings</button>
+                        <button type="button" class="btn" onclick="if(confirm('Clear all saved settings?')) { Settings.clear(); location.reload(); }">Clear</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </header>
     <main class="sheet-content">
-        <!-- Settings Card -->
-        <div class="settings-card">
-            <form class="settings-form inline-settings">
-                <div class="settings-grid">
+        <!-- Welcome card for new users -->
+        <div class="welcome-card" id="welcome_card" style="display: none;">
+            <div class="welcome-content">
+                <h3>Welcome to CloudBees Scenario Manager!</h3>
+                <p>To get started, you'll need to set your CloudBees Personal Access Token. This is used to create resources in your CloudBees organization.</p>
+                <form class="welcome-form">
                     <div class="form-group">
-                        <label for="github_org_selector">GitHub Organization</label>
-                        <dropdown-selector 
-                            id="github_org_selector"
-                            storage-key="mimic_github_orgs"
-                            selected-key="mimic_selected_github_org"
-                            placeholder="Select or add GitHub org..."
-                            input-placeholder="e.g., my-org"
-                            display-field="name"
-                            value-field="name"
-                            truncate-length="0">
-                        </dropdown-selector>
+                        <label for="welcome_unify_pat">CloudBees Unify Personal Access Token *</label>
+                        <input type="password" name="unify_pat" id="welcome_unify_pat" required
+                            placeholder="Enter your Unify PAT">
+                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this secure.</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="welcome_invitee_username">GitHub Username *</label>
+                        <input type="text" name="invitee_username" id="welcome_invitee_username" required
+                            placeholder="myusername">
+                        <div class="description">Default username to invite to created repositories</div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="organization_selector">CloudBees Organization</label>
-                        <dropdown-selector 
-                            id="organization_selector"
-                            storage-key="mimic_organizations"
-                            selected-key="mimic_selected_org"
-                            placeholder="Select or add organization..."
-                            input-placeholder="Organization ID (UUID)"
-                            display-field="displayName"
-                            value-field="id"
-                            truncate-length="4"
-                            fetch-endpoint="/api/organizations/details"
-                            requires-pat="true">
-                        </dropdown-selector>
+                    <div class="form-actions">
+                        <button type="submit" class="btn primary">Save & Continue</button>
+                        <button type="button" class="btn" onclick="WelcomeManager.dismiss()">Skip for now</button>
                     </div>
-
-                    <div class="form-group">
-                        <label for="invitee_username">GitHub Username</label>
-                        <input type="text" name="invitee_username" id="invitee_username" placeholder="myusername">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="unify_pat">CloudBees Unify Personal Access Token</label>
-                        <input type="password" name="unify_pat" id="unify_pat" placeholder="Enter your Unify PAT">
-                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this
-                            secure.</div>
-                    </div>
-                </div>
-
-                <div class="form-actions">
-                    <button type="submit" class="btn primary">Save Settings</button>
-                    <button type="button" class="btn"
-                        onclick="if(confirm('Clear all saved settings?')) { Settings.clear(); location.reload(); }">Clear</button>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
 
         <h1>Available Scenarios</h1>
-        <p>Click on a scenario to configure and execute it. Your settings above will be automatically filled in.</p>
+        <p>Click on a scenario to configure and execute it. Your saved settings will be automatically filled in.</p>
 
         <div class="scenario-grid">
             {% for scenario in scenarios %}
@@ -84,7 +90,7 @@
                     <form class="scenario-execute-form" data-scenario-id="{{ scenario.id }}">
                         <h3>Configuration</h3>
 
-                        <!-- CloudBees Settings -->
+                        <!-- CloudBees Organization -->
                         <div class="form-group">
                             <label for="organization_id_{{ scenario.id }}">CloudBees Organization *</label>
                             <dropdown-selector 
@@ -99,19 +105,6 @@
                                 fetch-endpoint="/api/organizations/details"
                                 requires-pat="true">
                             </dropdown-selector>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="invitee_username_{{ scenario.id }}">GitHub Username to Invite (optional)</label>
-                            <input type="text" name="invitee_username" id="invitee_username_{{ scenario.id }}"
-                                placeholder="myusername">
-                        </div>
-
-                        <div class="form-group">
-                            <label for="unify_pat_{{ scenario.id }}">CloudBees Unify Personal Access Token *</label>
-                            <input type="password" name="unify_pat" id="unify_pat_{{ scenario.id }}" required
-                                placeholder="Enter your Unify PAT">
-                            <div class="description">Your personal access token for CloudBees Platform API access.</div>
                         </div>
 
                         <!-- Scenario Parameters -->
