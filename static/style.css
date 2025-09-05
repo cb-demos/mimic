@@ -432,3 +432,88 @@ a {
 .execution-results li {
   margin-bottom: 0.25rem;
 }
+
+/* Organization selector styles */
+.organization-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.organization-dropdown {
+  flex: 1;
+  padding: 0.4rem;
+  padding-right: 1rem;
+  border: 1px solid #DFDFDF;
+  border-radius: 8px 0 0 8px;
+  border-right: none;
+  background: white;
+  font-size: 14px;
+}
+
+.organization-dropdown:focus {
+  outline: none;
+  border-color: #806FF6;
+  box-shadow: 0 0 0 2px rgba(128, 111, 246, 0.2);
+}
+
+.add-org-trigger-btn {
+  border-radius: 0 8px 8px 0;
+}
+
+.input-group {
+  display: flex;
+}
+
+#add_org_input_group {
+  margin-top: 0;
+}
+
+.input-group .org-id-input {
+  flex: 1;
+  padding: 0.4rem;
+  border: 1px solid #DFDFDF;
+  border-radius: 8px 0 0 8px;
+  border-right: none;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 13px;
+  margin-bottom: 0;
+}
+
+.input-group .org-id-input:focus {
+  outline: none;
+  border-color: #806FF6;
+  box-shadow: 0 0 0 2px rgba(128, 111, 246, 0.2);
+}
+
+.input-group-btn {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid #DFDFDF;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-group-btn.add-btn {
+  background: #806FF6;
+  color: white;
+  border-color: #806FF6;
+}
+
+.input-group-btn.add-btn:hover {
+  background: #6B5AE0;
+  border-color: #6B5AE0;
+}
+
+.input-group-btn.cancel-btn {
+  border-radius: 0 8px 8px 0;
+  color: #666;
+}
+
+.input-group-btn.cancel-btn:hover {
+  background: #f5f5f5;
+}

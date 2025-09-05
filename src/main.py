@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
 from src.scenarios import get_scenario_manager, initialize_scenarios
+from src.unify import UnifyAPIClient
 
 
 @asynccontextmanager
@@ -48,6 +49,11 @@ class InstantiateRequest(BaseModel):
     unify_pat: str
     invitee_username: str | None = None
     parameters: dict[str, Any] | None = None
+
+
+class OrganizationRequest(BaseModel):
+    organization_id: str
+    unify_pat: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -148,6 +154,32 @@ async def get_scenario(scenario_id: str):
         result["parameters"] = schema_dict
 
     return result
+
+
+@app.post("/api/organizations/details")
+async def get_organization_details(request: OrganizationRequest):
+    """
+    Get organization details from CloudBees Platform API.
+    
+    This endpoint fetches organization information using the provided PAT
+    and returns the display name.
+    """
+    try:
+        with UnifyAPIClient(api_key=request.unify_pat) as client:
+            org_data = client.get_organization(request.organization_id)
+            
+            # Extract what we need from the known response structure
+            org = org_data["organization"]
+            return {
+                "id": org["id"],
+                "displayName": org["displayName"]
+            }
+                
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Failed to fetch organization details: {str(e)}"
+        ) from e
 
 
 @app.post("/instantiate/{scenario_id}")

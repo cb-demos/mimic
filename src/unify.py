@@ -356,3 +356,10 @@ class UnifyAPIClient:
         return self._make_request(
             "GET", f"/v1/applications/{app_id}/environments/{env_id}/sdk-key"
         )
+
+    # Organizations API
+    def get_organization(self, org_id: str) -> dict[str, Any]:
+        """Get organization details by ID"""
+        return self._make_request(
+            "GET", f"/v1/organizations/{org_id}"
+        )
