@@ -180,6 +180,12 @@ class UnifyAPIClient:
             "GET", f"/v1/resources/{org_id}/endpoints", params=params
         )
 
+    def get_environment(self, org_id: str, env_id: str) -> dict[str, Any]:
+        """Get a single environment by ID"""
+        return self._make_request(
+            "GET", f"/v1/resources/{org_id}/endpoints/{env_id}"
+        )
+
     # Enhanced Services API
     def list_services_by_type(
         self, org_id: str, service_type: str | None = None
@@ -342,3 +348,11 @@ class UnifyAPIClient:
             "variants": ["true", "false"],
         }
         return self.create_feature_flag(app_id, flag_data)
+
+    def get_environment_sdk_key(
+        self, app_id: str, env_id: str
+    ) -> dict[str, Any]:
+        """Get SDK key for an application environment"""
+        return self._make_request(
+            "GET", f"/v1/applications/{app_id}/environments/{env_id}/sdk-key"
+        )

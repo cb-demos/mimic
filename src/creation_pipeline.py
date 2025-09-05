@@ -68,6 +68,9 @@ class CreationPipeline:
             # Step 5: Create applications (linking components and environments)
             await self._create_applications(resolved_scenario.applications)
 
+            # Step 5.5: Update environments with FM_TOKEN SDK keys
+            await self._update_environments_with_fm_tokens(resolved_scenario.environments)
+
             # Step 6: Configure flags across environments (set to off initially)
             await self._configure_flags_in_environments(resolved_scenario)
 
@@ -242,15 +245,7 @@ class CreationPipeline:
                             }
                         )
 
-                    # Add FM_TOKEN if requested
-                    if env_config.create_fm_token_var:
-                        properties.append(
-                            {
-                                "name": "FM_TOKEN",
-                                "string": "placeholder-token",  # TODO: Generate actual token
-                                "isSecret": True,
-                            }
-                        )
+                    # Note: FM_TOKEN will be added later after applications are created
 
                     env_result = client.create_basic_environment(
                         org_id=self.organization_id,
@@ -261,6 +256,81 @@ class CreationPipeline:
 
                     self.created_environments[env_name] = env_result
                     print(f"   ✅ Environment created: {env_name}")
+
+    async def _update_environments_with_fm_tokens(self, environments):
+        """Step 5.5: Update environments with FM_TOKEN SDK keys after applications are created."""
+        print("\n🔑 Step 5.5: Adding FM_TOKEN SDK keys to environments...")
+
+        with UnifyAPIClient(api_key=self.unify_pat) as client:
+            for env_config in environments:
+                if env_config.create_fm_token_var:
+                    env_name = env_config.name
+                    
+                    if env_name not in self.created_environments:
+                        print(f"   ⚠️  Environment {env_name} not found, skipping FM_TOKEN")
+                        continue
+                    
+                    env_data = self.created_environments[env_name]
+                    env_id = env_data["id"]
+                    
+                    try:
+                        print(f"   Getting SDK key for environment: {env_name}")
+                        # Note: The 'app_id' parameter in this API is actually the organization ID
+                        sdk_response = client.get_environment_sdk_key(self.organization_id, env_id)
+                        sdk_key = sdk_response.get("sdkKey")
+                        
+                        if not sdk_key:
+                            print(f"   ⚠️  No SDK key returned for environment {env_name}")
+                            continue
+                        
+                        # Fetch full environment data (creation response might be incomplete)
+                        if len(env_data.keys()) == 1:  # Only has 'id' key
+                            print(f"   Fetching full environment data for: {env_name}")
+                            env_response = client.get_environment(self.organization_id, env_id)
+                            # Extract environment data from 'endpoint' wrapper if present
+                            env_data = env_response.get("endpoint", env_response)
+                            self.created_environments[env_name] = env_data  # Update cached data
+                        
+                        # Get current environment properties and add FM_TOKEN
+                        current_properties = env_data.get("properties", [])
+                        
+                        # Check if FM_TOKEN already exists
+                        fm_token_exists = any(prop.get("name") == "FM_TOKEN" for prop in current_properties)
+                        
+                        if not fm_token_exists:
+                            # Add FM_TOKEN property
+                            current_properties.append({
+                                "name": "FM_TOKEN",
+                                "string": sdk_key,
+                                "isSecret": False,
+                            })
+                            
+                            # Update the environment with the new properties
+                            # Include required fields from the original environment data
+                            update_data = {
+                                "resourceId": env_data.get("resourceId"),
+                                "contributionId": env_data.get("contributionId"),
+                                "contributionType": env_data.get("contributionType"),
+                                "contributionTargets": env_data.get("contributionTargets", []),
+                                "name": env_data.get("name", env_name),
+                                "description": env_data.get("description", f"Environment for {env_name}"),
+                                "properties": current_properties,
+                            }
+                            
+                            # Add parentId if it exists
+                            if env_data.get("parentId"):
+                                update_data["parentId"] = env_data["parentId"]
+                            
+                            client.update_environment(self.organization_id, env_id, update_data)
+                            print(f"   ✅ Added FM_TOKEN to environment: {env_name}")
+                        else:
+                            print(f"   ⏭️  FM_TOKEN already exists in environment: {env_name}")
+                            
+                    except Exception as e:
+                        import traceback
+                        print(f"   ❌ Failed to add FM_TOKEN to environment {env_name}: {e}")
+                        print(f"   Debug - env_data keys: {list(env_data.keys())}")
+                        traceback.print_exc()
 
     async def _configure_flags_in_environments(self, resolved_scenario):
         """Step 6: Create and configure flags across environments."""
