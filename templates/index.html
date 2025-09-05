@@ -11,25 +11,33 @@
             <form class="settings-form inline-settings">
                 <div class="settings-grid">
                     <div class="form-group">
-                        <label for="target_org">GitHub Organization</label>
-                        <input type="text" name="target_org" id="target_org" placeholder="e.g., my-org">
+                        <label for="github_org_selector">GitHub Organization</label>
+                        <dropdown-selector 
+                            id="github_org_selector"
+                            storage-key="mimic_github_orgs"
+                            selected-key="mimic_selected_github_org"
+                            placeholder="Select or add GitHub org..."
+                            input-placeholder="e.g., my-org"
+                            display-field="name"
+                            value-field="name"
+                            truncate-length="0">
+                        </dropdown-selector>
                     </div>
 
                     <div class="form-group">
                         <label for="organization_selector">CloudBees Organization</label>
-                        <div class="organization-selector">
-                            <div class="input-group" id="org_select_group">
-                                <select id="organization_selector" class="organization-dropdown">
-                                    <option value="">Select organization...</option>
-                                </select>
-                                <button type="button" class="input-group-btn add-org-trigger-btn" id="add_org_trigger" onclick="OrganizationManager.showAddForm()" title="Add new organization">+</button>
-                            </div>
-                            <div class="input-group" id="add_org_input_group" style="display: none;">
-                                <input type="text" id="new_org_id" placeholder="Organization ID (UUID)" class="org-id-input">
-                                <button type="button" class="input-group-btn add-btn" onclick="OrganizationManager.addOrganization()" title="Add organization">+</button>
-                                <button type="button" class="input-group-btn cancel-btn" onclick="OrganizationManager.hideAddForm()" title="Cancel">×</button>
-                            </div>
-                        </div>
+                        <dropdown-selector 
+                            id="organization_selector"
+                            storage-key="mimic_organizations"
+                            selected-key="mimic_selected_org"
+                            placeholder="Select or add organization..."
+                            input-placeholder="Organization ID (UUID)"
+                            display-field="displayName"
+                            value-field="id"
+                            truncate-length="4"
+                            fetch-endpoint="/api/organizations/details"
+                            requires-pat="true">
+                        </dropdown-selector>
                     </div>
 
                     <div class="form-group">
@@ -79,9 +87,18 @@
                         <!-- CloudBees Settings -->
                         <div class="form-group">
                             <label for="organization_id_{{ scenario.id }}">CloudBees Organization *</label>
-                            <select name="organization_id" id="organization_id_{{ scenario.id }}" class="organization-dropdown scenario-org-dropdown" required>
-                                <option value="">Select organization...</option>
-                            </select>
+                            <dropdown-selector 
+                                id="organization_id_{{ scenario.id }}"
+                                storage-key="mimic_organizations"
+                                selected-key="mimic_selected_org"
+                                placeholder="Select organization..."
+                                input-placeholder="Organization ID (UUID)"
+                                display-field="displayName"
+                                value-field="id"
+                                truncate-length="4"
+                                fetch-endpoint="/api/organizations/details"
+                                requires-pat="true">
+                            </dropdown-selector>
                         </div>
 
                         <div class="form-group">
@@ -107,7 +124,18 @@
                                 {% if param_info.required %}*{% endif %}
                             </label>
 
-                            {% if param_info.enum %}
+                            {% if param_name == 'target_org' %}
+                            <dropdown-selector 
+                                id="{{ param_name }}_{{ scenario.id }}"
+                                storage-key="mimic_github_orgs"
+                                selected-key="mimic_selected_github_org"
+                                placeholder="Select or add GitHub org..."
+                                input-placeholder="e.g., my-org"
+                                display-field="name"
+                                value-field="name"
+                                truncate-length="0">
+                            </dropdown-selector>
+                            {% elif param_info.enum %}
                             <select name="{{ param_name }}" id="{{ param_name }}_{{ scenario.id }}" {% if
                                 param_info.required %}required{% endif %}>
                                 <option value="">Select {{ param_name.replace('_', ' ') }}</option>

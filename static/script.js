@@ -409,10 +409,11 @@ class ScenarioForm {
             }
         });
         
-        // Set organization dropdown to selected org
-        const orgDropdown = form.querySelector('[name="organization_id"]');
+        // Set organization dropdown to selected org (web component)
+        const orgDropdown = form.querySelector('dropdown-selector[id*="organization_id"]');
         if (orgDropdown && selectedOrg) {
-            orgDropdown.value = selectedOrg.id;
+            // The web component will automatically load from localStorage
+            orgDropdown.refresh();
         }
     }
     
@@ -425,9 +426,13 @@ class ScenarioForm {
             return;
         }
         
+        // Get organization ID from web component
+        const orgDropdown = form.querySelector('dropdown-selector[id*="organization_id"]');
+        const organizationId = orgDropdown ? orgDropdown.getSelectedValue() : null;
+        
         // Build request payload
         const payload = {
-            organization_id: formData.get('organization_id'),
+            organization_id: organizationId,
             unify_pat: formData.get('unify_pat'),
             invitee_username: formData.get('invitee_username') || null,
             parameters: {}
@@ -437,6 +442,15 @@ class ScenarioForm {
         for (const [key, value] of formData.entries()) {
             if (!['organization_id', 'unify_pat', 'invitee_username'].includes(key) && value) {
                 payload.parameters[key] = value;
+            }
+        }
+        
+        // Handle special web component parameters
+        const targetOrgDropdown = form.querySelector('dropdown-selector[id*="target_org"]');
+        if (targetOrgDropdown) {
+            const targetOrgValue = targetOrgDropdown.getSelectedValue();
+            if (targetOrgValue) {
+                payload.parameters['target_org'] = targetOrgValue;
             }
         }
         
@@ -593,6 +607,6 @@ class ScenarioForm {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    OrganizationManager.init();
+    // OrganizationManager.init(); // Disabled - now using web components
     new ScenarioForm();
 });
