@@ -227,16 +227,16 @@ class DropdownSelector extends HTMLElement {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                [this.valueField]: value,
+                organization_id: value,
                 ...(pat && { unify_pat: pat })
             })
         });
-        
+
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.detail || 'Failed to fetch item details');
         }
-        
+
         return await response.json();
     }
     
