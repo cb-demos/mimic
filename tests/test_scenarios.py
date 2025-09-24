@@ -332,3 +332,79 @@ class TestParameterPlaceholders:
         }
         processed = scenario.validate_input(api_data)
         assert processed["create_component"] is True
+
+
+class TestConditionalFileOperations:
+    """Test conditional file operations functionality."""
+
+    def test_conditional_file_operation_creation(self):
+        """Test creating a ConditionalFileOperation."""
+        from src.scenarios import ConditionalFileOperation
+
+        operation = ConditionalFileOperation(
+            condition_parameter="auto_setup_workflow",
+            when_true={"workflow.yaml": ".cloudbees/workflows/workflow.yaml"},
+            when_false={}
+        )
+        assert operation.condition_parameter == "auto_setup_workflow"
+        assert operation.when_true == {"workflow.yaml": ".cloudbees/workflows/workflow.yaml"}
+        assert operation.when_false == {}
+
+    def test_hackers_organized_conditional_operations(self):
+        """Test that hackers-organized scenario includes conditional file operations."""
+        from src.scenarios import initialize_scenarios
+
+        manager = initialize_scenarios('scenarios')
+        scenario = manager.get_scenario('hackers-organized')
+        assert scenario is not None
+
+        # Should have one repository
+        assert len(scenario.repositories) == 1
+        repo = scenario.repositories[0]
+
+        # Should have conditional file operations
+        assert len(repo.conditional_file_operations) == 1
+        operation = repo.conditional_file_operations[0]
+
+        assert operation.condition_parameter == "auto_setup_workflow"
+        assert operation.when_true == {"workflow.yaml": ".cloudbees/workflows/workflow.yaml"}
+        assert operation.when_false == {}
+
+    def test_template_resolution_with_conditional_operations(self):
+        """Test that template resolution works with conditional file operations."""
+        from src.scenarios import initialize_scenarios
+
+        manager = initialize_scenarios('scenarios')
+        scenario = manager.get_scenario('hackers-organized')
+        assert scenario is not None
+
+        # Test with auto_setup_workflow = true
+        params_auto = {
+            "project_name": "test-project",
+            "target_org": "test-org",
+            "create_component": False,
+            "auto_setup_workflow": True
+        }
+
+        resolved_auto = scenario.resolve_template_variables(params_auto)
+        repo_auto = resolved_auto.repositories[0]
+        operation_auto = repo_auto.conditional_file_operations[0]
+
+        # Conditional operations should be preserved after resolution
+        assert operation_auto.condition_parameter == "auto_setup_workflow"
+        assert operation_auto.when_true == {"workflow.yaml": ".cloudbees/workflows/workflow.yaml"}
+
+        # Test with auto_setup_workflow = false (default)
+        params_manual = {
+            "project_name": "test-project",
+            "target_org": "test-org",
+            "create_component": False
+        }
+
+        resolved_manual = scenario.resolve_template_variables(params_manual)
+        repo_manual = resolved_manual.repositories[0]
+        operation_manual = repo_manual.conditional_file_operations[0]
+
+        # Should still have the same structure
+        assert operation_manual.condition_parameter == "auto_setup_workflow"
+        assert operation_manual.when_false == {}

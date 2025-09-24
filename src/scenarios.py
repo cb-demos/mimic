@@ -24,6 +24,15 @@ class ParameterSchema(BaseModel):
     required: list[str] = Field(default_factory=list)
 
 
+class ConditionalFileOperation(BaseModel):
+    """Configuration for conditional file operations."""
+
+    condition_parameter: str  # Parameter name that controls this operation
+    operation: str = "move"  # Type of operation: "move", "copy", "delete"
+    when_true: dict[str, str] = Field(default_factory=dict)  # source_path -> destination_path when condition is True
+    when_false: dict[str, str] = Field(default_factory=dict)  # source_path -> destination_path when condition is False
+
+
 class RepositoryConfig(BaseModel):
     """Configuration for a repository to be created from template."""
 
@@ -35,6 +44,7 @@ class RepositoryConfig(BaseModel):
     )
     replacements: dict[str, str] = Field(default_factory=dict)
     files_to_modify: list[str] = Field(default_factory=list)
+    conditional_file_operations: list[ConditionalFileOperation] = Field(default_factory=list)
     secrets: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("source")
@@ -331,6 +341,13 @@ class ScenarioManager:
                 # Parse repository configs
                 repos = []
                 for repo_data in data.get("repositories", []):
+                    # Parse conditional file operations if present
+                    if "conditional_file_operations" in repo_data:
+                        conditional_ops = []
+                        for op_data in repo_data["conditional_file_operations"]:
+                            conditional_ops.append(ConditionalFileOperation(**op_data))
+                        repo_data["conditional_file_operations"] = conditional_ops
+
                     repos.append(RepositoryConfig(**repo_data))
                 data["repositories"] = repos
 

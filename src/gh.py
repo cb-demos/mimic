@@ -194,6 +194,85 @@ class GitHubClient:
             print(f"Error updating file: {response.status_code} - {response.text}")
             return None
 
+    async def create_file(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        content: str,
+        message: str,
+        branch: str | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Create a new file in a repository.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            path: File path in the repository
+            content: File content (will be base64 encoded)
+            message: Commit message
+            branch: Branch to create the file on (defaults to default branch)
+
+        Returns:
+            API response data or None if failed
+        """
+        import base64
+
+        # Base64 encode the content
+        encoded_content = base64.b64encode(content.encode()).decode()
+
+        data = {
+            "message": message,
+            "content": encoded_content,
+        }
+
+        if branch:
+            data["branch"] = branch
+
+        response = await self._request(
+            "PUT", f"/repos/{owner}/{repo}/contents/{path}", json=data
+        )
+
+        return response.json() if response.status_code in (200, 201) else None
+
+    async def delete_file(
+        self,
+        owner: str,
+        repo: str,
+        path: str,
+        message: str,
+        sha: str,
+        branch: str | None = None,
+    ) -> dict[str, Any] | None:
+        """
+        Delete a file from a repository.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            path: File path in the repository
+            message: Commit message
+            sha: SHA of the file being deleted (required)
+            branch: Branch to delete the file from (defaults to default branch)
+
+        Returns:
+            API response data or None if failed
+        """
+        data = {
+            "message": message,
+            "sha": sha,
+        }
+
+        if branch:
+            data["branch"] = branch
+
+        response = await self._request(
+            "DELETE", f"/repos/{owner}/{repo}/contents/{path}", json=data
+        )
+
+        return response.json() if response.status_code == 200 else None
+
     async def check_user_collaboration(
         self, owner: str, repo: str, username: str
     ) -> bool:
