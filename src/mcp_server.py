@@ -1,19 +1,10 @@
 from typing import Any
 
 from fastmcp import FastMCP
-from pydantic import BaseModel
 
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
 from src.scenarios import get_scenario_manager
-
-
-class InstantiateScenarioRequest(BaseModel):
-    scenario_id: str
-    organization_id: str
-    invitee_username: str | None = None
-    parameters: dict[str, Any] | None = None
-
 
 # Create MCP server instance
 mcp = FastMCP("Mimic")
@@ -31,8 +22,7 @@ async def instantiate_scenario(
     scenario_id: str,
     organization_id: str,
     invitee_username: str | None = None,
-    project_name: str | None = None,
-    target_org: str | None = None,
+    parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Execute a complete scenario using the Creation Pipeline.
@@ -49,8 +39,7 @@ async def instantiate_scenario(
         scenario_id: The ID of the scenario to execute (e.g., 'hackers-app')
         organization_id: CloudBees Unify organization UUID (get from organization info)
         invitee_username: Optional GitHub username to invite to the organization
-        project_name: Name for the project (used in repo/component names)
-        target_org: GitHub organization where repositories will be created
+        parameters: Dictionary of scenario parameters (both required and optional)
 
     Returns:
         Dictionary with execution status and summary
@@ -68,15 +57,11 @@ async def instantiate_scenario(
     if not settings.GITHUB_TOKEN:
         raise ValueError("GITHUB_TOKEN environment variable is required")
 
-    # Build parameters dict from individual parameters
-    parameters = {}
-    if project_name:
-        parameters["project_name"] = project_name
-    if target_org:
-        parameters["target_org"] = target_org
+    # Use the parameters from the request (or empty dict if None)
+    scenario_parameters = parameters or {}
 
     # Validate and preprocess input parameters
-    processed_parameters = scenario.validate_input(parameters)
+    processed_parameters = scenario.validate_input(scenario_parameters)
 
     # Create and execute pipeline
     pipeline = CreationPipeline(
@@ -96,8 +81,7 @@ async def instantiate_scenario(
             "scenario_id": scenario_id,
             "organization_id": organization_id,
             "invitee_username": invitee_username,
-            "project_name": project_name,
-            "target_org": target_org,
+            "parameters": processed_parameters,
             "summary": summary,
         }
 

@@ -344,18 +344,20 @@ class TestConditionalFileOperations:
         operation = ConditionalFileOperation(
             condition_parameter="auto_setup_workflow",
             when_true={"workflow.yaml": ".cloudbees/workflows/workflow.yaml"},
-            when_false={}
+            when_false={},
         )
         assert operation.condition_parameter == "auto_setup_workflow"
-        assert operation.when_true == {"workflow.yaml": ".cloudbees/workflows/workflow.yaml"}
+        assert operation.when_true == {
+            "workflow.yaml": ".cloudbees/workflows/workflow.yaml"
+        }
         assert operation.when_false == {}
 
     def test_hackers_organized_conditional_operations(self):
         """Test that hackers-organized scenario includes conditional file operations."""
         from src.scenarios import initialize_scenarios
 
-        manager = initialize_scenarios('scenarios')
-        scenario = manager.get_scenario('hackers-organized')
+        manager = initialize_scenarios("scenarios")
+        scenario = manager.get_scenario("hackers-organized")
         assert scenario is not None
 
         # Should have one repository
@@ -367,15 +369,17 @@ class TestConditionalFileOperations:
         operation = repo.conditional_file_operations[0]
 
         assert operation.condition_parameter == "auto_setup_workflow"
-        assert operation.when_true == {"workflow.yaml": ".cloudbees/workflows/workflow.yaml"}
+        assert operation.when_true == {
+            "workflow.yaml": ".cloudbees/workflows/workflow.yaml"
+        }
         assert operation.when_false == {}
 
     def test_template_resolution_with_conditional_operations(self):
         """Test that template resolution works with conditional file operations."""
         from src.scenarios import initialize_scenarios
 
-        manager = initialize_scenarios('scenarios')
-        scenario = manager.get_scenario('hackers-organized')
+        manager = initialize_scenarios("scenarios")
+        scenario = manager.get_scenario("hackers-organized")
         assert scenario is not None
 
         # Test with auto_setup_workflow = true
@@ -383,7 +387,7 @@ class TestConditionalFileOperations:
             "project_name": "test-project",
             "target_org": "test-org",
             "create_component": False,
-            "auto_setup_workflow": True
+            "auto_setup_workflow": True,
         }
 
         resolved_auto = scenario.resolve_template_variables(params_auto)
@@ -392,13 +396,15 @@ class TestConditionalFileOperations:
 
         # Conditional operations should be preserved after resolution
         assert operation_auto.condition_parameter == "auto_setup_workflow"
-        assert operation_auto.when_true == {"workflow.yaml": ".cloudbees/workflows/workflow.yaml"}
+        assert operation_auto.when_true == {
+            "workflow.yaml": ".cloudbees/workflows/workflow.yaml"
+        }
 
         # Test with auto_setup_workflow = false (default)
         params_manual = {
             "project_name": "test-project",
             "target_org": "test-org",
-            "create_component": False
+            "create_component": False,
         }
 
         resolved_manual = scenario.resolve_template_variables(params_manual)

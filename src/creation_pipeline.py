@@ -54,7 +54,9 @@ class CreationPipeline:
 
         try:
             # Step 1: Create repositories (with content replacements)
-            await self._create_repositories(resolved_scenario.repositories, processed_parameters)
+            await self._create_repositories(
+                resolved_scenario.repositories, processed_parameters
+            )
 
             # Step 2: Create components for repos that need them
             await self._create_components(resolved_scenario.repositories)
@@ -144,7 +146,10 @@ class CreationPipeline:
 
             # Apply conditional file operations
             await self._apply_conditional_file_operations(
-                target_org, repo_name, repo_config.conditional_file_operations, parameters
+                target_org,
+                repo_name,
+                repo_config.conditional_file_operations,
+                parameters,
             )
 
             # Invite collaborator if specified
@@ -521,7 +526,11 @@ class CreationPipeline:
             print(f"     No changes needed for {file_path}")
 
     async def _apply_conditional_file_operations(
-        self, owner: str, repo: str, conditional_operations: list, parameters: dict[str, any]
+        self,
+        owner: str,
+        repo: str,
+        conditional_operations: list,
+        parameters: dict[str, Any],
     ):
         """Apply conditional file operations (move/copy files based on parameters)."""
         for operation in conditional_operations:
@@ -529,17 +538,25 @@ class CreationPipeline:
             condition_value = parameters.get(condition_param, False)
 
             # Determine which operations to perform
-            operations_to_apply = operation.when_true if condition_value else operation.when_false
+            operations_to_apply = (
+                operation.when_true if condition_value else operation.when_false
+            )
 
             if not operations_to_apply:
                 continue
 
-            print(f"     Applying conditional file operations (condition: {condition_param}={condition_value})...")
+            print(
+                f"     Applying conditional file operations (condition: {condition_param}={condition_value})..."
+            )
 
             for source_path, destination_path in operations_to_apply.items():
-                await self._move_file_in_repo(owner, repo, source_path, destination_path)
+                await self._move_file_in_repo(
+                    owner, repo, source_path, destination_path
+                )
 
-    async def _move_file_in_repo(self, owner: str, repo: str, source_path: str, destination_path: str):
+    async def _move_file_in_repo(
+        self, owner: str, repo: str, source_path: str, destination_path: str
+    ):
         """Move a file from source_path to destination_path in the repository."""
         print(f"       Moving {source_path} -> {destination_path}...")
 
