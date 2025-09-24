@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}Mimic - CloudBees Scenario Manager{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}">
-    <script src="{{ url_for('static', path='/htmx.min.js') }}" defer></script>
-    <script src="{{ url_for('static', path='/dropdown-selector.js') }}" defer></script>
-    <script src="{{ url_for('static', path='/script.js') }}" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/style.css') }}?v={{ asset_hashes['style.css'] }}">
+    <script src="{{ url_for('static', path='/htmx.min.js') }}?v={{ asset_hashes['htmx.min.js'] }}" defer></script>
+    <script src="{{ url_for('static', path='/dropdown-selector.js') }}?v={{ asset_hashes['dropdown-selector.js'] }}" defer></script>
+    <script src="{{ url_for('static', path='/script.js') }}?v={{ asset_hashes['script.js'] }}" defer></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

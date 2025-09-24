@@ -1,3 +1,5 @@
+import hashlib
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -13,12 +15,33 @@ from src.scenarios import get_scenario_manager, initialize_scenarios
 from src.unify import UnifyAPIClient
 
 
+# Dictionary to hold asset hashes for cache busting
+asset_hashes = {}
+
+
+def compute_asset_hashes():
+    """Compute SHA256 hashes for files in the static directory."""
+    static_dir = "static"
+    for filename in os.listdir(static_dir):
+        filepath = os.path.join(static_dir, filename)
+        if os.path.isfile(filepath):
+            with open(filepath, "rb") as f:
+                file_hash = hashlib.sha256(f.read()).hexdigest()
+                asset_hashes[filename] = file_hash[:8]
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup."""
     # Initialize scenario manager at startup
     initialize_scenarios("scenarios")
     print("✓ Scenario manager initialized")
+
+    # Compute asset hashes for cache busting
+    compute_asset_hashes()
+    templates.env.globals["asset_hashes"] = asset_hashes
+    print("✓ Asset hashes computed")
+
     yield
     # Cleanup on shutdown if needed
     print("Shutting down...")
