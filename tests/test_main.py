@@ -26,9 +26,15 @@ def test_ui_root(mock_manager, client: TestClient):
     mock_scenario.repositories = []
     mock_scenario.applications = []
     mock_scenario.environments = []
+    mock_scenario.wip = False
     mock_scenario.parameter_schema = None
     mock_scenario_manager.get_scenario.return_value = mock_scenario
     mock_manager.return_value = mock_scenario_manager
+
+    # Mock asset_hashes in the template globals
+    from src.main import templates
+
+    templates.env.globals["asset_hashes"] = {"style.css": "mocked_hash"}
 
     response = client.get("/")
     assert response.status_code == 200

@@ -182,9 +182,7 @@ class UnifyAPIClient:
 
     def get_environment(self, org_id: str, env_id: str) -> dict[str, Any]:
         """Get a single environment by ID"""
-        return self._make_request(
-            "GET", f"/v1/resources/{org_id}/endpoints/{env_id}"
-        )
+        return self._make_request("GET", f"/v1/resources/{org_id}/endpoints/{env_id}")
 
     # Enhanced Services API
     def list_services_by_type(
@@ -349,9 +347,7 @@ class UnifyAPIClient:
         }
         return self.create_feature_flag(app_id, flag_data)
 
-    def get_environment_sdk_key(
-        self, app_id: str, env_id: str
-    ) -> dict[str, Any]:
+    def get_environment_sdk_key(self, app_id: str, env_id: str) -> dict[str, Any]:
         """Get SDK key for an application environment"""
         return self._make_request(
             "GET", f"/v1/applications/{app_id}/environments/{env_id}/sdk-key"
@@ -360,6 +356,4 @@ class UnifyAPIClient:
     # Organizations API
     def get_organization(self, org_id: str) -> dict[str, Any]:
         """Get organization details by ID"""
-        return self._make_request(
-            "GET", f"/v1/organizations/{org_id}"
-        )
+        return self._make_request("GET", f"/v1/organizations/{org_id}")

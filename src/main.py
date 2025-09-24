@@ -14,7 +14,6 @@ from src.creation_pipeline import CreationPipeline
 from src.scenarios import get_scenario_manager, initialize_scenarios
 from src.unify import UnifyAPIClient
 
-
 # Dictionary to hold asset hashes for cache busting
 asset_hashes = {}
 
@@ -183,25 +182,21 @@ async def get_scenario(scenario_id: str):
 async def get_organization_details(request: OrganizationRequest):
     """
     Get organization details from CloudBees Platform API.
-    
+
     This endpoint fetches organization information using the provided PAT
     and returns the display name.
     """
     try:
         with UnifyAPIClient(api_key=request.unify_pat) as client:
             org_data = client.get_organization(request.organization_id)
-            
+
             # Extract what we need from the known response structure
             org = org_data["organization"]
-            return {
-                "id": org["id"],
-                "displayName": org["displayName"]
-            }
-                
+            return {"id": org["id"], "displayName": org["displayName"]}
+
     except Exception as e:
         raise HTTPException(
-            status_code=400, 
-            detail=f"Failed to fetch organization details: {str(e)}"
+            status_code=400, detail=f"Failed to fetch organization details: {str(e)}"
         ) from e
 
 
