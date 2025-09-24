@@ -260,10 +260,6 @@ a {
   background: #F1F1FF;
 }
 
-.scenario-item.expanded {
-  background: #F8F8FF;
-}
-
 .scenario-item .title {
   font-size: 20px;
   font-weight: 600;
@@ -298,16 +294,78 @@ a {
   z-index: 1;
 }
 
-/* Forms */
-.scenario-form {
-  display: none;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #DFDFDF;
+/* Drawer */
+.drawer {
+    position: fixed;
+    top: 0;
+    right: -450px; /* Start off-screen */
+    width: 450px;
+    height: 100%;
+    z-index: 2000;
+    display: flex;
+    transition: right 0.3s ease-in-out;
 }
 
-.scenario-form.expanded {
-  display: block;
+.drawer.is-open {
+    right: 0;
+}
+
+.drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 1999;
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    pointer-events: none;
+}
+
+.drawer-overlay.is-open {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.drawer-content {
+    width: 100%;
+    background: white;
+    box-shadow: -2px 0 15px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #DFDFDF;
+}
+
+.drawer-header h3 {
+    margin: 0;
+    font-size: 20px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+}
+
+.drawer-body {
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+
+/* Forms */
+.scenario-form {
 }
 
 .form-group {

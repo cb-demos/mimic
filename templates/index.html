@@ -86,10 +86,8 @@
                     </div>
                 </div>
 
-                <div class="scenario-form">
+                <div class="scenario-form" style="display: none;">
                     <form class="scenario-execute-form" data-scenario-id="{{ scenario.id }}">
-                        <h3>Configuration</h3>
-
                         <!-- CloudBees Organization -->
                         <div class="form-group">
                             <label for="organization_id_{{ scenario.id }}">CloudBees Organization *</label>
@@ -152,8 +150,7 @@
 
                         <div class="form-actions">
                             <button type="submit" class="btn primary">Execute Scenario</button>
-                            <button type="button" class="btn"
-                                onclick="this.closest('.scenario-item').classList.remove('expanded'); this.closest('.scenario-form').classList.remove('expanded');">Cancel</button>
+                            <button type="button" class="btn" onclick="DrawerManager.close()">Cancel</button>
                         </div>
                     </form>
                 </div>
@@ -161,5 +158,19 @@
             {% endfor %}
         </div>
     </main>
+
+    <!-- Configuration Drawer -->
+    <div id="config_drawer" class="drawer">
+        <div class="drawer-content">
+            <div class="drawer-header">
+                <h3 id="drawer_title"></h3>
+                <button class="close-btn" onclick="DrawerManager.close()">&times;</button>
+            </div>
+            <div id="drawer_body" class="drawer-body">
+                <!-- Scenario form will be injected here -->
+            </div>
+        </div>
+    </div>
+    <div class="drawer-overlay" onclick="DrawerManager.close()"></div>
 </div>
 {% endblock %}

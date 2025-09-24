@@ -444,6 +444,33 @@ class SettingsManager {
     }
 }
 
+class DrawerManager {
+    static open(title, content) {
+        const drawer = document.getElementById('config_drawer');
+        const drawerTitle = document.getElementById('drawer_title');
+        const drawerBody = document.getElementById('drawer_body');
+        const overlay = document.querySelector('.drawer-overlay');
+
+        drawerTitle.textContent = title;
+        drawerBody.innerHTML = ''; // Clear previous content
+        drawerBody.appendChild(content);
+
+        drawer.classList.add('is-open');
+        if (overlay) {
+            overlay.classList.add('is-open');
+        }
+    }
+
+    static close() {
+        const drawer = document.getElementById('config_drawer');
+        const overlay = document.querySelector('.drawer-overlay');
+        drawer.classList.remove('is-open');
+        if (overlay) {
+            overlay.classList.remove('is-open');
+        }
+    }
+}
+
 // Scenario form handling
 class ScenarioForm {
     constructor() {
@@ -452,14 +479,11 @@ class ScenarioForm {
     }
     
     initializeEventListeners() {
-        // Toggle scenario expansion
+        // Handle click on scenario item to open drawer
         document.addEventListener('click', (e) => {
-            if (e.target.closest('.scenario-item')) {
-                const item = e.target.closest('.scenario-item');
-                const form = item.querySelector('.scenario-form');
-                if (form && !e.target.closest('.scenario-form')) {
-                    this.toggleScenario(item, form);
-                }
+            const scenarioItem = e.target.closest('.scenario-item');
+            if (scenarioItem && !e.target.closest('.scenario-form')) {
+                this.openScenarioDrawer(scenarioItem);
             }
         });
         
@@ -479,28 +503,29 @@ class ScenarioForm {
             this.populateSettingsOnLoad();
         });
     }
-    
-    toggleScenario(item, form) {
-        // Close other scenarios
-        document.querySelectorAll('.scenario-item').forEach(otherItem => {
-            if (otherItem !== item) {
-                otherItem.classList.remove('expanded');
-                const otherForm = otherItem.querySelector('.scenario-form');
-                if (otherForm) {
-                    otherForm.classList.remove('expanded');
+
+    openScenarioDrawer(item) {
+        const scenarioId = item.dataset.scenarioId;
+        const scenarioName = item.querySelector('.title').textContent;
+        const formContainer = item.querySelector('.scenario-form');
+
+        if (formContainer) {
+            const formClone = formContainer.cloneNode(true);
+            formClone.style.display = 'block'; // Make sure the cloned form is visible
+
+            // Re-initialize any web components inside the cloned form
+            const dropdowns = formClone.querySelectorAll('dropdown-selector');
+            dropdowns.forEach(dropdown => {
+                if (typeof dropdown.refresh === 'function') {
+                    dropdown.refresh();
                 }
-            }
-        });
-        
-        // Toggle current scenario
-        item.classList.toggle('expanded');
-        form.classList.toggle('expanded');
-        
-        // Populate form with stored settings if newly opened
-        if (form.classList.contains('expanded')) {
-            this.populateFormWithSettings(form);
+            });
+
+            DrawerManager.open(`Configure: ${scenarioName}`, formClone);
+            this.populateFormWithSettings(formClone);
         }
     }
+
     
     populateSettingsOnLoad() {
         // Populate settings form if it exists
@@ -556,6 +581,8 @@ class ScenarioForm {
     }
     
     async handleScenarioSubmission(form) {
+        DrawerManager.close();
+
         const formData = new FormData(form);
         const scenarioId = form.dataset.scenarioId;
         
