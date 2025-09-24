@@ -8,20 +8,7 @@ from typing import Any
 import httpx
 
 from .config import settings
-
-
-class UnifyAPIError(Exception):
-    """Custom exception for CloudBees Unify API errors"""
-
-    def __init__(
-        self,
-        message: str,
-        status_code: int | None = None,
-        response_text: str | None = None,
-    ):
-        self.status_code = status_code
-        self.response_text = response_text
-        super().__init__(message)
+from .exceptions import UnifyAPIError
 
 
 class UnifyAPIClient:

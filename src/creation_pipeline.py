@@ -4,11 +4,15 @@ Orchestrates the setup of a complete scenario including repos, components, envir
 """
 
 import asyncio
+import logging
 from typing import Any
 
+from .exceptions import GitHubError, PipelineError, UnifyAPIError
 from .gh import github
 from .scenarios import Scenario
 from .unify import UnifyAPIClient
+
+logger = logging.getLogger(__name__)
 
 
 class CreationPipeline:
@@ -30,6 +34,7 @@ class CreationPipeline:
         self.created_flags = {}  # name -> flag_data
         self.created_applications = {}  # name -> app_data
         self.created_repositories = {}  # name -> repo_data
+        self.current_step = "initialization"
 
     async def execute_scenario(
         self, scenario: Scenario, parameters: dict[str, str]
@@ -54,35 +59,54 @@ class CreationPipeline:
 
         try:
             # Step 1: Create repositories (with content replacements)
+            self.current_step = "repository_creation"
             await self._create_repositories(
                 resolved_scenario.repositories, processed_parameters
             )
 
             # Step 2: Create components for repos that need them
+            self.current_step = "component_creation"
             await self._create_components(resolved_scenario.repositories)
 
             # Step 3: Create feature flags (store for later - need app IDs first)
+            self.current_step = "flag_creation"
             await self._create_flags(resolved_scenario.flags)
 
             # Step 4: Create environments
+            self.current_step = "environment_creation"
             await self._create_environments(resolved_scenario.environments)
 
             # Step 5: Create applications (linking components and environments)
+            self.current_step = "application_creation"
             await self._create_applications(resolved_scenario.applications)
 
             # Step 5.5: Update environments with FM_TOKEN SDK keys
+            self.current_step = "environment_fm_token_update"
             await self._update_environments_with_fm_tokens(
                 resolved_scenario.environments
             )
 
             # Step 6: Configure flags across environments (set to off initially)
+            self.current_step = "flag_configuration"
             await self._configure_flags_in_environments(resolved_scenario)
 
+            self.current_step = "completed"
             return self._generate_summary()
 
+        except (GitHubError, UnifyAPIError) as e:
+            logger.error(f"External API error during {self.current_step}: {e}")
+            raise PipelineError(
+                f"Pipeline failed at {self.current_step}: {str(e)}",
+                self.current_step,
+                {"scenario": scenario.name, "error_type": type(e).__name__}
+            ) from e
         except Exception as e:
-            print(f"❌ Pipeline failed: {e}")
-            raise
+            logger.error(f"Unexpected error during {self.current_step}: {e}")
+            raise PipelineError(
+                f"Unexpected error at {self.current_step}: {str(e)}",
+                self.current_step,
+                {"scenario": scenario.name, "error_type": type(e).__name__}
+            ) from e
 
     async def _create_repositories(self, repositories, parameters):
         """Step 1: Create GitHub repositories from templates with content replacements."""
@@ -361,14 +385,12 @@ class CreationPipeline:
                                 f"   ⏭️  FM_TOKEN already exists in environment: {env_name}"
                             )
 
+                    except UnifyAPIError as e:
+                        logger.error(f"Failed to add FM_TOKEN to environment {env_name}: {e}")
+                        # Don't raise - this is not critical for the pipeline
                     except Exception as e:
-                        import traceback
-
-                        print(
-                            f"   ❌ Failed to add FM_TOKEN to environment {env_name}: {e}"
-                        )
-                        print(f"   Debug - env_data keys: {list(env_data.keys())}")
-                        traceback.print_exc()
+                        logger.error(f"Unexpected error adding FM_TOKEN to environment {env_name}: {e}")
+                        # Don't raise - this is not critical for the pipeline
 
     async def _configure_flags_in_environments(self, resolved_scenario):
         """Step 6: Create and configure flags across environments."""

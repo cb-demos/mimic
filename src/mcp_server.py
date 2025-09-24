@@ -1,10 +1,14 @@
+import logging
 from typing import Any
 
 from fastmcp import FastMCP
 
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
+from src.exceptions import PipelineError, ValidationError
 from src.scenarios import get_scenario_manager
+
+logger = logging.getLogger(__name__)
 
 # Create MCP server instance
 mcp = FastMCP("Mimic")
@@ -85,5 +89,12 @@ async def instantiate_scenario(
             "summary": summary,
         }
 
+    except ValidationError as e:
+        logger.error(f"Validation error in MCP scenario instantiation: {e}")
+        raise ValueError(f"Invalid parameters: {str(e)}") from e
+    except PipelineError as e:
+        logger.error(f"Pipeline error in MCP scenario {scenario_id}: {e}")
+        raise ValueError(f"Pipeline execution failed at {e.step}: {str(e)}") from e
     except Exception as e:
+        logger.error(f"Unexpected error in MCP scenario {scenario_id}: {e}")
         raise ValueError(f"Pipeline execution failed: {str(e)}") from e

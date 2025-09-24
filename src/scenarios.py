@@ -1,9 +1,14 @@
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
 import yaml
 from pydantic import BaseModel, Field, field_validator
+
+from .exceptions import ScenarioError, ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterProperty(BaseModel):
@@ -256,7 +261,7 @@ class Scenario(BaseModel):
         """
         if not self.parameter_schema:
             if values:
-                raise ValueError("This scenario doesn't accept parameters")
+                raise ValidationError("This scenario doesn't accept parameters")
             return {}
 
         # Preprocess form data (handle checkboxes, etc.)
@@ -265,33 +270,33 @@ class Scenario(BaseModel):
         # Check required parameters
         for required in self.parameter_schema.required:
             if required not in processed_values:
-                raise ValueError(f"Required parameter '{required}' not provided")
+                raise ValidationError(f"Required parameter '{required}' not provided", required)
 
         # Validate each provided parameter
         for key, value in processed_values.items():
             if key not in self.parameter_schema.properties:
-                raise ValueError(f"Unknown parameter '{key}'")
+                raise ValidationError(f"Unknown parameter '{key}'", key)
 
             prop = self.parameter_schema.properties[key]
 
             # Validate type
             if prop.type == "string" and not isinstance(value, str):
-                raise ValueError(f"Parameter '{key}' must be a string")
+                raise ValidationError(f"Parameter '{key}' must be a string", key, value)
             elif prop.type == "number" and not isinstance(value, int | float):
-                raise ValueError(f"Parameter '{key}' must be a number")
+                raise ValidationError(f"Parameter '{key}' must be a number", key, value)
             elif prop.type == "boolean" and not isinstance(value, bool):
-                raise ValueError(f"Parameter '{key}' must be a boolean")
+                raise ValidationError(f"Parameter '{key}' must be a boolean", key, value)
 
             # Validate pattern if specified
             if prop.pattern and isinstance(value, str):
                 if not re.match(prop.pattern, value):
-                    raise ValueError(
-                        f"Parameter '{key}' doesn't match pattern '{prop.pattern}'"
+                    raise ValidationError(
+                        f"Parameter '{key}' doesn't match pattern '{prop.pattern}'", key, value
                     )
 
             # Validate enum if specified
             if prop.enum and value not in prop.enum:
-                raise ValueError(f"Parameter '{key}' must be one of {prop.enum}")
+                raise ValidationError(f"Parameter '{key}' must be one of {prop.enum}", key, value)
 
         return processed_values
 
@@ -385,9 +390,14 @@ class ScenarioManager:
                 self.scenarios[scenario.id] = scenario
                 print(f"✓ Loaded scenario: {scenario.id} ({yaml_file.name})")
 
+            except yaml.YAMLError as e:
+                error_msg = f"YAML parsing error in {yaml_file.name}: {e}"
+                logger.error(error_msg)
+                raise ScenarioError(error_msg) from e
             except Exception as e:
-                print(f"✗ Failed to load {yaml_file.name}: {e}")
-                raise
+                error_msg = f"Failed to load scenario {yaml_file.name}: {e}"
+                logger.error(error_msg)
+                raise ScenarioError(error_msg) from e
 
     def get_scenario(self, scenario_id: str) -> Scenario | None:
         """Get a scenario by ID."""

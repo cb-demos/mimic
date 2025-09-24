@@ -1,5 +1,6 @@
 import pytest
 
+from src.exceptions import ValidationError
 from src.scenarios import (
     ComputedVariable,
     EnvironmentConfig,
@@ -193,7 +194,7 @@ class TestScenarioTemplateResolution:
             # missing target_org
         }
         with pytest.raises(
-            ValueError, match="Required parameter 'target_org' not provided"
+            ValidationError, match="Required parameter 'target_org' not provided"
         ):
             scenario.validate_input(missing_required)
 
@@ -216,7 +217,7 @@ class TestScenarioTemplateResolution:
             "create_component": "not_a_boolean",
         }
         with pytest.raises(
-            ValueError, match="Parameter 'create_component' must be a boolean"
+            ValidationError, match="Parameter 'create_component' must be a boolean"
         ):
             scenario.validate_input(invalid_params)
 

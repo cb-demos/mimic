@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import os
 from contextlib import asynccontextmanager
 from typing import Any
@@ -11,8 +12,11 @@ from pydantic import BaseModel
 
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
+from src.exceptions import PipelineError, UnifyAPIError, ValidationError
 from src.scenarios import get_scenario_manager, initialize_scenarios
 from src.unify import UnifyAPIClient
+
+logger = logging.getLogger(__name__)
 
 # Dictionary to hold asset hashes for cache busting
 asset_hashes = {}
@@ -196,9 +200,15 @@ async def get_organization_details(request: OrganizationRequest):
             org = org_data["organization"]
             return {"id": org["id"], "displayName": org["displayName"]}
 
-    except Exception as e:
+    except UnifyAPIError as e:
+        logger.error(f"UnifyAPI error fetching organization details: {e}")
         raise HTTPException(
             status_code=400, detail=f"Failed to fetch organization details: {str(e)}"
+        ) from e
+    except Exception as e:
+        logger.error(f"Unexpected error fetching organization details: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch organization details: {str(e)}"
         ) from e
 
 
@@ -251,9 +261,19 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
             "summary": summary,
         }
 
+    except ValidationError as e:
+        logger.error(f"Validation error in scenario instantiation: {e}")
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PipelineError as e:
+        logger.error(f"Pipeline error during scenario {scenario_id}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Pipeline execution failed at {e.step}: {str(e)}"
+        ) from e
     except ValueError as e:
+        logger.error(f"Value error in scenario instantiation: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
+        logger.error(f"Unexpected error during scenario {scenario_id}: {e}")
         raise HTTPException(
             status_code=500, detail=f"Pipeline execution failed: {str(e)}"
         ) from e
