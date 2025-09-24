@@ -270,7 +270,9 @@ class Scenario(BaseModel):
         # Check required parameters
         for required in self.parameter_schema.required:
             if required not in processed_values:
-                raise ValidationError(f"Required parameter '{required}' not provided", required)
+                raise ValidationError(
+                    f"Required parameter '{required}' not provided", required
+                )
 
         # Validate each provided parameter
         for key, value in processed_values.items():
@@ -285,18 +287,24 @@ class Scenario(BaseModel):
             elif prop.type == "number" and not isinstance(value, int | float):
                 raise ValidationError(f"Parameter '{key}' must be a number", key, value)
             elif prop.type == "boolean" and not isinstance(value, bool):
-                raise ValidationError(f"Parameter '{key}' must be a boolean", key, value)
+                raise ValidationError(
+                    f"Parameter '{key}' must be a boolean", key, value
+                )
 
             # Validate pattern if specified
             if prop.pattern and isinstance(value, str):
                 if not re.match(prop.pattern, value):
                     raise ValidationError(
-                        f"Parameter '{key}' doesn't match pattern '{prop.pattern}'", key, value
+                        f"Parameter '{key}' doesn't match pattern '{prop.pattern}'",
+                        key,
+                        value,
                     )
 
             # Validate enum if specified
             if prop.enum and value not in prop.enum:
-                raise ValidationError(f"Parameter '{key}' must be one of {prop.enum}", key, value)
+                raise ValidationError(
+                    f"Parameter '{key}' must be one of {prop.enum}", key, value
+                )
 
         return processed_values
 

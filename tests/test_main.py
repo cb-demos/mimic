@@ -12,11 +12,11 @@ def test_api_root(client: TestClient):
     assert response.json() == {"message": "Welcome to Mimic API"}
 
 
-@patch("src.main.get_scenario_manager")
-def test_ui_root(mock_manager, client: TestClient):
-    # Mock the scenario manager
-    mock_scenario_manager = MagicMock()
-    mock_scenario_manager.list_scenarios.return_value = [
+@patch("src.main.ScenarioService")
+def test_ui_root(mock_service_class, client: TestClient):
+    # Mock the scenario service
+    mock_service = MagicMock()
+    mock_service.list_scenarios.return_value = [
         {"id": "test-scenario", "name": "Test Scenario"}
     ]
     mock_scenario = MagicMock()
@@ -28,8 +28,8 @@ def test_ui_root(mock_manager, client: TestClient):
     mock_scenario.environments = []
     mock_scenario.wip = False
     mock_scenario.parameter_schema = None
-    mock_scenario_manager.get_scenario.return_value = mock_scenario
-    mock_manager.return_value = mock_scenario_manager
+    mock_service.get_scenario.return_value = mock_scenario
+    mock_service_class.return_value = mock_service
 
     # Mock asset_hashes in the template globals
     from src.main import templates

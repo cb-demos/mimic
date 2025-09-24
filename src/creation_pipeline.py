@@ -98,14 +98,14 @@ class CreationPipeline:
             raise PipelineError(
                 f"Pipeline failed at {self.current_step}: {str(e)}",
                 self.current_step,
-                {"scenario": scenario.name, "error_type": type(e).__name__}
+                {"scenario": scenario.name, "error_type": type(e).__name__},
             ) from e
         except Exception as e:
             logger.error(f"Unexpected error during {self.current_step}: {e}")
             raise PipelineError(
                 f"Unexpected error at {self.current_step}: {str(e)}",
                 self.current_step,
-                {"scenario": scenario.name, "error_type": type(e).__name__}
+                {"scenario": scenario.name, "error_type": type(e).__name__},
             ) from e
 
     async def _create_repositories(self, repositories, parameters):
@@ -386,10 +386,14 @@ class CreationPipeline:
                             )
 
                     except UnifyAPIError as e:
-                        logger.error(f"Failed to add FM_TOKEN to environment {env_name}: {e}")
+                        logger.error(
+                            f"Failed to add FM_TOKEN to environment {env_name}: {e}"
+                        )
                         # Don't raise - this is not critical for the pipeline
                     except Exception as e:
-                        logger.error(f"Unexpected error adding FM_TOKEN to environment {env_name}: {e}")
+                        logger.error(
+                            f"Unexpected error adding FM_TOKEN to environment {env_name}: {e}"
+                        )
                         # Don't raise - this is not critical for the pipeline
 
     async def _configure_flags_in_environments(self, resolved_scenario):

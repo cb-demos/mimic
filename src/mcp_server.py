@@ -4,9 +4,8 @@ from typing import Any
 from fastmcp import FastMCP
 
 from src.config import settings
-from src.creation_pipeline import CreationPipeline
 from src.exceptions import PipelineError, ValidationError
-from src.scenarios import get_scenario_manager
+from src.scenario_service import ScenarioService
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +16,8 @@ mcp = FastMCP("Mimic")
 @mcp.tool
 def list_scenarios() -> list[dict[str, Any]]:
     """List all available scenarios with their parameter schemas."""
-    manager = get_scenario_manager()
-    return manager.list_scenarios()
+    service = ScenarioService()
+    return service.list_scenarios()
 
 
 @mcp.tool
@@ -48,12 +47,6 @@ async def instantiate_scenario(
     Returns:
         Dictionary with execution status and summary
     """
-    manager = get_scenario_manager()
-    scenario = manager.get_scenario(scenario_id)
-
-    if not scenario:
-        raise ValueError(f"Scenario '{scenario_id}' not found")
-
     # Validate required environment variables for MCP mode first
     if not settings.UNIFY_API_KEY:
         raise ValueError("UNIFY_API_KEY environment variable is required for MCP mode")
@@ -61,33 +54,17 @@ async def instantiate_scenario(
     if not settings.GITHUB_TOKEN:
         raise ValueError("GITHUB_TOKEN environment variable is required")
 
-    # Use the parameters from the request (or empty dict if None)
-    scenario_parameters = parameters or {}
+    service = ScenarioService()
 
-    # Validate and preprocess input parameters
-    processed_parameters = scenario.validate_input(scenario_parameters)
-
-    # Create and execute pipeline
-    pipeline = CreationPipeline(
-        organization_id=organization_id,
-        endpoint_id=settings.CLOUDBEES_ENDPOINT_ID,
-        invitee_username=invitee_username,
-        unify_pat=settings.UNIFY_API_KEY,
-    )
-
-    # Execute the complete scenario
     try:
-        summary = await pipeline.execute_scenario(scenario, processed_parameters)
-
-        return {
-            "status": "success",
-            "message": "Scenario executed successfully",
-            "scenario_id": scenario_id,
-            "organization_id": organization_id,
-            "invitee_username": invitee_username,
-            "parameters": processed_parameters,
-            "summary": summary,
-        }
+        result = await service.execute_scenario(
+            scenario_id=scenario_id,
+            organization_id=organization_id,
+            unify_pat=settings.UNIFY_API_KEY,
+            invitee_username=invitee_username,
+            parameters=parameters,
+        )
+        return result
 
     except ValidationError as e:
         logger.error(f"Validation error in MCP scenario instantiation: {e}")

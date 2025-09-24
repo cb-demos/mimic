@@ -11,9 +11,9 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from src.config import settings
-from src.creation_pipeline import CreationPipeline
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
-from src.scenarios import get_scenario_manager, initialize_scenarios
+from src.scenario_service import ScenarioService
+from src.scenarios import initialize_scenarios
 from src.unify import UnifyAPIClient
 
 logger = logging.getLogger(__name__)
@@ -85,13 +85,13 @@ class OrganizationRequest(BaseModel):
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):
     """Main UI page showing all scenarios."""
-    manager = get_scenario_manager()
-    scenarios_data = manager.list_scenarios()
+    service = ScenarioService()
+    scenarios_data = service.list_scenarios()
 
     # Process scenarios for the UI
     scenarios = []
     for scenario_data in scenarios_data:
-        scenario = manager.get_scenario(scenario_data["id"])
+        scenario = service.get_scenario(scenario_data["id"])
         if scenario:
             scenario_info = {
                 "id": scenario.id,
@@ -146,15 +146,15 @@ async def health_check():
 @app.get("/scenarios")
 async def list_scenarios():
     """List all available scenarios with their parameter schemas."""
-    manager = get_scenario_manager()
-    return manager.list_scenarios()
+    service = ScenarioService()
+    return service.list_scenarios()
 
 
 @app.get("/scenarios/{scenario_id}")
 async def get_scenario(scenario_id: str):
     """Get details for a specific scenario."""
-    manager = get_scenario_manager()
-    scenario = manager.get_scenario(scenario_id)
+    service = ScenarioService()
+    scenario = service.get_scenario(scenario_id)
     if not scenario:
         raise HTTPException(
             status_code=404, detail=f"Scenario '{scenario_id}' not found"
@@ -225,41 +225,17 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     5. Create applications linking components and environments
     6. Configure flags across environments
     """
-    manager = get_scenario_manager()
-    scenario = manager.get_scenario(scenario_id)
-
-    if not scenario:
-        raise HTTPException(
-            status_code=404, detail=f"Scenario '{scenario_id}' not found"
-        )
-
-    # Default empty dict if None
-    parameters = request.parameters or {}
+    service = ScenarioService()
 
     try:
-        # Validate and preprocess input parameters
-        processed_parameters = scenario.validate_input(parameters)
-
-        # Create and execute pipeline
-        pipeline = CreationPipeline(
+        result = await service.execute_scenario(
+            scenario_id=scenario_id,
             organization_id=request.organization_id,
-            endpoint_id=settings.CLOUDBEES_ENDPOINT_ID,
-            invitee_username=request.invitee_username,
             unify_pat=request.unify_pat,
+            invitee_username=request.invitee_username,
+            parameters=request.parameters,
         )
-
-        # Execute the complete scenario
-        summary = await pipeline.execute_scenario(scenario, processed_parameters)
-
-        return {
-            "status": "success",
-            "message": "Scenario executed successfully",
-            "scenario_id": scenario_id,
-            "parameters": processed_parameters,
-            "organization_id": request.organization_id,
-            "invitee_username": request.invitee_username,
-            "summary": summary,
-        }
+        return result
 
     except ValidationError as e:
         logger.error(f"Validation error in scenario instantiation: {e}")

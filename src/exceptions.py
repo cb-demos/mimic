@@ -9,6 +9,7 @@ from typing import Any
 
 class MimicError(Exception):
     """Base exception for all Mimic operations."""
+
     pass
 
 
@@ -41,7 +42,12 @@ class ScenarioError(MimicError):
 class GitHubError(MimicError):
     """GitHub API and operations errors."""
 
-    def __init__(self, message: str, status_code: int | None = None, response_text: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        response_text: str | None = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.response_text = response_text
@@ -50,7 +56,12 @@ class GitHubError(MimicError):
 class UnifyAPIError(MimicError):
     """CloudBees Unify API errors."""
 
-    def __init__(self, message: str, status_code: int | None = None, response_text: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        response_text: str | None = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
         self.response_text = response_text
