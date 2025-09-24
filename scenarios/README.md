@@ -1,88 +1,213 @@
-# Scenario Authoring Guide
+# Scenario Templating System API Reference
 
-Scenarios are YAML files that define complete CloudBees demo environments including repositories, components, environments, applications, and feature flags.
+Scenarios are YAML files defining complete CloudBees demo environments with repositories, components, environments, applications, and feature flags.
 
-## Basic Structure
+## Core Structure
 
 ```yaml
-id: my-scenario
-name: My Demo Scenario  
-description: A complete demo environment
-repositories:
-  - source: template-org/template-repo
-    target_org: "${target_org}"
-    repo_name_template: "${project_name}-web"
-    create_component: true
-    replacements:
-      PROJECT_NAME: "${project_name}"
-    files_to_modify:
-      - README.md
-applications:
-  - name: "${project_name}-app"
-    repository: "${target_org}/${project_name}-app"
-    components:
-      - "${project_name}-web"
-    environments:
-      - "${project_name}-prod"
-environments:
-  - name: "${project_name}-prod"
-    env:
-      - name: ENV_VAR
-        value: production
-flags:
-  - name: new-feature
-    type: boolean
-parameter_schema:
-  properties:
-    project_name:
-      type: string
-      description: Name for the project
-    target_org:
-      type: string 
-      description: GitHub organization to create repositories in
-  required:
-    - project_name
-    - target_org
+id: scenario-id                    # Required: Unique scenario identifier
+name: Display Name                 # Required: Human-readable scenario name
+description: Brief description     # Required: What this scenario creates
+wip: true                         # Optional: Mark as work-in-progress
 ```
 
 ## Template Variables
 
-Use `${variable_name}` syntax for dynamic values:
-- Custom parameters defined in `parameter_schema`
+Use `${variable_name}` syntax for dynamic substitution throughout any YAML value:
+- Parameters from `parameter_schema`
+- Computed variables from `computed_variables`
 
 ## Repository Configuration
 
-- `source`: Template repository in `org/repo` format
-- `target_org`: GitHub organization for new repositories
-- `repo_name_template`: Name pattern for created repository
-- `create_component`: Whether to create a CloudBees component
-- `replacements`: String replacements in repository files
-- `files_to_modify`: Files to apply replacements to
-- `secrets`: Repository secrets to create
+```yaml
+repositories:
+  - source: "org/repo"                      # Required: template repo (org/repo format)
+    target_org: "${target_org}"             # Required: destination GitHub org
+    repo_name_template: "${project_name}"   # Required: new repository name
+    create_component: true                   # Optional: create CloudBees component (boolean or template)
+
+    # Content modification
+    replacements:                            # Optional: string replacements in files
+      OLD_TEXT: "${new_value}"
+      PROJECT_NAME: "${project_name}"
+    files_to_modify:                         # Required if replacements: files to modify
+      - README.md
+      - package.json
+
+    # GitHub Actions secrets
+    secrets:                                 # Optional: repository secrets to create
+      SECRET_NAME: "${secret_value}"
+      API_KEY: "hardcoded-value"
+
+    # Conditional file operations
+    conditional_file_operations:             # Optional: file moves based on parameters
+      - condition_parameter: "auto_setup"    # Parameter that controls operation
+        operation: "move"                    # Operation type (move, copy, delete)
+        when_true:                           # Operations when parameter is true
+          "source.yaml": ".cloudbees/workflows/source.yaml"
+        when_false:                          # Operations when parameter is false
+          "source.yaml": "unused/source.yaml"
+```
+
+## Environment Configuration
+
+```yaml
+environments:
+  - name: "${env_name}"                      # Required: environment name
+    env:                                     # Optional: environment variables
+      - name: "NAMESPACE"                    # Variable name
+        value: "${project_name}-prod"        # Variable value (supports templates)
+    create_fm_token_var: true               # Optional: auto-create FM_TOKEN from SDK key
+    flags:                                   # Optional: flags to enable in this environment
+      - "feature-toggle"
+      - "debug-mode"
+```
+
+## Application Configuration
+
+```yaml
+applications:
+  - name: "${app_name}"                      # Required: application name
+    repository: "${target_org}/${repo_name}" # Optional: primary repository URL
+    components:                              # Optional: linked component names
+      - "${project_name}-web"
+      - "${project_name}-api"
+    environments:                            # Optional: linked environment names
+      - "${project_name}-prod"
+      - "${project_name}-staging"
+```
+
+## Feature Flags
+
+```yaml
+flags:
+  - name: "feature-name"                     # Required: flag name
+    type: "boolean"                          # Required: boolean, string, number
+```
 
 ## Parameter Schema
 
-Define required and optional parameters:
+Define user inputs with validation:
 
 ```yaml
 parameter_schema:
   properties:
     param_name:
-      type: string|number|boolean
-      description: Human-readable description
-      pattern: "^[a-z-]+$"  # Optional regex validation
-      enum: ["option1", "option2"]  # Optional allowed values
-      default: "default-value"  # Optional default
-  required:
+      type: string                           # Required: string, number, boolean
+      description: "User-facing description" # Optional: help text
+      placeholder: "example-value"           # Optional: input placeholder
+      pattern: "^[a-z0-9-]+$"               # Optional: regex validation
+      enum: ["dev", "staging", "prod"]       # Optional: allowed values
+      default: "default-value"               # Optional: default value
+  required:                                  # Optional: list of required parameters
     - param_name
 ```
 
+## Computed Variables
+
+Create variables from other parameters:
+
+```yaml
+computed_variables:
+  computed_name:
+    default_from: "source_parameter"         # Use this parameter's value if non-empty
+    fallback_template: "${other_param}-suffix" # Use this template if source_parameter is empty
+```
+
+## Template Variable Resolution Order
+
+1. User-provided parameters (from `parameter_schema`)
+2. Computed variables (processed in definition order)
+3. Template substitution using `${variable_name}` syntax
+4. Type conversion (string booleans → actual booleans)
+
+## File Operations
+
+### Content Replacements
+Applied to files listed in `files_to_modify`:
+- String-based find/replace using `replacements` map
+- Supports template variables in replacement values
+
+### Conditional File Operations
+Based on boolean parameter values:
+- `move`: Relocate files (delete source, create destination)
+- `copy`: Duplicate files (keep source, create destination)
+- `delete`: Remove files
+
+### GitHub Actions Secrets
+Automatically encrypted and stored as repository secrets:
+- Uses repository's public key for encryption
+- Supports template variables in secret values
+
+## Validation Rules
+
+### Startup Validation
+- YAML syntax correctness
+- Required fields presence
+- Schema structure validation
+- Source repository format (`org/repo`)
+
+### Runtime Validation
+- Parameter type checking
+- Required parameter presence
+- Pattern matching (regex)
+- Enum value validation
+- Template variable resolution
+
+## Processing Pipeline
+
+1. **Repository Creation**: Clone from templates, apply content modifications
+2. **Component Creation**: Create CloudBees components for flagged repositories
+3. **Flag Storage**: Store flag definitions for later application creation
+4. **Environment Creation**: Create environments with custom variables
+5. **Application Creation**: Link components and environments
+6. **FM_TOKEN Injection**: Add SDK keys to environments requiring them
+7. **Flag Configuration**: Enable flags across specified environments (initially off)
+
 ## Examples
 
-See existing scenarios:
-- `hackers-app.yaml` - Full application with multiple repos
-- `hackers-organized.yaml` - Simple single repository
+### Simple Single Repository
+```yaml
+id: basic-demo
+name: Basic Demo
+description: Single repository setup
+repositories:
+  - source: "templates/basic-app"
+    target_org: "${target_org}"
+    repo_name_template: "${project_name}"
+    create_component: false
+parameter_schema:
+  properties:
+    project_name:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+    target_org:
+      type: string
+  required: [project_name, target_org]
+```
 
-## Validation
-
-Scenarios are validated on startup. Check logs for syntax errors or missing required fields.
+### More complex setup
+```yaml
+id: microservices
+name: Microservices Demo
+description: Multi-service application with feature flags
+repositories:
+  - source: "templates/web-app"
+    target_org: "${target_org}"
+    repo_name_template: "${project_name}-web"
+    create_component: true
+    replacements:
+      PROJECT_NAME: "${project_name}"
+    files_to_modify: ["README.md", "package.json"]
+applications:
+  - name: "${project_name}-app"
+    components: ["${project_name}-web"]
+    environments: ["${project_name}-prod"]
+environments:
+  - name: "${project_name}-prod"
+    create_fm_token_var: true
+    flags: ["new-ui"]
+flags:
+  - name: "new-ui"
+    type: boolean
+```
