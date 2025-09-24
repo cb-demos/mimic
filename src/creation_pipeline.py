@@ -49,8 +49,8 @@ class CreationPipeline:
         print("=" * 60)
 
         # Validate and resolve template variables
-        scenario.validate_input(parameters)
-        resolved_scenario = scenario.resolve_template_variables(parameters)
+        processed_parameters = scenario.validate_input(parameters)
+        resolved_scenario = scenario.resolve_template_variables(processed_parameters)
 
         try:
             # Step 1: Create repositories (with content replacements)

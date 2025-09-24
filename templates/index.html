@@ -116,7 +116,7 @@
                             </label>
 
                             {% if param_name == 'target_org' %}
-                            <dropdown-selector 
+                            <dropdown-selector
                                 id="{{ param_name }}_{{ scenario.id }}"
                                 storage-key="mimic_github_orgs"
                                 selected-key="mimic_selected_github_org"
@@ -126,6 +126,9 @@
                                 value-field="name"
                                 truncate-length="0">
                             </dropdown-selector>
+                            {% elif param_info.type == 'boolean' %}
+                            <input type="checkbox" name="{{ param_name }}" id="{{ param_name }}_{{ scenario.id }}"
+                                   {% if param_info.default %}checked{% endif %}>
                             {% elif param_info.enum %}
                             <select name="{{ param_name }}" id="{{ param_name }}_{{ scenario.id }}" {% if
                                 param_info.required %}required{% endif %}>
@@ -138,7 +141,7 @@
                             <input type="text" name="{{ param_name }}" id="{{ param_name }}_{{ scenario.id }}" {% if
                                 param_info.required %}required{% endif %} {% if param_info.pattern
                                 %}pattern="{{ param_info.pattern }}" {% endif %}
-                                placeholder="{{ param_info.description or param_name.replace('_', ' ') }}">
+                                placeholder="{{ param_info.placeholder or param_info.description or param_name.replace('_', ' ') }}">
                             {% endif %}
 
                             {% if param_info.description %}

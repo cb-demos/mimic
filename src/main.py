@@ -106,6 +106,7 @@ async def root(request: Request):
                     scenario_info["parameters"][prop_name] = {
                         "type": prop.type,
                         "description": prop.description,
+                        "placeholder": prop.placeholder,
                         "pattern": prop.pattern,
                         "enum": prop.enum,
                         "required": prop_name in scenario.parameter_schema.required,
@@ -169,6 +170,7 @@ async def get_scenario(scenario_id: str):
             schema_dict[prop_name] = {
                 "type": prop.type,
                 "description": prop.description,
+                "placeholder": prop.placeholder,
                 "pattern": prop.pattern,
                 "enum": prop.enum,
                 "required": prop_name in scenario.parameter_schema.required,
@@ -225,8 +227,8 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     parameters = request.parameters or {}
 
     try:
-        # Validate input parameters
-        scenario.validate_input(parameters)
+        # Validate and preprocess input parameters
+        processed_parameters = scenario.validate_input(parameters)
 
         # Create and execute pipeline
         pipeline = CreationPipeline(
@@ -237,13 +239,13 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
         )
 
         # Execute the complete scenario
-        summary = await pipeline.execute_scenario(scenario, parameters)
+        summary = await pipeline.execute_scenario(scenario, processed_parameters)
 
         return {
             "status": "success",
             "message": "Scenario executed successfully",
             "scenario_id": scenario_id,
-            "parameters": parameters,
+            "parameters": processed_parameters,
             "organization_id": request.organization_id,
             "invitee_username": request.invitee_username,
             "summary": summary,

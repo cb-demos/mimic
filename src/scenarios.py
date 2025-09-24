@@ -12,6 +12,7 @@ class ParameterProperty(BaseModel):
     type: str
     pattern: str | None = None
     description: str | None = None
+    placeholder: str | None = None
     default: Any = None
     enum: list[str] | None = None
 
@@ -29,7 +30,9 @@ class RepositoryConfig(BaseModel):
     source: str  # template_org/template_repo format
     target_org: str  # Target GitHub organization
     repo_name_template: str
-    create_component: bool = False  # Whether to create a CloudBees component
+    create_component: bool | str = (
+        False  # Whether to create a CloudBees component (can be template string)
+    )
     replacements: dict[str, str] = Field(default_factory=dict)
     files_to_modify: list[str] = Field(default_factory=list)
     secrets: dict[str, str] = Field(default_factory=dict)
@@ -56,6 +59,13 @@ class EnvironmentConfig(BaseModel):
     env: list[EnvironmentVariable] = Field(default_factory=list)
     create_fm_token_var: bool = False  # Whether to create FM_TOKEN secret
     flags: list[str] = Field(default_factory=list)  # List of flag names to configure
+
+
+class ComputedVariable(BaseModel):
+    """Configuration for a computed variable."""
+
+    default_from: str  # Parameter name to use as default
+    fallback_template: str  # Template to use if default_from is empty/missing
 
 
 class FlagConfig(BaseModel):
@@ -85,6 +95,7 @@ class Scenario(BaseModel):
     environments: list[EnvironmentConfig] = Field(default_factory=list)
     flags: list[FlagConfig] = Field(default_factory=list)
     parameter_schema: ParameterSchema | None = None
+    computed_variables: dict[str, ComputedVariable] = Field(default_factory=dict)
     wip: bool = False
 
     def resolve_template_variables(self, values: dict[str, Any]) -> "Scenario":
@@ -99,6 +110,35 @@ class Scenario(BaseModel):
         """
         import json
 
+        # Create a copy of values and add computed variables
+        resolved_values = values.copy()
+
+        # Process computed variables
+        for var_name, computed_var in self.computed_variables.items():
+            # Check if the default_from parameter has a non-empty value
+            if (
+                computed_var.default_from in resolved_values
+                and resolved_values[computed_var.default_from]
+                and str(resolved_values[computed_var.default_from]).strip()
+            ):
+                # Use the value from default_from parameter
+                resolved_values[var_name] = resolved_values[computed_var.default_from]
+            else:
+                # Use the fallback template - need to resolve it first
+                fallback_pattern = re.compile(r"\$\{([^}]+)\}")
+
+                def fallback_replacer(match, current_var_name=var_name):
+                    fallback_var_name = match.group(1)
+                    if fallback_var_name not in resolved_values:
+                        raise ValueError(
+                            f"Variable '{fallback_var_name}' not provided in values for computed variable '{current_var_name}'"
+                        )
+                    return str(resolved_values[fallback_var_name])
+
+                resolved_values[var_name] = fallback_pattern.sub(
+                    fallback_replacer, computed_var.fallback_template
+                )
+
         # Convert scenario to dict for easier manipulation
         scenario_dict = json.loads(self.model_dump_json())
 
@@ -111,11 +151,11 @@ class Scenario(BaseModel):
                 # Replace all ${var} patterns with actual values
                 def replacer(match):
                     var_name = match.group(1)
-                    if var_name not in values:
+                    if var_name not in resolved_values:
                         raise ValueError(
                             f"Variable '{var_name}' not provided in values"
                         )
-                    return str(values[var_name])
+                    return str(resolved_values[var_name])
 
                 return pattern.sub(replacer, value)
             elif isinstance(value, dict):
@@ -128,15 +168,72 @@ class Scenario(BaseModel):
         # Apply replacements throughout the scenario
         resolved = replace_in_value(scenario_dict)
 
+        # Post-process resolved data to convert string booleans to actual booleans
+        self._convert_string_booleans(resolved)
+
         # Create a new Scenario instance from the resolved dict
         return Scenario(**resolved)
 
-    def validate_input(self, values: dict[str, Any]) -> None:
+    def _convert_string_booleans(self, data: Any) -> None:
+        """Convert string representations of booleans to actual boolean values."""
+        if isinstance(data, dict):
+            for key, value in data.items():
+                if key == "create_component" and isinstance(value, str):
+                    # Convert string boolean to actual boolean
+                    if value.lower() == "true":
+                        data[key] = True
+                    elif value.lower() == "false":
+                        data[key] = False
+                elif isinstance(value, dict | list):
+                    self._convert_string_booleans(value)
+        elif isinstance(data, list):
+            for item in data:
+                self._convert_string_booleans(item)
+
+    def _preprocess_form_data(self, values: dict[str, Any]) -> dict[str, Any]:
+        """
+        Preprocess form data to handle checkbox values and other form-specific conversions.
+
+        Args:
+            values: Raw form data
+
+        Returns:
+            Processed values with proper types
+        """
+        if not self.parameter_schema:
+            return values
+
+        processed = values.copy()
+
+        for prop_name, prop in self.parameter_schema.properties.items():
+            if prop.type == "boolean":
+                # Handle checkbox form data: missing = False, "on" = True, actual boolean = pass through
+                if prop_name in processed:
+                    value = processed[prop_name]
+                    if value == "on" or value == "true" or value is True:
+                        processed[prop_name] = True
+                    elif (
+                        value == "off"
+                        or value == "false"
+                        or value == ""
+                        or value is False
+                    ):
+                        processed[prop_name] = False
+                else:
+                    # Checkbox not present in form = False
+                    processed[prop_name] = False
+
+        return processed
+
+    def validate_input(self, values: dict[str, Any]) -> dict[str, Any]:
         """
         Validate input values against the parameter schema.
 
         Args:
             values: Dictionary of parameter values to validate
+
+        Returns:
+            Preprocessed and validated parameter values
 
         Raises:
             ValueError: If validation fails
@@ -144,15 +241,18 @@ class Scenario(BaseModel):
         if not self.parameter_schema:
             if values:
                 raise ValueError("This scenario doesn't accept parameters")
-            return
+            return {}
+
+        # Preprocess form data (handle checkboxes, etc.)
+        processed_values = self._preprocess_form_data(values)
 
         # Check required parameters
         for required in self.parameter_schema.required:
-            if required not in values:
+            if required not in processed_values:
                 raise ValueError(f"Required parameter '{required}' not provided")
 
         # Validate each provided parameter
-        for key, value in values.items():
+        for key, value in processed_values.items():
             if key not in self.parameter_schema.properties:
                 raise ValueError(f"Unknown parameter '{key}'")
 
@@ -176,6 +276,8 @@ class Scenario(BaseModel):
             # Validate enum if specified
             if prop.enum and value not in prop.enum:
                 raise ValueError(f"Parameter '{key}' must be one of {prop.enum}")
+
+        return processed_values
 
 
 class ScenarioManager:
@@ -218,6 +320,13 @@ class ScenarioManager:
                         properties=properties,
                         required=data["parameter_schema"].get("required", []),
                     )
+
+                # Parse computed variables if present
+                if "computed_variables" in data and data["computed_variables"]:
+                    computed_vars = {}
+                    for var_name, var_data in data["computed_variables"].items():
+                        computed_vars[var_name] = ComputedVariable(**var_data)
+                    data["computed_variables"] = computed_vars
 
                 # Parse repository configs
                 repos = []
@@ -278,6 +387,7 @@ class ScenarioManager:
                     schema_dict[prop_name] = {
                         "type": prop.type,
                         "description": prop.description,
+                        "placeholder": prop.placeholder,
                         "pattern": prop.pattern,
                         "enum": prop.enum,
                         "required": prop_name in scenario.parameter_schema.required,

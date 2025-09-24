@@ -402,6 +402,17 @@ a {
   box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
 }
 
+/* Checkbox specific styles */
+.form-group input[type="checkbox"] {
+  width: auto;
+  height: 18px;
+  width: 18px;
+  margin: 0;
+  cursor: pointer;
+  align-self: flex-start;
+  accent-color: #806FF6;
+}
+
 /* Security-related field descriptions */
 .form-group .description {
   font-size: 12px;

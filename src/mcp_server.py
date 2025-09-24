@@ -75,8 +75,8 @@ async def instantiate_scenario(
     if target_org:
         parameters["target_org"] = target_org
 
-    # Validate input parameters
-    scenario.validate_input(parameters)
+    # Validate and preprocess input parameters
+    processed_parameters = scenario.validate_input(parameters)
 
     # Create and execute pipeline
     pipeline = CreationPipeline(
@@ -88,7 +88,7 @@ async def instantiate_scenario(
 
     # Execute the complete scenario
     try:
-        summary = await pipeline.execute_scenario(scenario, parameters)
+        summary = await pipeline.execute_scenario(scenario, processed_parameters)
 
         return {
             "status": "success",
