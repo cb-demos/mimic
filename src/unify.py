@@ -361,7 +361,9 @@ class UnifyAPIClient:
         """Delete a CloudBees environment"""
         try:
             # Environments are deleted via the resources/endpoints pattern
-            self._make_request("DELETE", f"/v1/resources/{org_id}/endpoints/{env_id}", json={})
+            self._make_request(
+                "DELETE", f"/v1/resources/{org_id}/endpoints/{env_id}", json={}
+            )
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
                 # Environment not found - consider this success for cleanup purposes

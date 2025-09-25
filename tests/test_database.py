@@ -157,8 +157,8 @@ async def test_session_management(test_db):
         "session123", "user@example.com", "test-scenario", expires_at, session_params
     )
 
-    # Retrieve user sessions
-    sessions = await db.get_user_sessions("user@example.com")
+    # Retrieve user sessions (including empty ones for this test)
+    sessions = await db.get_user_sessions("user@example.com", include_empty=True)
     assert len(sessions) == 1
 
     session = sessions[0]
@@ -229,7 +229,7 @@ async def test_user_sessions_with_resource_count(test_db):
 
     # Second session has no resources
 
-    sessions = await db.get_user_sessions("user@example.com")
+    sessions = await db.get_user_sessions("user@example.com", include_empty=True)
     assert len(sessions) == 2
 
     # Find sessions by ID (order might vary)

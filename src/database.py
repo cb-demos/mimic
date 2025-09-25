@@ -230,20 +230,41 @@ class Database:
             ),
         )
 
-    async def get_user_sessions(self, email: str) -> list[aiosqlite.Row]:
-        """Get all active sessions for a user that have active resources."""
-        return await self.fetchall(
-            """
-            SELECT s.*, COUNT(r.id) as resource_count
-            FROM resource_sessions s
-            LEFT JOIN resources r ON s.id = r.session_id AND r.status = 'active'
-            WHERE s.email = ? AND s.status = 'active'
-            GROUP BY s.id, s.email, s.scenario_id, s.created_at, s.expires_at, s.status, s.parameters
-            HAVING COUNT(r.id) > 0
-            ORDER BY s.created_at DESC
-            """,
-            (email,),
-        )
+    async def get_user_sessions(
+        self, email: str, include_empty: bool = False
+    ) -> list[aiosqlite.Row]:
+        """Get active sessions for a user with resource counts.
+
+        Args:
+            email: User's email address
+            include_empty: If True, include sessions with 0 resources
+        """
+        if include_empty:
+            return await self.fetchall(
+                """
+                SELECT s.*,
+                       (SELECT COUNT(*) FROM resources r
+                        WHERE r.session_id = s.id AND r.status = 'active') as resource_count
+                FROM resource_sessions s
+                WHERE s.email = ? AND s.status = 'active'
+                ORDER BY s.created_at DESC
+                """,
+                (email,),
+            )
+        else:
+            return await self.fetchall(
+                """
+                SELECT s.*,
+                       (SELECT COUNT(*) FROM resources r
+                        WHERE r.session_id = s.id AND r.status = 'active') as resource_count
+                FROM resource_sessions s
+                WHERE s.email = ? AND s.status = 'active'
+                  AND (SELECT COUNT(*) FROM resources r
+                       WHERE r.session_id = s.id AND r.status = 'active') > 0
+                ORDER BY s.created_at DESC
+                """,
+                (email,),
+            )
 
     async def get_session_resources(self, session_id: str) -> list[aiosqlite.Row]:
         """Get all resources for a session."""
@@ -299,7 +320,8 @@ class Database:
     async def mark_session_deleted(self, session_id: str) -> None:
         """Mark a session as deleted."""
         await self.execute(
-            "UPDATE resource_sessions SET status = 'deleted' WHERE id = ?", (session_id,)
+            "UPDATE resource_sessions SET status = 'deleted' WHERE id = ?",
+            (session_id,),
         )
 
 

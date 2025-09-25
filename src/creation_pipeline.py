@@ -5,7 +5,6 @@ Orchestrates the setup of a complete scenario including repos, components, envir
 
 import asyncio
 import logging
-import uuid
 from typing import Any
 
 from .database import get_database
