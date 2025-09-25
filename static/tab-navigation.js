@@ -99,7 +99,7 @@ class TabNavigation extends HTMLElement {
 
         /* Badge styling for tab buttons */
         .tab-badge {
-          background: #dc2626;
+          background: #806FF6;
           color: white;
           font-size: 0.75rem;
           font-weight: 600;

@@ -22,11 +22,8 @@ class CleanupDashboard extends HTMLElement {
   connectedCallback() {
     this.render();
 
-    // Only auto-load data if this tab is currently active
-    const cleanupTab = document.querySelector('tab-navigation');
-    if (cleanupTab && cleanupTab.getActiveTab && cleanupTab.getActiveTab() === 'cleanup') {
-      this.refreshData();
-    }
+    // Initial data load
+    this.refreshData();
 
     // Auto-refresh every 30 seconds
     this.refreshInterval = setInterval(this.refreshData, 30000);
@@ -34,11 +31,10 @@ class CleanupDashboard extends HTMLElement {
     // Listen for tab changes to refresh data when tab becomes active
     document.addEventListener('tab-change', (event) => {
       if (event.detail.activeTab === 'cleanup') {
-        // Only refresh if we don't have data yet
-        if (this.state.sessions.length === 0 && !this.state.error) {
-          // Small delay to ensure DOM is ready
-          setTimeout(() => this.refreshData(), 100);
-        }
+        // Data is already being refreshed periodically, but we can force a refresh
+        // if needed, or just rely on the interval.
+        // For now, we can just log that the tab is active.
+        console.log('Cleanup tab is now active.');
       }
     });
   }
@@ -636,13 +632,13 @@ class CleanupDashboard extends HTMLElement {
   }
 
   updateTabBadge() {
-    const totalResources = this.state.sessions.reduce((sum, session) => sum + (session.resource_count || 0), 0);
+    const totalSessions = this.state.sessions.length;
 
     // Dispatch a custom event instead of DOM traversal
     this.dispatchEvent(new CustomEvent('badge-update', {
       detail: {
         tabId: 'cleanup',
-        count: totalResources
+        count: totalSessions
       },
       bubbles: true
     }));
