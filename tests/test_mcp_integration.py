@@ -83,7 +83,7 @@ class TestMCPIntegration:
                     {
                         "scenario_id": "nonexistent",
                         "organization_id": "test-org",
-                        "email": "test@cloudbees.com"
+                        "email": "test@cloudbees.com",
                     },
                 )
 

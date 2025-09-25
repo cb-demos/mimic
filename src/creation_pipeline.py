@@ -681,12 +681,16 @@ class CreationPipeline:
         print(f"     Checking collaboration status for {username}...")
 
         # Check if user is already a collaborator
-        is_collaborator = await self.github.check_user_collaboration(owner, repo, username)
+        is_collaborator = await self.github.check_user_collaboration(
+            owner, repo, username
+        )
         if is_collaborator:
             print(f"     ⏭️  {username} is already a collaborator on {owner}/{repo}")
         else:
             print(f"     Inviting {username} as admin collaborator...")
-            success = await self.github.invite_collaborator(owner, repo, username, "admin")
+            success = await self.github.invite_collaborator(
+                owner, repo, username, "admin"
+            )
             if success:
                 print(f"     ✅ {username} invited as collaborator to {owner}/{repo}")
             else:

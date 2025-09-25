@@ -376,11 +376,14 @@ POST /mcp
 4. ✅ Initialize database on app startup
 5. ✅ Add session creation with user context
 
-### Phase 3: Resource Tracking Integration
-1. Modify `CreationPipeline` to register resources to sessions
-2. Update scenario instantiation to create sessions and track resources
-3. Test full resource creation → tracking flow via UI
-4. Add user context to all resource operations
+### ✅ Phase 3: Resource Tracking Integration (COMPLETED)
+1. ✅ Modify `CreationPipeline` to register resources to sessions
+2. ✅ Update scenario instantiation to create sessions and track resources
+3. ✅ Add user context and GitHub PAT handling to all resource operations
+4. ✅ Register ALL resources (GitHub repos, CloudBees components, environments, applications)
+5. ✅ Exclude feature flags from cleanup (shared resources)
+6. ✅ Add comprehensive test coverage (75 passing tests)
+7. ✅ Implement robust error handling for resource registration
 
 ### Phase 4: Cleanup UI & Manual Operations
 1. Add cleanup dashboard UI (`/cleanup` page) showing user's sessions
@@ -405,6 +408,36 @@ POST /mcp
 2. Performance testing and optimization
 3. Deployment configuration and monitoring
 4. Documentation updates
+
+## Future Enhancements
+
+### Transactional Resource Creation (Post-MVP)
+**Problem**: Currently if resource creation fails midway through a scenario, partially created resources remain and need manual cleanup.
+
+**Solution**: Implement atomic scenario creation with rollback capability:
+1. **Pre-creation validation**: Validate all parameters and check resource availability before creating anything
+2. **Two-phase creation**:
+   - Phase 1: Create all resources and mark them as "provisional"
+   - Phase 2: Mark all resources as "active" only if the entire scenario succeeds
+3. **Automatic rollback**: If any step fails, automatically clean up all provisional resources
+4. **Database transactions**: Use database transactions to ensure resource tracking consistency
+
+**Implementation considerations**:
+- Would require modifications to both GitHub and CloudBees APIs to support "draft" resources
+- Alternative: Create resources normally but maintain a "creation transaction" that can trigger cleanup
+- Could be implemented as a wrapper around the existing CreationPipeline
+
+**Priority**: Medium (implement after basic cleanup system is stable and proven)
+
+### Enhanced Error Recovery
+- Retry logic for transient API failures
+- Partial scenario recovery (continue from last successful step)
+- User notification system for failed operations
+
+### Advanced Resource Management
+- Resource dependencies and ordered cleanup
+- Resource sharing between scenarios
+- Resource lifecycle management (expire after N days)
 
 ## Security Considerations
 

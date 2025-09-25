@@ -99,7 +99,9 @@ class ScenarioService:
                 logger.info(f"Using default service account GitHub PAT for {email}")
         except Exception as e:
             # If user doesn't have a GitHub PAT or it fails, use service account
-            logger.info(f"Using default service account GitHub PAT for {email} (fallback: {e})")
+            logger.info(
+                f"Using default service account GitHub PAT for {email} (fallback: {e})"
+            )
 
         # Create and execute pipeline
         pipeline = CreationPipeline(

@@ -146,7 +146,9 @@ class CleanupService:
 
                 elif resource_type == "cloudbees_flag":
                     # Feature flags are shared resources and should NOT be cleaned up
-                    logger.info(f"Skipping cleanup of CloudBees flag {resource_ref} (shared resource)")
+                    logger.info(
+                        f"Skipping cleanup of CloudBees flag {resource_ref} (shared resource)"
+                    )
                     return
 
                 else:
