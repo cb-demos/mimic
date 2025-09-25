@@ -657,6 +657,12 @@ class ScenarioForm {
             if (response.ok) {
                 this.showExecutionResults(result);
                 this.showMessage('Scenario executed successfully!', 'success');
+
+                // Refresh cleanup dashboard to show new resources
+                const cleanupDashboard = document.getElementById('cleanup-dashboard');
+                if (cleanupDashboard && typeof cleanupDashboard.refreshData === 'function') {
+                    setTimeout(() => cleanupDashboard.refreshData(), 1000);
+                }
             } else {
                 // Handle authentication errors
                 if (response.status === 401) {
@@ -699,21 +705,33 @@ class ScenarioForm {
     showMessage(message, type = 'info') {
         // Remove existing messages
         document.querySelectorAll('.status-message').forEach(msg => msg.remove());
-        
+
         const messageEl = document.createElement('div');
         messageEl.className = `status-message ${type}`;
         messageEl.textContent = message;
-        
-        // Insert before the scenario grid (after the h1 and description)
-        const scenarioGrid = document.querySelector('.scenario-grid');
-        if (scenarioGrid) {
-            scenarioGrid.insertAdjacentElement('beforebegin', messageEl);
+
+        // Try to insert into the active tab's content area
+        const activeTabPanel = document.querySelector('tab-navigation .tab-panel.active');
+        if (activeTabPanel) {
+            // Look for the scenario grid within the active tab
+            const scenarioGrid = activeTabPanel.querySelector('.scenario-grid');
+            if (scenarioGrid) {
+                scenarioGrid.insertAdjacentElement('beforebegin', messageEl);
+            } else {
+                // Insert at beginning of active tab
+                activeTabPanel.insertBefore(messageEl, activeTabPanel.firstChild);
+            }
         } else {
-            // Fallback to beginning of content if scenario grid not found
-            const target = document.querySelector('.sheet-content') || document.body;
-            target.insertBefore(messageEl, target.firstChild);
+            // Fallback to legacy approach if tabs not found
+            const scenarioGrid = document.querySelector('.scenario-grid');
+            if (scenarioGrid) {
+                scenarioGrid.insertAdjacentElement('beforebegin', messageEl);
+            } else {
+                const target = document.querySelector('.sheet-content') || document.body;
+                target.insertBefore(messageEl, target.firstChild);
+            }
         }
-        
+
         // Auto-remove after 5 seconds for success messages
         if (type === 'success') {
             setTimeout(() => messageEl.remove(), 5000);
@@ -826,6 +844,21 @@ class AuthManager {
 
         if (authComponent) authComponent.style.display = 'none';
         if (mainContent) mainContent.style.display = 'block';
+
+        // Set user email in cleanup dashboard
+        const userData = this.getCurrentUser();
+        if (userData && userData.email) {
+            const cleanupDashboard = document.getElementById('cleanup-dashboard');
+            if (cleanupDashboard) {
+                cleanupDashboard.setAttribute('user-email', userData.email);
+            }
+
+            // Update current user email in settings
+            const currentUserEmail = document.getElementById('current_user_email');
+            if (currentUserEmail) {
+                currentUserEmail.textContent = userData.email;
+            }
+        }
 
         // Initialize main app components
         SettingsManager.init();

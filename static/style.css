@@ -40,6 +40,20 @@ h1 {
   font-size: 30px;
 }
 
+/* Tab content header styling */
+.tab-content-header {
+  margin-bottom: 2rem;
+}
+
+.tab-content-header h1 {
+  margin-bottom: 0.5rem;
+}
+
+.tab-content-header p {
+  color: #6b7280;
+  font-size: 1.125rem;
+}
+
 .card {
   border-radius: 12px;
   border: 1px solid #ADADE1;

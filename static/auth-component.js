@@ -1,23 +1,22 @@
 /**
  * Authentication Web Component
- * Provides 1Password-like authentication experience
  */
 class AuthComponent extends HTMLElement {
-    constructor() {
-        super();
+  constructor() {
+    super();
 
-        this.state = {
-            isLoading: false,
-            error: null,
-            showOptionalFields: false
-        };
+    this.state = {
+      isLoading: false,
+      error: null,
+      showOptionalFields: false,
+    };
 
-        this.render();
-        this.setupEventListeners();
-    }
+    this.render();
+    this.setupEventListeners();
+  }
 
-    render() {
-        this.innerHTML = `
+  render() {
+    this.innerHTML = `
             <div class="auth-overlay">
                 <div class="auth-container">
                     <div class="auth-header">
@@ -101,174 +100,178 @@ class AuthComponent extends HTMLElement {
                 </div>
             </div>
         `;
+  }
+
+  setupEventListeners() {
+    const form = this.querySelector("#auth-form");
+    const toggleButton = this.querySelector("#toggle-optional");
+    const optionalFields = this.querySelector(".optional-fields");
+
+    // Handle form submission
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      this.handleSubmit();
+    });
+
+    // Toggle optional fields
+    toggleButton.addEventListener("click", () => {
+      this.state.showOptionalFields = !this.state.showOptionalFields;
+
+      if (this.state.showOptionalFields) {
+        optionalFields.style.display = "block";
+        toggleButton.textContent = "Hide Optional Fields";
+      } else {
+        optionalFields.style.display = "none";
+        toggleButton.textContent = "Show Optional Fields";
+      }
+    });
+
+    // Clear error on input
+    form.addEventListener("input", () => {
+      this.clearError();
+    });
+  }
+
+  async handleSubmit() {
+    const form = this.querySelector("#auth-form");
+    const formData = new FormData(form);
+
+    // Validate required fields
+    const email = formData.get("email")?.trim();
+    const unifyPat = formData.get("unify_pat")?.trim();
+
+    if (!email || !unifyPat) {
+      this.showError("Please fill in all required fields");
+      return;
     }
 
-    setupEventListeners() {
-        const form = this.querySelector('#auth-form');
-        const toggleButton = this.querySelector('#toggle-optional');
-        const optionalFields = this.querySelector('.optional-fields');
-
-        // Handle form submission
-        form.addEventListener('submit', (e) => {
-            e.preventDefault();
-            this.handleSubmit();
-        });
-
-        // Toggle optional fields
-        toggleButton.addEventListener('click', () => {
-            this.state.showOptionalFields = !this.state.showOptionalFields;
-
-            if (this.state.showOptionalFields) {
-                optionalFields.style.display = 'block';
-                toggleButton.textContent = 'Hide Optional Fields';
-            } else {
-                optionalFields.style.display = 'none';
-                toggleButton.textContent = 'Show Optional Fields';
-            }
-        });
-
-        // Clear error on input
-        form.addEventListener('input', () => {
-            this.clearError();
-        });
+    // Validate email format and domain
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.showError("Please enter a valid email address");
+      return;
     }
 
-    async handleSubmit() {
-        const form = this.querySelector('#auth-form');
-        const formData = new FormData(form);
-
-        // Validate required fields
-        const email = formData.get('email')?.trim();
-        const unifyPat = formData.get('unify_pat')?.trim();
-
-        if (!email || !unifyPat) {
-            this.showError('Please fill in all required fields');
-            return;
-        }
-
-        // Validate email format and domain
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-            this.showError('Please enter a valid email address');
-            return;
-        }
-
-        // Validate CloudBees domain
-        if (!email.toLowerCase().endsWith('@cloudbees.com')) {
-            this.showError('Only CloudBees email addresses are allowed');
-            return;
-        }
-
-        this.setLoading(true);
-        this.clearError();
-
-        try {
-            const response = await fetch('/api/auth/verify-tokens', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    email: email,
-                    unify_pat: unifyPat,
-                    github_pat: formData.get('github_pat')?.trim() || null
-                })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Authentication failed');
-            }
-
-            const userData = await response.json();
-
-            // Store auth data in localStorage
-            localStorage.setItem('mimic_user_data', JSON.stringify({
-                email: userData.email,
-                has_github_pat: userData.has_github_pat,
-                authenticated: true
-            }));
-
-            // Hide auth component and trigger app initialization
-            this.style.display = 'none';
-
-            // Dispatch custom event to notify app that user is authenticated
-            window.dispatchEvent(new CustomEvent('user-authenticated', {
-                detail: userData
-            }));
-
-        } catch (error) {
-            this.showError(error.message);
-        } finally {
-            this.setLoading(false);
-        }
+    // Validate CloudBees domain
+    if (!email.toLowerCase().endsWith("@cloudbees.com")) {
+      this.showError("Only CloudBees email addresses are allowed");
+      return;
     }
 
-    setLoading(loading) {
-        this.state.isLoading = loading;
+    this.setLoading(true);
+    this.clearError();
 
-        const submitButton = this.querySelector('#auth-submit');
-        const btnText = submitButton.querySelector('.btn-text');
-        const btnSpinner = submitButton.querySelector('.btn-spinner');
+    try {
+      const response = await fetch("/api/auth/verify-tokens", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: email,
+          unify_pat: unifyPat,
+          github_pat: formData.get("github_pat")?.trim() || null,
+        }),
+      });
 
-        if (loading) {
-            submitButton.disabled = true;
-            btnText.style.display = 'none';
-            btnSpinner.style.display = 'inline-block';
-        } else {
-            submitButton.disabled = false;
-            btnText.style.display = 'inline-block';
-            btnSpinner.style.display = 'none';
-        }
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Authentication failed");
+      }
+
+      const userData = await response.json();
+
+      // Store auth data in localStorage
+      localStorage.setItem(
+        "mimic_user_data",
+        JSON.stringify({
+          email: userData.email,
+          has_github_pat: userData.has_github_pat,
+          authenticated: true,
+        }),
+      );
+
+      // Hide auth component and trigger app initialization
+      this.style.display = "none";
+
+      // Dispatch custom event to notify app that user is authenticated
+      window.dispatchEvent(
+        new CustomEvent("user-authenticated", {
+          detail: userData,
+        }),
+      );
+    } catch (error) {
+      this.showError(error.message);
+    } finally {
+      this.setLoading(false);
     }
+  }
 
-    showError(message) {
-        this.state.error = message;
-        const errorDiv = this.querySelector('#auth-error');
-        errorDiv.textContent = message;
-        errorDiv.style.display = 'block';
+  setLoading(loading) {
+    this.state.isLoading = loading;
+
+    const submitButton = this.querySelector("#auth-submit");
+    const btnText = submitButton.querySelector(".btn-text");
+    const btnSpinner = submitButton.querySelector(".btn-spinner");
+
+    if (loading) {
+      submitButton.disabled = true;
+      btnText.style.display = "none";
+      btnSpinner.style.display = "inline-block";
+    } else {
+      submitButton.disabled = false;
+      btnText.style.display = "inline-block";
+      btnSpinner.style.display = "none";
     }
+  }
 
-    clearError() {
-        this.state.error = null;
-        const errorDiv = this.querySelector('#auth-error');
-        errorDiv.style.display = 'none';
+  showError(message) {
+    this.state.error = message;
+    const errorDiv = this.querySelector("#auth-error");
+    errorDiv.textContent = message;
+    errorDiv.style.display = "block";
+  }
+
+  clearError() {
+    this.state.error = null;
+    const errorDiv = this.querySelector("#auth-error");
+    errorDiv.style.display = "none";
+  }
+
+  // Check if user is already authenticated
+  static isAuthenticated() {
+    try {
+      const userData = localStorage.getItem("mimic_user_data");
+      if (!userData) return false;
+
+      const parsed = JSON.parse(userData);
+      return parsed.authenticated === true && parsed.email;
+    } catch (e) {
+      return false;
     }
+  }
 
-    // Check if user is already authenticated
-    static isAuthenticated() {
-        try {
-            const userData = localStorage.getItem('mimic_user_data');
-            if (!userData) return false;
-
-            const parsed = JSON.parse(userData);
-            return parsed.authenticated === true && parsed.email;
-        } catch (e) {
-            return false;
-        }
+  // Get current user data
+  static getUserData() {
+    try {
+      const userData = localStorage.getItem("mimic_user_data");
+      return userData ? JSON.parse(userData) : null;
+    } catch (e) {
+      return null;
     }
+  }
 
-    // Get current user data
-    static getUserData() {
-        try {
-            const userData = localStorage.getItem('mimic_user_data');
-            return userData ? JSON.parse(userData) : null;
-        } catch (e) {
-            return null;
-        }
-    }
+  // Clear authentication
+  static logout() {
+    localStorage.removeItem("mimic_user_data");
 
-    // Clear authentication
-    static logout() {
-        localStorage.removeItem('mimic_user_data');
-
-        // Reload page to show auth screen
-        window.location.reload();
-    }
+    // Reload page to show auth screen
+    window.location.reload();
+  }
 }
 
 // Register the web component
-customElements.define('auth-component', AuthComponent);
+customElements.define("auth-component", AuthComponent);
 
 // Export for use in other scripts
 window.AuthComponent = AuthComponent;

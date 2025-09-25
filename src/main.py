@@ -13,8 +13,9 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from src.auth import get_auth_service
+from src.cleanup import get_cleanup_service
 from src.config import settings
-from src.database import initialize_database
+from src.database import get_database, initialize_database
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
 from src.scenario_service import ScenarioService
 from src.scenarios import initialize_scenarios
@@ -31,6 +32,9 @@ def handle_auth_errors(func: Callable) -> Callable:
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
+        except HTTPException:
+            # Re-raise HTTPExceptions without modification
+            raise
         except NoValidPATFoundError as e:
             # Extract email from request args
             email = getattr(kwargs.get("request"), "email", "unknown")
@@ -158,6 +162,33 @@ class AuthStatusResponse(BaseModel):
 
 class LogoutRequest(BaseModel):
     email: str
+
+
+class SessionResponse(BaseModel):
+    id: str
+    scenario_id: str
+    created_at: str
+    expires_at: str | None
+    parameters: dict[str, Any] | None
+    resource_count: int
+
+
+class ResourceResponse(BaseModel):
+    id: str
+    resource_type: str
+    resource_name: str
+    platform: str
+    status: str
+    created_at: str
+
+
+class CleanupResponse(BaseModel):
+    success: bool
+    session_id: str
+    total_resources: int
+    successful: int
+    failed: int
+    errors: list[str]
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -410,3 +441,180 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
         parameters=request.parameters,
     )
     return result
+
+
+@app.get("/api/my/sessions", response_model=list[SessionResponse])
+@handle_auth_errors
+async def list_my_sessions(request: Request):
+    """
+    List all sessions for the authenticated user with resource counts.
+
+    Headers:
+        X-User-Email: User's email address for session lookup
+
+    Returns:
+        List of user sessions with metadata
+    """
+    # Get email from header
+    email = request.headers.get("X-User-Email")
+    if not email:
+        raise HTTPException(
+            status_code=400, detail="X-User-Email header is required"
+        )
+
+    # Validate CloudBees email domain
+    if not email.strip().lower().endswith("@cloudbees.com"):
+        raise HTTPException(
+            status_code=400, detail="Only CloudBees email addresses are allowed"
+        )
+
+    email = email.lower().strip()
+
+    # Verify user is authenticated by checking for valid PAT
+    auth_service = get_auth_service()
+    await auth_service.get_working_pat(email, "cloudbees")  # This will raise if no valid PAT
+
+    # Get user sessions
+    db = get_database()
+    sessions = await db.get_user_sessions(email)
+
+    # Convert to response models
+    session_responses = []
+    for session in sessions:
+        import json
+        parameters = None
+        if session["parameters"]:
+            try:
+                parameters = json.loads(session["parameters"])
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse parameters for session {session['id']}: {e}")
+                parameters = {}  # Use empty dict as fallback
+
+        session_responses.append(SessionResponse(
+            id=session["id"],
+            scenario_id=session["scenario_id"],
+            created_at=session["created_at"],
+            expires_at=session["expires_at"],
+            parameters=parameters,
+            resource_count=session["resource_count"]
+        ))
+
+    return session_responses
+
+
+@app.get("/api/sessions/{session_id}/resources", response_model=list[ResourceResponse])
+@handle_auth_errors
+async def list_session_resources(session_id: str, request: Request):
+    """
+    List all resources in a specific session.
+
+    Args:
+        session_id: The session ID to get resources for
+
+    Headers:
+        X-User-Email: User's email address for ownership verification
+
+    Returns:
+        List of resources in the session
+    """
+    # Get email from header
+    email = request.headers.get("X-User-Email")
+    if not email:
+        raise HTTPException(
+            status_code=400, detail="X-User-Email header is required"
+        )
+
+    # Validate CloudBees email domain
+    if not email.strip().lower().endswith("@cloudbees.com"):
+        raise HTTPException(
+            status_code=400, detail="Only CloudBees email addresses are allowed"
+        )
+
+    email = email.lower().strip()
+
+    # Verify user is authenticated
+    auth_service = get_auth_service()
+    await auth_service.get_working_pat(email, "cloudbees")
+
+    # Verify session ownership
+    db = get_database()
+    session = await db.fetchone(
+        "SELECT * FROM resource_sessions WHERE id = ? AND email = ?",
+        (session_id, email)
+    )
+
+    if not session:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session {session_id} not found or not owned by {email}"
+        )
+
+    # Get session resources
+    resources = await db.get_session_resources(session_id)
+
+    # Convert to response models
+    resource_responses = []
+    for resource in resources:
+        resource_responses.append(ResourceResponse(
+            id=resource["id"],
+            resource_type=resource["resource_type"],
+            resource_name=resource["resource_name"],
+            platform=resource["platform"],
+            status=resource["status"],
+            created_at=resource["created_at"]
+        ))
+
+    return resource_responses
+
+
+@app.delete("/api/sessions/{session_id}", response_model=CleanupResponse)
+@handle_auth_errors
+async def cleanup_session(session_id: str, request: Request):
+    """
+    Clean up all resources in a specific session.
+
+    Args:
+        session_id: The session ID to clean up
+
+    Headers:
+        X-User-Email: User's email address for ownership verification
+
+    Returns:
+        Cleanup operation results
+    """
+    # Get email from header
+    email = request.headers.get("X-User-Email")
+    if not email:
+        raise HTTPException(
+            status_code=400, detail="X-User-Email header is required"
+        )
+
+    # Validate CloudBees email domain
+    if not email.strip().lower().endswith("@cloudbees.com"):
+        raise HTTPException(
+            status_code=400, detail="Only CloudBees email addresses are allowed"
+        )
+
+    email = email.lower().strip()
+
+    # Verify user is authenticated
+    auth_service = get_auth_service()
+    await auth_service.get_working_pat(email, "cloudbees")
+
+    # Execute cleanup
+    cleanup_service = get_cleanup_service()
+    try:
+        result = await cleanup_service.cleanup_session(session_id, email)
+
+        return CleanupResponse(
+            success=result["failed"] == 0,
+            session_id=result["session_id"],
+            total_resources=result["total_resources"],
+            successful=result["successful"],
+            failed=result["failed"],
+            errors=result["errors"]
+        )
+
+    except ValueError as e:
+        # Session not found or not owned by user
+        raise HTTPException(status_code=404, detail=str(e)) from e
