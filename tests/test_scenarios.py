@@ -503,5 +503,5 @@ class TestResourceTracking:
             resource_ref="org/repo",
         )
 
-        # Verify it was attempted
-        mock_db.register_resource.assert_called_once()
+        # Verify it was attempted multiple times
+        assert mock_db.register_resource.call_count == 3

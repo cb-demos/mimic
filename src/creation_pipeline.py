@@ -704,25 +704,38 @@ class CreationPipeline:
         resource_ref: str,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Safely register a resource to the session, logging any errors without failing."""
-        try:
-            await self.db.register_resource(
-                resource_id=resource_id,
-                session_id=self.session_id,
-                resource_type=resource_type,
-                resource_name=resource_name,
-                platform=platform,
-                resource_ref=resource_ref,
-                metadata=metadata,
-            )
-            logger.info(
-                f"Registered {resource_type} '{resource_name}' to session {self.session_id}"
-            )
-        except Exception as e:
-            logger.warning(
-                f"Failed to register {resource_type} '{resource_name}' to session {self.session_id}: {e}"
-            )
-            # Continue execution - resource registration failure shouldn't break the pipeline
+        """Safely register a resource, retrying on failure."""
+        max_retries = 3
+        retry_delay = 1  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                await self.db.register_resource(
+                    resource_id=resource_id,
+                    session_id=self.session_id,
+                    resource_type=resource_type,
+                    resource_name=resource_name,
+                    platform=platform,
+                    resource_ref=resource_ref,
+                    metadata=metadata,
+                )
+                logger.info(
+                    f"Registered {resource_type} '{resource_name}' to session {self.session_id}"
+                )
+                return  # Success
+            except Exception as e:
+                logger.warning(
+                    f"Attempt {attempt + 1}/{max_retries} failed to register "
+                    f"{resource_type} '{resource_name}': {e}"
+                )
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                else:
+                    logger.error(
+                        f"All {max_retries} attempts failed to register "
+                        f"{resource_type} '{resource_name}'. This resource may be orphaned."
+                    )
+                    # Continue execution - resource registration failure shouldn't break the pipeline
 
     def _generate_summary(self) -> dict[str, Any]:
         """Generate a summary of what was created."""

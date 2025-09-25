@@ -17,6 +17,7 @@ from src.cleanup import get_cleanup_service
 from src.config import settings
 from src.database import get_database, initialize_database
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
+from src.mcp_http import mcp
 from src.scenario_service import ScenarioService
 from src.scenarios import initialize_scenarios
 from src.scheduler import get_scheduler, start_scheduler, stop_scheduler
@@ -86,39 +87,45 @@ def compute_asset_hashes():
                 asset_hashes[filename] = file_hash[:8]
 
 
+# Create MCP HTTP server first to get its lifespan
+mcp_app = mcp.http_app(path="/")  # Set internal path to root
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup."""
-    # Validate encryption key first
-    if not validate_encryption_key():
-        raise RuntimeError(
-            "PAT_ENCRYPTION_KEY is invalid or missing. "
-            'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
-        )
-    print("✓ Encryption key validated")
+    # Start MCP lifespan first
+    async with mcp_app.lifespan(app):
+        # Validate encryption key first
+        if not validate_encryption_key():
+            raise RuntimeError(
+                "PAT_ENCRYPTION_KEY is invalid or missing. "
+                'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+            )
+        print("✓ Encryption key validated")
 
-    # Initialize database first
-    await initialize_database()
-    print("✓ Database initialized")
+        # Initialize database first
+        await initialize_database()
+        print("✓ Database initialized")
 
-    # Initialize scenario manager at startup
-    initialize_scenarios("scenarios")
-    print("✓ Scenario manager initialized")
+        # Initialize scenario manager at startup
+        initialize_scenarios("scenarios")
+        print("✓ Scenario manager initialized")
 
-    # Compute asset hashes for cache busting
-    compute_asset_hashes()
-    templates.env.globals["asset_hashes"] = asset_hashes
-    print("✓ Asset hashes computed")
+        # Compute asset hashes for cache busting
+        compute_asset_hashes()
+        templates.env.globals["asset_hashes"] = asset_hashes
+        print("✓ Asset hashes computed")
 
-    # Start background cleanup scheduler
-    await start_scheduler()
-    print("✓ Cleanup scheduler started")
+        # Start background cleanup scheduler
+        await start_scheduler()
+        print("✓ Cleanup scheduler started")
 
-    yield
-    # Cleanup on shutdown
-    await stop_scheduler()
-    print("✓ Cleanup scheduler stopped")
-    print("Shutting down...")
+        yield
+        # Cleanup on shutdown
+        await stop_scheduler()
+        print("✓ Cleanup scheduler stopped")
+        print("Shutting down...")
 
 
 app = FastAPI(
@@ -127,6 +134,9 @@ app = FastAPI(
     description="A simple internal FastAPI service",
     lifespan=lifespan,
 )
+
+# Mount MCP HTTP server
+app.mount("/mcp", mcp_app)
 
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

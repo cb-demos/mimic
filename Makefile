@@ -1,4 +1,4 @@
-.PHONY: help dev run mcp test lint typecheck format build clean install
+.PHONY: help dev run test lint typecheck format build clean install
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -14,9 +14,6 @@ dev: ## Run development server with auto-reload
 
 run: ## Run production server
 	uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
-
-mcp: ## Run MCP server
-	uv run python -m src.mcp_main
 
 test: ## Run tests
 	uv run pytest tests/ -v

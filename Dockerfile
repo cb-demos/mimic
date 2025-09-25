@@ -29,19 +29,16 @@ COPY templates/ ./templates/
 # Set Python path to use virtual environment
 ENV PATH="/app/.venv/bin:$PATH"
 
-# Set default mode to API
-ENV MODE=api
-
 # Create non-root user
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Expose port (only used in API mode)
+# Expose port
 EXPOSE 8000
 
-# Health check (only applies to API mode)
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD if [ "$MODE" = "api" ]; then python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"; else exit 0; fi
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-# Run the application based on mode
-CMD ["sh", "-c", "if [ \"$MODE\" = \"mcp\" ]; then python -m src.mcp_main; else uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000} --forwarded-allow-ips='*' --proxy-headers; fi"]
+# Run the application
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--forwarded-allow-ips=*", "--proxy-headers"]
