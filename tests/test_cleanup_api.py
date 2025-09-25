@@ -42,21 +42,42 @@ async def test_db_with_data(test_key):
 
             # Create test sessions
             await db.create_session(
-                "session1", "test@cloudbees.com", "test-scenario", parameters={"param1": "value1"}
+                "session1",
+                "test@cloudbees.com",
+                "test-scenario",
+                parameters={"param1": "value1"},
             )
             await db.create_session(
-                "session2", "test@cloudbees.com", "another-scenario", parameters={"param2": "value2"}
+                "session2",
+                "test@cloudbees.com",
+                "another-scenario",
+                parameters={"param2": "value2"},
             )
 
             # Create test resources
             await db.register_resource(
-                "resource1", "session1", "github_repo", "Test Repo 1", "github", "owner/repo1"
+                "resource1",
+                "session1",
+                "github_repo",
+                "Test Repo 1",
+                "github",
+                "owner/repo1",
             )
             await db.register_resource(
-                "resource2", "session1", "cloudbees_component", "Test Component", "cloudbees", "comp-uuid"
+                "resource2",
+                "session1",
+                "cloudbees_component",
+                "Test Component",
+                "cloudbees",
+                "comp-uuid",
             )
             await db.register_resource(
-                "resource3", "session2", "github_repo", "Test Repo 2", "github", "owner/repo2"
+                "resource3",
+                "session2",
+                "github_repo",
+                "Test Repo 2",
+                "github",
+                "owner/repo2",
             )
 
             yield db
@@ -87,7 +108,9 @@ async def test_list_my_sessions_success(test_db_with_data, client):
         patch("src.main.get_database", return_value=test_db_with_data),
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
     ):
-        response = client.get("/api/my/sessions", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.get(
+            "/api/my/sessions", headers={"X-User-Email": "test@cloudbees.com"}
+        )
 
         assert response.status_code == 200
         sessions = response.json()
@@ -109,7 +132,9 @@ async def test_list_my_sessions_success(test_db_with_data, client):
 async def test_list_my_sessions_invalid_email():
     """Test session listing with invalid email."""
     client = TestClient(app)
-    response = client.get("/api/my/sessions", headers={"X-User-Email": "invalid@gmail.com"})
+    response = client.get(
+        "/api/my/sessions", headers={"X-User-Email": "invalid@gmail.com"}
+    )
 
     assert response.status_code == 400
     assert "Only CloudBees email addresses are allowed" in response.json()["detail"]
@@ -134,7 +159,9 @@ async def test_list_my_sessions_unauthenticated():
         mock_get_auth.return_value = mock_auth
 
         client = TestClient(app)
-        response = client.get("/api/my/sessions", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.get(
+            "/api/my/sessions", headers={"X-User-Email": "test@cloudbees.com"}
+        )
 
         assert response.status_code == 500  # Should be handled by @handle_auth_errors
 
@@ -146,19 +173,26 @@ async def test_list_session_resources_success(test_db_with_data, client):
         patch("src.main.get_database", return_value=test_db_with_data),
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
     ):
-        response = client.get("/api/sessions/session1/resources", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.get(
+            "/api/sessions/session1/resources",
+            headers={"X-User-Email": "test@cloudbees.com"},
+        )
 
         assert response.status_code == 200
         resources = response.json()
         assert len(resources) == 2
 
         # Check resources
-        repo_resource = next(r for r in resources if r["resource_type"] == "github_repo")
+        repo_resource = next(
+            r for r in resources if r["resource_type"] == "github_repo"
+        )
         assert repo_resource["resource_name"] == "Test Repo 1"
         assert repo_resource["platform"] == "github"
         assert repo_resource["status"] == "active"
 
-        component_resource = next(r for r in resources if r["resource_type"] == "cloudbees_component")
+        component_resource = next(
+            r for r in resources if r["resource_type"] == "cloudbees_component"
+        )
         assert component_resource["resource_name"] == "Test Component"
         assert component_resource["platform"] == "cloudbees"
 
@@ -170,7 +204,10 @@ async def test_list_session_resources_not_found(test_db_with_data, client):
         patch("src.main.get_database", return_value=test_db_with_data),
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
     ):
-        response = client.get("/api/sessions/nonexistent/resources", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.get(
+            "/api/sessions/nonexistent/resources",
+            headers={"X-User-Email": "test@cloudbees.com"},
+        )
 
         assert response.status_code == 404
         assert "not found or not owned" in response.json()["detail"]
@@ -183,7 +220,10 @@ async def test_list_session_resources_wrong_owner(test_db_with_data, client):
         patch("src.main.get_database", return_value=test_db_with_data),
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
     ):
-        response = client.get("/api/sessions/session1/resources", headers={"X-User-Email": "other@cloudbees.com"})
+        response = client.get(
+            "/api/sessions/session1/resources",
+            headers={"X-User-Email": "other@cloudbees.com"},
+        )
 
         assert response.status_code == 404
         assert "not found or not owned" in response.json()["detail"]
@@ -199,7 +239,7 @@ async def test_cleanup_session_success(test_db_with_data, client):
         "total_resources": 2,
         "successful": 2,
         "failed": 0,
-        "errors": []
+        "errors": [],
     }
     mock_cleanup_service.cleanup_session = AsyncMock(return_value=mock_cleanup_result)
 
@@ -208,7 +248,9 @@ async def test_cleanup_session_success(test_db_with_data, client):
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
         patch("src.main.get_cleanup_service", return_value=mock_cleanup_service),
     ):
-        response = client.delete("/api/sessions/session1", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.delete(
+            "/api/sessions/session1", headers={"X-User-Email": "test@cloudbees.com"}
+        )
 
         assert response.status_code == 200
         result = response.json()
@@ -220,7 +262,9 @@ async def test_cleanup_session_success(test_db_with_data, client):
         assert result["errors"] == []
 
         # Verify cleanup service was called
-        mock_cleanup_service.cleanup_session.assert_called_once_with("session1", "test@cloudbees.com")
+        mock_cleanup_service.cleanup_session.assert_called_once_with(
+            "session1", "test@cloudbees.com"
+        )
 
 
 @pytest.mark.asyncio
@@ -233,7 +277,7 @@ async def test_cleanup_session_partial_failure(test_db_with_data, client):
         "total_resources": 2,
         "successful": 1,
         "failed": 1,
-        "errors": ["Failed to delete resource2: API error"]
+        "errors": ["Failed to delete resource2: API error"],
     }
     mock_cleanup_service.cleanup_session = AsyncMock(return_value=mock_cleanup_result)
 
@@ -242,7 +286,9 @@ async def test_cleanup_session_partial_failure(test_db_with_data, client):
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
         patch("src.main.get_cleanup_service", return_value=mock_cleanup_service),
     ):
-        response = client.delete("/api/sessions/session1", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.delete(
+            "/api/sessions/session1", headers={"X-User-Email": "test@cloudbees.com"}
+        )
 
         assert response.status_code == 200
         result = response.json()
@@ -256,7 +302,9 @@ async def test_cleanup_session_not_found(test_db_with_data, client):
     """Test cleanup for non-existent session."""
     mock_cleanup_service = AsyncMock()
     mock_cleanup_service.cleanup_session = AsyncMock(
-        side_effect=ValueError("Session nonexistent not found or not owned by test@cloudbees.com")
+        side_effect=ValueError(
+            "Session nonexistent not found or not owned by test@cloudbees.com"
+        )
     )
 
     with (
@@ -264,7 +312,9 @@ async def test_cleanup_session_not_found(test_db_with_data, client):
         patch("src.main.get_auth_service", return_value=mock_auth_service()),
         patch("src.main.get_cleanup_service", return_value=mock_cleanup_service),
     ):
-        response = client.delete("/api/sessions/nonexistent", headers={"X-User-Email": "test@cloudbees.com"})
+        response = client.delete(
+            "/api/sessions/nonexistent", headers={"X-User-Email": "test@cloudbees.com"}
+        )
 
         assert response.status_code == 404
         assert "not found or not owned" in response.json()["detail"]
@@ -274,7 +324,9 @@ async def test_cleanup_session_not_found(test_db_with_data, client):
 async def test_cleanup_session_invalid_email():
     """Test cleanup with invalid email."""
     client = TestClient(app)
-    response = client.delete("/api/sessions/session1", headers={"X-User-Email": "invalid@gmail.com"})
+    response = client.delete(
+        "/api/sessions/session1", headers={"X-User-Email": "invalid@gmail.com"}
+    )
 
     assert response.status_code == 400
     assert "Only CloudBees email addresses are allowed" in response.json()["detail"]

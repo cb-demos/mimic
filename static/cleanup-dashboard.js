@@ -16,6 +16,7 @@ class CleanupDashboard extends HTMLElement {
 
     this.refreshData = this.refreshData.bind(this);
     this.handleCleanup = this.handleCleanup.bind(this);
+    this._eventListenersSetup = false;
   }
 
   connectedCallback() {
@@ -253,27 +254,6 @@ class CleanupDashboard extends HTMLElement {
           margin-bottom: 1rem;
         }
 
-        .resource-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 0.25rem 0.5rem;
-          background: #f3f4f6;
-          border-radius: 9999px;
-          font-size: 0.75rem;
-          font-weight: 500;
-          color: #374151;
-        }
-
-        .resource-badge.github {
-          background: #f0f9ff;
-          color: #1e40af;
-        }
-
-        .resource-badge.cloudbees {
-          background: #ecfdf5;
-          color: #065f46;
-        }
 
         .session-actions {
           display: flex;
@@ -331,45 +311,6 @@ class CleanupDashboard extends HTMLElement {
           to { transform: rotate(360deg); }
         }
 
-        .cleanup-confirmation {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-        }
-
-        .confirmation-dialog {
-          background: white;
-          border-radius: 0.75rem;
-          padding: 1.5rem;
-          max-width: 400px;
-          width: 90%;
-          box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
-        }
-
-        .confirmation-header {
-          margin-bottom: 1rem;
-        }
-
-        .confirmation-title {
-          font-size: 1.125rem;
-          font-weight: 600;
-          color: #dc2626;
-          margin-bottom: 0.5rem;
-        }
-
-        .confirmation-actions {
-          display: flex;
-          gap: 0.75rem;
-          justify-content: flex-end;
-          margin-top: 1.5rem;
-        }
 
         .status-message {
           padding: 1rem;
@@ -476,11 +417,15 @@ class CleanupDashboard extends HTMLElement {
     const createdAt = new Date(session.created_at).toLocaleDateString();
     const resourceCount = session.resource_count || 0;
 
+    // Create a more descriptive title using parameters
+    const displayTitle = this.generateSessionTitle(session);
+    const scenarioDisplayName = session.scenario_id.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
     return `
       <div class="session-card">
         <div class="session-header">
-          <div class="session-title">${session.scenario_id.replace(/-/g, " ").replace(/\\b\\w/g, l => l.toUpperCase())}</div>
-          <div class="session-scenario">${session.scenario_id}</div>
+          <div class="session-title">${displayTitle}</div>
+          <div class="session-scenario">${scenarioDisplayName}</div>
         </div>
 
         <div class="session-meta">
@@ -505,7 +450,8 @@ class CleanupDashboard extends HTMLElement {
         <div class="session-actions">
           <button
             class="btn btn-secondary"
-            onclick="this.getRootNode().host.viewResources('${session.id}')"
+            data-action="view-resources"
+            data-session-id="${session.id}"
             ${isCleaningUp ? "disabled" : ""}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -517,7 +463,9 @@ class CleanupDashboard extends HTMLElement {
 
           <button
             class="btn btn-primary"
-            onclick="this.getRootNode().host.confirmCleanup('${session.id}', '${session.scenario_id}')"
+            data-action="confirm-cleanup"
+            data-session-id="${session.id}"
+            data-scenario-id="${session.scenario_id}"
             ${isCleaningUp || resourceCount === 0 ? "disabled" : ""}
           >
             ${isCleaningUp ? `
@@ -538,9 +486,65 @@ class CleanupDashboard extends HTMLElement {
     `;
   }
 
+  generateSessionTitle(session) {
+    // Create a descriptive title using parameters and session info
+    const params = session.parameters || {};
+    const scenarioName = session.scenario_id.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
+    // Try to find meaningful identifiers in parameters
+    const appName = params.application_name || params.app_name || params.name;
+    const repoName = params.repository_name || params.repo_name;
+    const componentName = params.component_name;
+    const organizationName = params.organization_name || params.org_name;
+
+    // Create title with most specific identifier available
+    if (appName) {
+      return `${scenarioName}: ${appName}`;
+    } else if (repoName) {
+      return `${scenarioName}: ${repoName}`;
+    } else if (componentName) {
+      return `${scenarioName}: ${componentName}`;
+    } else if (organizationName) {
+      return `${scenarioName} (${organizationName})`;
+    } else {
+      // Fallback to scenario + creation time for uniqueness
+      const shortId = session.id.slice(-8); // Last 8 chars of session ID
+      return `${scenarioName} (${shortId})`;
+    }
+  }
+
   setupEventListeners() {
-    // Event listeners are handled via onclick attributes for simplicity
-    // in the shadow DOM context
+    // Only set up event listeners once to prevent multiple handlers
+    if (this._eventListenersSetup) {
+      return;
+    }
+
+    // Handle button clicks using event delegation
+    this.shadowRoot.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+
+      // Prevent default and stop propagation to avoid multiple triggers
+      event.preventDefault();
+      event.stopPropagation();
+
+      const action = button.getAttribute('data-action');
+      const sessionId = button.getAttribute('data-session-id');
+      const scenarioId = button.getAttribute('data-scenario-id');
+
+      if (button.disabled) return;
+
+      switch (action) {
+        case 'view-resources':
+          this.viewResources(sessionId);
+          break;
+        case 'confirm-cleanup':
+          this.confirmCleanup(sessionId, scenarioId);
+          break;
+      }
+    });
+
+    this._eventListenersSetup = true;
   }
 
   async refreshData() {
@@ -608,7 +612,7 @@ class CleanupDashboard extends HTMLElement {
     dialog.innerHTML = `
       <div class="confirmation-dialog">
         <div class="confirmation-header">
-          <div class="confirmation-title">⚠️ Confirm Cleanup</div>
+          <div class="confirmation-title">Confirm Cleanup</div>
         </div>
         <p>Are you sure you want to clean up all resources in the <strong>${scenarioId}</strong> scenario?</p>
         <p>This action cannot be undone and will delete:</p>
@@ -711,37 +715,26 @@ class CleanupDashboard extends HTMLElement {
       dialog.innerHTML = `
         <div class="confirmation-dialog" style="max-width: 600px;">
           <div class="confirmation-header">
-            <div class="confirmation-title" style="color: #1f2937;">📋 Session Resources</div>
+            <div class="confirmation-title" style="color: #1f2937;">Session Resources</div>
           </div>
-          <div style="max-height: 400px; overflow-y: auto;">
-            ${resources.length === 0 ? "<p>No resources found in this session.</p>" : `
-              <table style="width: 100%; font-size: 0.875rem;">
-                <thead>
-                  <tr style="border-bottom: 1px solid #e5e7eb;">
-                    <th style="text-align: left; padding: 0.5rem;">Type</th>
-                    <th style="text-align: left; padding: 0.5rem;">Name</th>
-                    <th style="text-align: left; padding: 0.5rem;">Platform</th>
-                    <th style="text-align: left; padding: 0.5rem;">Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${resources.map(resource => `
-                    <tr style="border-bottom: 1px solid #f3f4f6;">
-                      <td style="padding: 0.5rem;">${resource.resource_type.replace(/_/g, " ")}</td>
-                      <td style="padding: 0.5rem;">${resource.resource_name}</td>
-                      <td style="padding: 0.5rem;">
-                        <span class="resource-badge ${resource.platform}">${resource.platform}</span>
-                      </td>
-                      <td style="padding: 0.5rem;">
-                        <span style="color: ${resource.status === "active" ? "#059669" : "#dc2626"};">
-                          ${resource.status}
-                        </span>
-                      </td>
-                    </tr>
-                  `).join("")}
-                </tbody>
-              </table>
-            `}
+          <div class="resource-details-content">
+            ${resources.length === 0 ?
+              "<p class='no-resources-message'>No resources found in this session.</p>" :
+              `<div class="resource-list">
+                ${resources.map(resource => `
+                  <div class="resource-item">
+                    <div class="resource-info">
+                      <div class="resource-name">${resource.resource_name}</div>
+                      <div class="resource-type">${resource.resource_type.replace(/_/g, " ")}</div>
+                    </div>
+                    <div class="resource-meta">
+                      <span class="resource-badge ${resource.platform}">${resource.platform}</span>
+                      <span class="resource-status status-${resource.status}">${resource.status}</span>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>`
+            }
           </div>
           <div class="confirmation-actions">
             <button class="btn btn-secondary" onclick="this.parentElement.parentElement.parentElement.remove()">

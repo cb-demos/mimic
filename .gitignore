@@ -77,3 +77,5 @@ test.md
 .terraform.lock.hcl
 
 *.db
+*.db-shm
+*.db-wal

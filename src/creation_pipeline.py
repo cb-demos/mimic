@@ -176,7 +176,7 @@ class CreationPipeline:
 
             # Register repository in the session for cleanup tracking (all repos, new or existing)
             await self._register_resource_safe(
-                resource_id=str(uuid.uuid4()),
+                resource_id=f"{target_org}/{repo_name}",  # Use GitHub full_name format
                 resource_type="github_repo",
                 resource_name=repo_name,
                 platform="github",
@@ -250,7 +250,7 @@ class CreationPipeline:
                 # Register component in the session for cleanup tracking (all components, new or existing)
                 component_data = self.created_components[repo_name]
                 await self._register_resource_safe(
-                    resource_id=str(uuid.uuid4()),
+                    resource_id=component_data["id"],  # Use actual CloudBees UUID
                     resource_type="cloudbees_component",
                     resource_name=repo_name,
                     platform="cloudbees",
@@ -329,7 +329,7 @@ class CreationPipeline:
                 # Register environment in the session for cleanup tracking (all environments, new or existing)
                 env_data = self.created_environments[env_name]
                 await self._register_resource_safe(
-                    resource_id=str(uuid.uuid4()),
+                    resource_id=env_data["id"],  # Use actual CloudBees environment UUID
                     resource_type="cloudbees_environment",
                     resource_name=env_name,
                     platform="cloudbees",
@@ -562,7 +562,7 @@ class CreationPipeline:
                 # Register application in the session for cleanup tracking (all applications, new or existing)
                 app_data = self.created_applications[app_name]
                 await self._register_resource_safe(
-                    resource_id=str(uuid.uuid4()),
+                    resource_id=app_data["id"],  # Use actual CloudBees application UUID
                     resource_type="cloudbees_application",
                     resource_name=app_name,
                     platform="cloudbees",

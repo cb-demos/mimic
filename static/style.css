@@ -976,6 +976,236 @@ a {
   margin-top: 0.25rem;
 }
 
+/* Cleanup Dashboard Modal Styles */
+.cleanup-confirmation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: modal-fade-in 0.2s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(8px);
+  }
+}
+
+.confirmation-dialog {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #ADADE1;
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 5px 26px -7px rgba(0, 0, 0, 0.25);
+  transform: translateY(0);
+  animation: modal-slide-up 0.2s ease-out;
+}
+
+@keyframes modal-slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.confirmation-header {
+  margin-bottom: 1.5rem;
+}
+
+.confirmation-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.5rem;
+}
+
+.confirmation-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+}
+
+/* Modal button styles that match the app branding */
+.confirmation-dialog .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  border-radius: 10px;
+  border: 1px solid #DFDFDF;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  box-shadow: 0 4px 8px -4px rgba(0, 0, 0, 0.1);
+}
+
+.confirmation-dialog .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.confirmation-dialog .btn-primary {
+  background: #dc2626;
+  color: white;
+  border-color: #dc2626;
+}
+
+.confirmation-dialog .btn-primary:hover:not(:disabled) {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px -2px rgba(220, 38, 38, 0.3);
+}
+
+.confirmation-dialog .btn-secondary {
+  background: white;
+  color: #374151;
+  border-color: #DFDFDF;
+}
+
+.confirmation-dialog .btn-secondary:hover:not(:disabled) {
+  background: #F1F1FF;
+  border-color: #ADADE1;
+}
+
+/* Resource Details Modal Content */
+.resource-details-content {
+  max-height: 400px;
+  overflow-y: auto;
+  margin: 0 -0.5rem;
+}
+
+.no-resources-message {
+  text-align: center;
+  color: #6B7280;
+  font-style: italic;
+  margin: 2rem 0;
+}
+
+.resource-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.resource-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background: #F8F9FA;
+  border-radius: 8px;
+  border: 1px solid #E5E7EB;
+  transition: all 0.2s ease;
+}
+
+.resource-item:hover {
+  background: #F1F3F4;
+  border-color: #D1D5DB;
+}
+
+.resource-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.resource-name {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.25rem;
+  word-break: break-word;
+}
+
+.resource-type {
+  font-size: 0.875rem;
+  color: #6B7280;
+  text-transform: capitalize;
+}
+
+.resource-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Resource badge styles */
+.resource-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  background: #f3f4f6;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.resource-badge.github {
+  background: #f0f9ff;
+  color: #1e40af;
+}
+
+.resource-badge.cloudbees {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+/* Resource status styles */
+.resource-status {
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.resource-status.status-active {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.resource-status.status-delete_pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.resource-status.status-deleted {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.resource-status.status-failed {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
 /* Responsive adjustments */
 @media (max-width: 480px) {
   .auth-overlay {

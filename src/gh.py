@@ -310,5 +310,30 @@ class GitHubClient:
             )
             return False
 
+    async def delete_repository(self, repo_full_name: str) -> bool:
+        """
+        Delete a GitHub repository.
+
+        Args:
+            repo_full_name: Full repository name in format "owner/repo"
+
+        Returns:
+            True if deletion was successful, False otherwise
+
+        Raises:
+            Exception: If the API request fails
+        """
+        response = await self._request("DELETE", f"/repos/{repo_full_name}")
+
+        if response.status_code == 204:
+            return True
+        elif response.status_code == 404:
+            # Repository not found - consider this success for cleanup purposes
+            return True
+        else:
+            raise Exception(
+                f"Failed to delete repository {repo_full_name}: {response.status_code} - {response.text}"
+            )
+
 
 github = GitHubClient(settings.GITHUB_TOKEN)

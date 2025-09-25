@@ -46,34 +46,18 @@ class CleanupService:
         logger.info(f"Cleaning up {resource_type} {resource_ref} for {user_email}")
 
         try:
-            # Get all available PATs for fallback
-            pats = await self.auth.get_fallback_pats(user_email, platform)
+            # Get the appropriate PAT for this user and platform
+            pat = await self.auth.get_pat(user_email, platform)
 
-            # Try each PAT until one works
-            last_exception = None
-            for i, pat in enumerate(pats):
-                try:
-                    if platform == "github":
-                        await self._cleanup_github_resource(resource, pat)
-                    elif platform == "cloudbees":
-                        await self._cleanup_cloudbees_resource(resource, pat)
-                    else:
-                        raise ValueError(f"Unknown platform: {platform}")
+            # Use the PAT to clean up the resource
+            if platform == "github":
+                await self._cleanup_github_resource(resource, pat)
+            elif platform == "cloudbees":
+                await self._cleanup_cloudbees_resource(resource, pat)
+            else:
+                raise ValueError(f"Unknown platform: {platform}")
 
-                    logger.info(
-                        f"Successfully cleaned up {resource_type} {resource_ref} using PAT #{i + 1}"
-                    )
-                    return
-
-                except Exception as e:
-                    last_exception = e
-                    logger.warning(f"PAT #{i + 1} failed for {resource_ref}: {e}")
-                    continue
-
-            # If we get here, all PATs failed
-            raise NoValidPATFoundError(
-                f"All PATs failed for {user_email} on {platform}. Last error: {last_exception}"
-            )
+            logger.info(f"Successfully cleaned up {resource_type} {resource_ref}")
 
         except NoValidPATFoundError:
             logger.error(f"No valid PATs found for {user_email} on {platform}")
@@ -199,19 +183,37 @@ class CleanupService:
 
         for resource in resources:
             try:
+                # Only mark as deleted AFTER successful cleanup
                 await self.cleanup_single_resource(resource["id"], user_email)
+                # If we get here, cleanup was successful
                 await self.db.mark_resource_deleted(resource["id"])
                 results["successful"] += 1
             except Exception as e:
                 error_msg = f"Failed to cleanup {resource['resource_type']} {resource['resource_name']}: {str(e)}"
                 logger.error(error_msg)
                 results["errors"].append(error_msg)
+                # Only mark as failed, don't mark as deleted
                 await self.db.mark_resource_failed(resource["id"])
                 results["failed"] += 1
 
         logger.info(
             f"Session {session_id} cleanup completed: {results['successful']} successful, {results['failed']} failed"
         )
+
+        # If all resources were successfully deleted, clean up the empty session
+        if results["successful"] > 0 and results["failed"] == 0:
+            try:
+                await self.db.execute(
+                    "DELETE FROM resource_sessions WHERE id = ?", (session_id,)
+                )
+                logger.info(f"Deleted empty session {session_id}")
+                results["session_deleted"] = True
+            except Exception as e:
+                logger.error(f"Failed to delete session {session_id}: {e}")
+                results["session_deleted"] = False
+        else:
+            results["session_deleted"] = False
+
         return results
 
     async def mark_expired_resources(self) -> int:

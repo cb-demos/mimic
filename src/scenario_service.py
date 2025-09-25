@@ -91,7 +91,7 @@ class ScenarioService:
 
         try:
             # Try to get user's custom GitHub PAT if they provided one
-            user_github_pat = await auth_service.get_working_pat(email, "github")
+            user_github_pat = await auth_service.get_pat(email, "github")
             if user_github_pat:
                 github_pat = user_github_pat
                 logger.info(f"Using user's custom GitHub PAT for {email}")

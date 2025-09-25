@@ -189,6 +189,7 @@ class CleanupResponse(BaseModel):
     successful: int
     failed: int
     errors: list[str]
+    session_deleted: bool
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -305,7 +306,7 @@ async def get_organization_details(request: OrganizationRequest):
     auth_service = get_auth_service()
 
     # Get user's CloudBees PAT from database
-    unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
+    unify_pat = await auth_service.get_pat(request.email, "cloudbees")
 
     with UnifyAPIClient(api_key=unify_pat) as client:
         org_data = client.get_organization(request.organization_id)
@@ -374,12 +375,12 @@ async def get_auth_status(email: str):
         auth_service = get_auth_service()
 
         # Try to get a working PAT - this will raise NoValidPATFoundError if none exists
-        await auth_service.get_working_pat(email, "cloudbees")
+        await auth_service.get_pat(email, "cloudbees")
 
         # Check if user has GitHub PAT
         has_github_pat = True
         try:
-            await auth_service.get_working_pat(email, "github")
+            await auth_service.get_pat(email, "github")
         except NoValidPATFoundError:
             has_github_pat = False
 
@@ -430,7 +431,7 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     auth_service = get_auth_service()
 
     # Get user's CloudBees PAT from database
-    unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
+    unify_pat = await auth_service.get_pat(request.email, "cloudbees")
 
     result = await service.execute_scenario(
         scenario_id=scenario_id,
@@ -458,9 +459,7 @@ async def list_my_sessions(request: Request):
     # Get email from header
     email = request.headers.get("X-User-Email")
     if not email:
-        raise HTTPException(
-            status_code=400, detail="X-User-Email header is required"
-        )
+        raise HTTPException(status_code=400, detail="X-User-Email header is required")
 
     # Validate CloudBees email domain
     if not email.strip().lower().endswith("@cloudbees.com"):
@@ -472,7 +471,7 @@ async def list_my_sessions(request: Request):
 
     # Verify user is authenticated by checking for valid PAT
     auth_service = get_auth_service()
-    await auth_service.get_working_pat(email, "cloudbees")  # This will raise if no valid PAT
+    await auth_service.get_pat(email, "cloudbees")  # This will raise if no valid PAT
 
     # Get user sessions
     db = get_database()
@@ -482,22 +481,27 @@ async def list_my_sessions(request: Request):
     session_responses = []
     for session in sessions:
         import json
+
         parameters = None
         if session["parameters"]:
             try:
                 parameters = json.loads(session["parameters"])
             except json.JSONDecodeError as e:
-                logger.warning(f"Failed to parse parameters for session {session['id']}: {e}")
+                logger.warning(
+                    f"Failed to parse parameters for session {session['id']}: {e}"
+                )
                 parameters = {}  # Use empty dict as fallback
 
-        session_responses.append(SessionResponse(
-            id=session["id"],
-            scenario_id=session["scenario_id"],
-            created_at=session["created_at"],
-            expires_at=session["expires_at"],
-            parameters=parameters,
-            resource_count=session["resource_count"]
-        ))
+        session_responses.append(
+            SessionResponse(
+                id=session["id"],
+                scenario_id=session["scenario_id"],
+                created_at=session["created_at"],
+                expires_at=session["expires_at"],
+                parameters=parameters,
+                resource_count=session["resource_count"],
+            )
+        )
 
     return session_responses
 
@@ -520,9 +524,7 @@ async def list_session_resources(session_id: str, request: Request):
     # Get email from header
     email = request.headers.get("X-User-Email")
     if not email:
-        raise HTTPException(
-            status_code=400, detail="X-User-Email header is required"
-        )
+        raise HTTPException(status_code=400, detail="X-User-Email header is required")
 
     # Validate CloudBees email domain
     if not email.strip().lower().endswith("@cloudbees.com"):
@@ -534,19 +536,19 @@ async def list_session_resources(session_id: str, request: Request):
 
     # Verify user is authenticated
     auth_service = get_auth_service()
-    await auth_service.get_working_pat(email, "cloudbees")
+    await auth_service.get_pat(email, "cloudbees")
 
     # Verify session ownership
     db = get_database()
     session = await db.fetchone(
         "SELECT * FROM resource_sessions WHERE id = ? AND email = ?",
-        (session_id, email)
+        (session_id, email),
     )
 
     if not session:
         raise HTTPException(
             status_code=404,
-            detail=f"Session {session_id} not found or not owned by {email}"
+            detail=f"Session {session_id} not found or not owned by {email}",
         )
 
     # Get session resources
@@ -555,14 +557,16 @@ async def list_session_resources(session_id: str, request: Request):
     # Convert to response models
     resource_responses = []
     for resource in resources:
-        resource_responses.append(ResourceResponse(
-            id=resource["id"],
-            resource_type=resource["resource_type"],
-            resource_name=resource["resource_name"],
-            platform=resource["platform"],
-            status=resource["status"],
-            created_at=resource["created_at"]
-        ))
+        resource_responses.append(
+            ResourceResponse(
+                id=resource["id"],
+                resource_type=resource["resource_type"],
+                resource_name=resource["resource_name"],
+                platform=resource["platform"],
+                status=resource["status"],
+                created_at=resource["created_at"],
+            )
+        )
 
     return resource_responses
 
@@ -585,9 +589,7 @@ async def cleanup_session(session_id: str, request: Request):
     # Get email from header
     email = request.headers.get("X-User-Email")
     if not email:
-        raise HTTPException(
-            status_code=400, detail="X-User-Email header is required"
-        )
+        raise HTTPException(status_code=400, detail="X-User-Email header is required")
 
     # Validate CloudBees email domain
     if not email.strip().lower().endswith("@cloudbees.com"):
@@ -599,7 +601,7 @@ async def cleanup_session(session_id: str, request: Request):
 
     # Verify user is authenticated
     auth_service = get_auth_service()
-    await auth_service.get_working_pat(email, "cloudbees")
+    await auth_service.get_pat(email, "cloudbees")
 
     # Execute cleanup
     cleanup_service = get_cleanup_service()
@@ -612,7 +614,8 @@ async def cleanup_session(session_id: str, request: Request):
             total_resources=result["total_resources"],
             successful=result["successful"],
             failed=result["failed"],
-            errors=result["errors"]
+            errors=result["errors"],
+            session_deleted=result["session_deleted"],
         )
 
     except ValueError as e:

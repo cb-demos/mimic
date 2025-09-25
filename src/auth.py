@@ -2,6 +2,7 @@
 
 import logging
 
+from src.config import settings
 from src.database import get_database
 from src.security import NoValidPATFoundError, get_pat_manager
 
@@ -51,69 +52,61 @@ class AuthService:
 
         return {"email": email, "name": name, "has_github_pat": bool(github_pat)}
 
-    async def get_working_pat(self, email: str, platform: str = "cloudbees") -> str:
-        """Get the most recent PAT for a user. Cleanup logic will handle testing if it works.
+    async def get_pat(self, email: str, platform: str = "cloudbees") -> str:
+        """Get the appropriate PAT for a user and platform.
+
+        Logic:
+        - CloudBees: Always use user's PAT (required)
+        - GitHub: Use user's PAT if they have one, otherwise use system default
 
         Args:
             email: User's email
             platform: Platform ('cloudbees' or 'github')
 
         Returns:
-            The most recent decrypted PAT
+            PAT string to use
 
         Raises:
-            NoValidPATFoundError: If no PAT is found
+            NoValidPATFoundError: If no valid PAT is available
         """
         email = email.lower().strip()
-        pats = await self.db.get_user_pats(email, platform)
 
-        if not pats:
-            raise NoValidPATFoundError(f"No PATs found for user {email} on {platform}")
+        # For CloudBees, always use user PAT (required)
+        if platform == "cloudbees":
+            pats = await self.db.get_user_pats(email, platform)
+            if not pats:
+                raise NoValidPATFoundError(f"No CloudBees PAT found for user {email}")
 
-        # Return the most recent PAT (first in the ordered list)
-        most_recent_pat = pats[0]
-        return self.pat_manager.decrypt(most_recent_pat["encrypted_pat"])
+            # Return the most recent PAT (first in the ordered list)
+            most_recent_pat = pats[0]
+            return self.pat_manager.decrypt(most_recent_pat["encrypted_pat"])
 
-    async def get_fallback_pats(
-        self, email: str, platform: str = "cloudbees"
-    ) -> list[str]:
-        """Get all PATs for a user in order (newest first) for fallback attempts.
+        # For GitHub: user PAT if available, otherwise system default
+        elif platform == "github":
+            pats = await self.db.get_user_pats(email, platform)
 
-        Args:
-            email: User's email
-            platform: Platform ('cloudbees' or 'github')
+            # If user has a GitHub PAT, use it
+            if pats:
+                try:
+                    most_recent_pat = pats[0]
+                    return self.pat_manager.decrypt(most_recent_pat["encrypted_pat"])
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to decrypt user GitHub PAT for {email}: {e}"
+                    )
+                    # Fall through to system default
 
-        Returns:
-            List of decrypted PATs in order from newest to oldest
+            # Use system default GitHub token
+            if settings.GITHUB_TOKEN:
+                logger.info(f"Using system GitHub token for {email}")
+                return settings.GITHUB_TOKEN
 
-        Raises:
-            NoValidPATFoundError: If no PATs are found
-        """
-        email = email.lower().strip()
-        pats = await self.db.get_user_pats(email, platform)
-
-        if not pats:
-            raise NoValidPATFoundError(f"No PATs found for user {email} on {platform}")
-
-        decrypted_pats = []
-        for pat_row in pats:
-            try:
-                decrypted_pat = self.pat_manager.decrypt(pat_row["encrypted_pat"])
-                decrypted_pats.append(decrypted_pat)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to decrypt PAT {pat_row['id']} for {email}: {e}"
-                )
-                # Mark this PAT as inactive since it can't be decrypted
-                await self.db.mark_pat_inactive(pat_row["id"])
-                continue
-
-        if not decrypted_pats:
             raise NoValidPATFoundError(
-                f"No valid PATs found for user {email} on {platform}"
+                f"No GitHub PAT available for user {email} and no system default configured"
             )
 
-        return decrypted_pats
+        else:
+            raise ValueError(f"Unknown platform: {platform}")
 
     async def refresh_user_activity(self, email: str) -> None:
         """Update user's last_active timestamp.
