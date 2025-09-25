@@ -41,7 +41,7 @@ class AuthComponent extends HTMLElement {
                                 id="auth-email"
                                 name="email"
                                 required
-                                placeholder="you@company.com"
+                                placeholder="you@cloudbees.com"
                                 autocomplete="email"
                             >
                         </div>
@@ -146,10 +146,16 @@ class AuthComponent extends HTMLElement {
             return;
         }
 
-        // Validate email format
+        // Validate email format and domain
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             this.showError('Please enter a valid email address');
+            return;
+        }
+
+        // Validate CloudBees domain
+        if (!email.toLowerCase().endsWith('@cloudbees.com')) {
+            this.showError('Only CloudBees email addresses are allowed');
             return;
         }
 

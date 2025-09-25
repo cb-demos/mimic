@@ -234,7 +234,7 @@ async def get_organization_details(request: OrganizationRequest):
         logger.error(f"No valid PAT found for user {request.email}: {e}")
         raise HTTPException(
             status_code=401,
-            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials."
+            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials.",
         ) from e
     except UnifyAPIError as e:
         logger.error(f"UnifyAPI error fetching organization details: {e}")
@@ -259,6 +259,10 @@ async def verify_tokens(request: VerifyTokensRequest):
     3. Returns user authentication status
     """
     try:
+        # Validate CloudBees email domain
+        if not request.email or not request.email.strip().lower().endswith('@cloudbees.com'):
+            raise HTTPException(status_code=400, detail="Only CloudBees email addresses are allowed")
+
         auth_service = get_auth_service()
 
         # Store user tokens (auth service handles encryption)
@@ -266,7 +270,7 @@ async def verify_tokens(request: VerifyTokensRequest):
             email=request.email,
             unify_pat=request.unify_pat,
             github_pat=request.github_pat,
-            name=request.name
+            name=request.name,
         )
 
         # Update user activity
@@ -276,7 +280,7 @@ async def verify_tokens(request: VerifyTokensRequest):
             authenticated=True,
             email=user_details["email"],
             name=user_details.get("name"),
-            has_github_pat=user_details["has_github_pat"]
+            has_github_pat=user_details["has_github_pat"],
         )
 
     except ValueError as e:
@@ -291,6 +295,11 @@ async def verify_tokens(request: VerifyTokensRequest):
 async def get_auth_status(email: str):
     """Check if a user is authenticated by verifying they have stored tokens."""
     try:
+        # Add email validation - must be CloudBees email
+        if not email or not email.strip().lower().endswith("@cloudbees.com"):
+            return AuthStatusResponse(authenticated=False)
+
+        email = email.lower().strip()
         auth_service = get_auth_service()
 
         # Try to get a working PAT - this will raise NoValidPATFoundError if none exists
@@ -300,20 +309,21 @@ async def get_auth_status(email: str):
         has_github_pat = True
         try:
             await auth_service.get_working_pat(email, "github")
-        except:
+        except NoValidPATFoundError:
             has_github_pat = False
 
         # Update activity if authenticated
         await auth_service.refresh_user_activity(email)
 
         return AuthStatusResponse(
-            authenticated=True,
-            email=email,
-            has_github_pat=has_github_pat
+            authenticated=True, email=email, has_github_pat=has_github_pat
         )
 
-    except Exception:
-        # User not authenticated or no valid tokens
+    except NoValidPATFoundError:
+        # User not authenticated - this is expected behavior
+        return AuthStatusResponse(authenticated=False)
+    except Exception as e:
+        logger.error(f"Unexpected error in auth status check for {email}: {e}")
         return AuthStatusResponse(authenticated=False)
 
 
@@ -365,7 +375,7 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
         logger.error(f"No valid PAT found for user {request.email}: {e}")
         raise HTTPException(
             status_code=401,
-            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials."
+            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials.",
         ) from e
     except ValidationError as e:
         logger.error(f"Validation error in scenario instantiation: {e}")

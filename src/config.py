@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     UNIFY_API_HOST: str = "https://api.cloudbees.io"
     UNIFY_API_KEY: str = ""  # Optional - only required for MCP mode
     CLOUDBEES_ENDPOINT_ID: str = "9a3942be-0e86-415e-94c5-52512be1138d"
-    PAT_ENCRYPTION_KEY: str = ""  # Required - base64-encoded Fernet key for PAT encryption
+    PAT_ENCRYPTION_KEY: str = (
+        ""  # Required - base64-encoded Fernet key for PAT encryption
+    )
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

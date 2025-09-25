@@ -76,10 +76,13 @@ class ScenarioService:
         db = get_database()
 
         async with db.connection() as conn:
-            await conn.execute("""
+            await conn.execute(
+                """
                 INSERT INTO resource_sessions (id, email, scenario_id, parameters)
                 VALUES (?, ?, ?, ?)
-            """, (session_id, email, scenario_id, str(processed_parameters)))
+            """,
+                (session_id, email, scenario_id, str(processed_parameters)),
+            )
             await conn.commit()
 
         logger.info(f"Created resource session {session_id} for user {email}")
