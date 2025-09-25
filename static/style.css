@@ -438,6 +438,23 @@ a {
   box-shadow: 0 0 0 2px rgba(128, 111, 246, 0.2);
 }
 
+/* Select field styles to match input styling */
+.form-group select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #DFDFDF;
+  border-radius: 8px;
+  font-size: 16px;
+  background: white;
+  cursor: pointer;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #806FF6;
+  box-shadow: 0 0 0 2px rgba(128, 111, 246, 0.2);
+}
+
 /* Password field specific styles */
 .form-group input[type="password"] {
   font-family: inherit;

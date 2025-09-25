@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from datetime import datetime, timedelta
 from typing import Any
 
 from src.auth import get_auth_service
@@ -35,6 +36,7 @@ class ScenarioService:
         email: str,
         invitee_username: str | None = None,
         parameters: dict[str, Any] | None = None,
+        expires_in_days: int | None = 7,
     ) -> dict[str, Any]:
         """
         Execute a complete scenario using the Creation Pipeline.
@@ -76,10 +78,18 @@ class ScenarioService:
         session_id = str(uuid.uuid4())
         db = get_database()
 
+        # Calculate expiration timestamp if expires_in_days is provided
+        expires_at = None
+        if expires_in_days is not None:
+            expires_at = (
+                datetime.utcnow() + timedelta(days=expires_in_days)
+            ).isoformat()
+
         await db.create_session(
             session_id=session_id,
             email=email,
             scenario_id=scenario_id,
+            expires_at=expires_at,
             parameters=processed_parameters,
         )
 

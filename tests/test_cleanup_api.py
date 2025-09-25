@@ -129,6 +129,120 @@ async def test_list_my_sessions_success(test_db_with_data, client):
 
 
 @pytest.mark.asyncio
+async def test_list_my_sessions_with_expiration(test_key):
+    """Test session listing with expiration dates."""
+    from datetime import datetime, timedelta
+
+    # Create a temporary database file
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
+        db_path = tmp.name
+
+    try:
+        # Set up environment with test key
+        with patch.dict(os.environ, {"PAT_ENCRYPTION_KEY": test_key}):
+            # Create database
+            db = Database(db_path)
+            await db.initialize()
+
+            # Create test user
+            await db.create_user("test@cloudbees.com", "Test User")
+
+            # Store encrypted PATs
+            pat_manager = SecurePATManager()
+            encrypted_unify_pat = pat_manager.encrypt("test-unify-pat")
+            await db.store_pat("test@cloudbees.com", encrypted_unify_pat, "cloudbees")
+
+            # Create sessions with different expiration scenarios
+            future_date = (datetime.utcnow() + timedelta(days=5)).isoformat()
+            past_date = (datetime.utcnow() - timedelta(days=1)).isoformat()
+
+            # Session with future expiration
+            await db.create_session(
+                "session-future",
+                "test@cloudbees.com",
+                "test-scenario",
+                expires_at=future_date,
+                parameters={"param1": "value1"},
+            )
+
+            # Session with past expiration (expired)
+            await db.create_session(
+                "session-expired",
+                "test@cloudbees.com",
+                "test-scenario",
+                expires_at=past_date,
+                parameters={"param2": "value2"},
+            )
+
+            # Session with no expiration (never expires)
+            await db.create_session(
+                "session-never",
+                "test@cloudbees.com",
+                "test-scenario",
+                expires_at=None,
+                parameters={"param3": "value3"},
+            )
+
+            # Add test resources to make the sessions visible
+            await db.register_resource(
+                "resource-future",
+                "session-future",
+                "github_repo",
+                "Test Repo Future",
+                "github",
+                "owner/repo-future",
+            )
+            await db.register_resource(
+                "resource-expired",
+                "session-expired",
+                "github_repo",
+                "Test Repo Expired",
+                "github",
+                "owner/repo-expired",
+            )
+            await db.register_resource(
+                "resource-never",
+                "session-never",
+                "github_repo",
+                "Test Repo Never",
+                "github",
+                "owner/repo-never",
+            )
+
+        with (
+            patch("src.main.get_database", return_value=db),
+            patch("src.main.get_auth_service", return_value=mock_auth_service()),
+        ):
+            client = TestClient(app)
+            response = client.get(
+                "/api/my/sessions", headers={"X-User-Email": "test@cloudbees.com"}
+            )
+
+            assert response.status_code == 200
+            sessions = response.json()
+            assert len(sessions) == 3
+
+            # Check session with future expiration
+            future_session = next(s for s in sessions if s["id"] == "session-future")
+            assert future_session["expires_at"] == future_date
+            assert future_session["scenario_id"] == "test-scenario"
+
+            # Check expired session
+            expired_session = next(s for s in sessions if s["id"] == "session-expired")
+            assert expired_session["expires_at"] == past_date
+            assert expired_session["scenario_id"] == "test-scenario"
+
+            # Check never-expiring session
+            never_session = next(s for s in sessions if s["id"] == "session-never")
+            assert never_session["expires_at"] is None
+            assert never_session["scenario_id"] == "test-scenario"
+
+    finally:
+        # Clean up
+        os.unlink(db_path)
+
+
+@pytest.mark.asyncio
 async def test_list_my_sessions_invalid_email():
     """Test session listing with invalid email."""
     client = TestClient(app)

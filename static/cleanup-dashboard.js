@@ -247,6 +247,39 @@ class CleanupDashboard extends HTMLElement {
           gap: 0.5rem;
         }
 
+        .session-expiration {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .session-expiration.expired {
+          color: #ef4444;
+          font-weight: 600;
+        }
+
+        .session-expiration.expires-today {
+          color: #f59e0b;
+          font-weight: 600;
+        }
+
+        .session-expiration.expires-soon {
+          color: #f59e0b;
+          font-weight: 500;
+        }
+
+        .session-expiration.expires-week {
+          color: #8b5cf6;
+        }
+
+        .session-expiration.expires-later {
+          color: #10b981;
+        }
+
+        .session-expiration.never-expires {
+          color: #6b7280;
+        }
+
         .session-resources {
           display: flex;
           flex-wrap: wrap;
@@ -417,6 +450,9 @@ class CleanupDashboard extends HTMLElement {
     const createdAt = new Date(session.created_at).toLocaleDateString();
     const resourceCount = session.resource_count || 0;
 
+    // Calculate expiration info
+    const expirationInfo = this.getExpirationInfo(session.expires_at);
+
     // Create a more descriptive title using parameters
     const displayTitle = this.generateSessionTitle(session);
     const scenarioDisplayName = session.scenario_id.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase());
@@ -435,6 +471,12 @@ class CleanupDashboard extends HTMLElement {
               <polyline points="12,6 12,12 16,14"/>
             </svg>
             Created ${createdAt}
+          </div>
+          <div class="session-expiration ${expirationInfo.cssClass}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              ${expirationInfo.icon}
+            </svg>
+            ${expirationInfo.text}
           </div>
         </div>
 
@@ -763,6 +805,62 @@ class CleanupDashboard extends HTMLElement {
     setTimeout(() => {
       statusDiv.remove();
     }, 5000);
+  }
+
+  getExpirationInfo(expiresAt) {
+    if (!expiresAt) {
+      return {
+        text: "Never expires",
+        cssClass: "never-expires",
+        icon: `<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 6v6l4 2"/>`
+      };
+    }
+
+    const now = new Date();
+    const expirationDate = new Date(expiresAt);
+    const timeDiff = expirationDate - now;
+    const daysLeft = Math.ceil(timeDiff / (1000 * 60 * 60 * 24));
+
+    if (daysLeft < 0) {
+      // Already expired
+      return {
+        text: "Expired",
+        cssClass: "expired",
+        icon: `<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>`
+      };
+    } else if (daysLeft === 0) {
+      // Expires today
+      return {
+        text: "Expires today",
+        cssClass: "expires-today",
+        icon: `<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>`
+      };
+    } else if (daysLeft === 1) {
+      return {
+        text: "Expires in 1 day",
+        cssClass: "expires-soon",
+        icon: `<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>`
+      };
+    } else if (daysLeft <= 3) {
+      return {
+        text: `Expires in ${daysLeft} days`,
+        cssClass: "expires-soon",
+        icon: `<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>`
+      };
+    } else if (daysLeft <= 7) {
+      return {
+        text: `Expires in ${daysLeft} days`,
+        cssClass: "expires-week",
+        icon: `<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>`
+      };
+    } else {
+      const expirationDateString = expirationDate.toLocaleDateString();
+      return {
+        text: `Expires ${expirationDateString}`,
+        cssClass: "expires-later",
+        icon: `<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>`
+      };
+    }
   }
 }
 

@@ -19,6 +19,7 @@ from src.database import get_database, initialize_database
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
 from src.scenario_service import ScenarioService
 from src.scenarios import initialize_scenarios
+from src.scheduler import get_scheduler, start_scheduler, stop_scheduler
 from src.security import NoValidPATFoundError, validate_encryption_key
 from src.unify import UnifyAPIClient
 
@@ -109,8 +110,14 @@ async def lifespan(app: FastAPI):
     templates.env.globals["asset_hashes"] = asset_hashes
     print("✓ Asset hashes computed")
 
+    # Start background cleanup scheduler
+    await start_scheduler()
+    print("✓ Cleanup scheduler started")
+
     yield
-    # Cleanup on shutdown if needed
+    # Cleanup on shutdown
+    await stop_scheduler()
+    print("✓ Cleanup scheduler stopped")
     print("Shutting down...")
 
 
@@ -139,6 +146,7 @@ class InstantiateRequest(BaseModel):
     email: str
     invitee_username: str | None = None
     parameters: dict[str, Any] | None = None
+    expires_in_days: int | None = 7  # Default to 7 days, None for no expiration
 
 
 class OrganizationRequest(BaseModel):
@@ -440,6 +448,7 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
         email=request.email,
         invitee_username=request.invitee_username,
         parameters=request.parameters,
+        expires_in_days=request.expires_in_days,
     )
     return result
 
@@ -621,3 +630,26 @@ async def cleanup_session(session_id: str, request: Request):
     except ValueError as e:
         # Session not found or not owned by user
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+# Admin endpoints for cleanup monitoring and management
+@app.get("/api/cleanup/status")
+async def get_cleanup_status():
+    """
+    Get the current status of the cleanup scheduler.
+
+    Returns information about the scheduler state, last run, and next run time.
+    """
+    scheduler = get_scheduler()
+    return scheduler.get_job_status()
+
+
+@app.post("/api/cleanup/trigger")
+async def trigger_cleanup():
+    """
+    Manually trigger a cleanup job.
+
+    This will run the two-stage cleanup process immediately.
+    """
+    scheduler = get_scheduler()
+    return await scheduler.trigger_cleanup_now()

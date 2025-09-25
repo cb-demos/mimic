@@ -620,9 +620,12 @@ class ScenarioForm {
             parameters: {}
         };
         
-        // Add scenario parameters
+        // Add scenario parameters and handle expires_in_days
         for (const [key, value] of formData.entries()) {
-            if (!['organization_id', 'email', 'invitee_username'].includes(key) && value) {
+            if (key === 'expires_in_days') {
+                // Handle expires_in_days as top-level field, convert empty string to null
+                payload.expires_in_days = value === '' ? null : parseInt(value, 10);
+            } else if (!['organization_id', 'email', 'invitee_username'].includes(key) && value) {
                 payload.parameters[key] = value;
             }
         }
