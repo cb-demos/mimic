@@ -24,6 +24,7 @@ def list_scenarios() -> list[dict[str, Any]]:
 async def instantiate_scenario(
     scenario_id: str,
     organization_id: str,
+    email: str,
     invitee_username: str | None = None,
     parameters: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -41,6 +42,7 @@ async def instantiate_scenario(
     Args:
         scenario_id: The ID of the scenario to execute (e.g., 'hackers-app')
         organization_id: CloudBees Unify organization UUID (get from organization info)
+        email: User's CloudBees email address (required, for session tracking and cleanup)
         invitee_username: Optional GitHub username to invite to the organization
         parameters: Dictionary of scenario parameters (both required and optional)
 
@@ -61,6 +63,7 @@ async def instantiate_scenario(
             scenario_id=scenario_id,
             organization_id=organization_id,
             unify_pat=settings.UNIFY_API_KEY,
+            email=email,
             invitee_username=invitee_username,
             parameters=parameters,
         )

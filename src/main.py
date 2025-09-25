@@ -1,9 +1,10 @@
 import hashlib
 import logging
 import os
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -25,20 +26,21 @@ logger = logging.getLogger(__name__)
 
 def handle_auth_errors(func: Callable) -> Callable:
     """Decorator to handle common authentication and API errors consistently."""
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
         except NoValidPATFoundError as e:
             # Extract email from request args
-            email = getattr(kwargs.get('request'), 'email', 'unknown')
-            if hasattr(args[0] if args else None, 'email'):
+            email = getattr(kwargs.get("request"), "email", "unknown")
+            if hasattr(args[0] if args else None, "email"):
                 email = args[0].email
 
             logger.error(f"No valid PAT found for user {email}: {e}")
             raise HTTPException(
                 status_code=401,
-                detail=f"No valid CloudBees PAT found for {email}. Please update your credentials."
+                detail=f"No valid CloudBees PAT found for {email}. Please update your credentials.",
             ) from e
         except ValidationError as e:
             logger.error(f"Validation error: {e}")
@@ -46,7 +48,8 @@ def handle_auth_errors(func: Callable) -> Callable:
         except PipelineError as e:
             logger.error(f"Pipeline error: {e}")
             raise HTTPException(
-                status_code=500, detail=f"Pipeline execution failed at {e.step}: {str(e)}"
+                status_code=500,
+                detail=f"Pipeline execution failed at {e.step}: {str(e)}",
             ) from e
         except UnifyAPIError as e:
             logger.error(f"UnifyAPI error: {e}")
@@ -59,6 +62,7 @@ def handle_auth_errors(func: Callable) -> Callable:
         except Exception as e:
             logger.error(f"Unexpected error in {func.__name__}: {e}")
             raise HTTPException(status_code=500, detail="Operation failed") from e
+
     return wrapper
 
 
@@ -292,8 +296,12 @@ async def verify_tokens(request: VerifyTokensRequest):
     """
     try:
         # Validate CloudBees email domain
-        if not request.email or not request.email.strip().lower().endswith('@cloudbees.com'):
-            raise HTTPException(status_code=400, detail="Only CloudBees email addresses are allowed")
+        if not request.email or not request.email.strip().lower().endswith(
+            "@cloudbees.com"
+        ):
+            raise HTTPException(
+                status_code=400, detail="Only CloudBees email addresses are allowed"
+            )
 
         auth_service = get_auth_service()
 

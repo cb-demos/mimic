@@ -80,7 +80,11 @@ class TestMCPIntegration:
                 # Test with invalid scenario ID
                 result = await session.call_tool(
                     "instantiate_scenario",
-                    {"scenario_id": "nonexistent", "organization_id": "test-org"},
+                    {
+                        "scenario_id": "nonexistent",
+                        "organization_id": "test-org",
+                        "email": "test@cloudbees.com"
+                    },
                 )
 
                 assert result.isError is True

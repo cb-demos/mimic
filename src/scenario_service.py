@@ -79,7 +79,7 @@ class ScenarioService:
             session_id=session_id,
             email=email,
             scenario_id=scenario_id,
-            parameters=processed_parameters
+            parameters=processed_parameters,
         )
 
         logger.info(f"Created resource session {session_id} for user {email}")
