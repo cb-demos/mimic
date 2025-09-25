@@ -134,7 +134,7 @@ async def test_get_working_pat_not_found(test_db_and_auth):
     """Test getting PAT when none exists."""
     db, auth = test_db_and_auth
 
-    with pytest.raises(NoValidPATFoundError, match="No PATs found"):
+    with pytest.raises(NoValidPATFoundError, match="No CloudBees PAT found"):
         await auth.get_working_pat("nonexistent@example.com", "cloudbees")
 
 

@@ -634,22 +634,72 @@ async def cleanup_session(session_id: str, request: Request):
 
 # Admin endpoints for cleanup monitoring and management
 @app.get("/api/cleanup/status")
-async def get_cleanup_status():
+@handle_auth_errors
+async def get_cleanup_status(request: Request):
     """
     Get the current status of the cleanup scheduler.
 
+    Note: This is an admin endpoint that requires valid user authentication.
+    Future versions may implement role-based access control.
+
+    Headers:
+        X-User-Email: User's email address for authentication
+
     Returns information about the scheduler state, last run, and next run time.
     """
+    # Basic authentication - require valid user email
+    email = request.headers.get("X-User-Email")
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="X-User-Email header is required for admin endpoints",
+        )
+
+    # Verify user exists in system (basic authentication check)
+    auth_service = get_auth_service()
+    try:
+        # This will throw an exception if the user doesn't exist or has invalid PATs
+        await auth_service.get_pat(email, "cloudbees")
+    except Exception as e:
+        raise HTTPException(
+            status_code=401, detail="Invalid user authentication"
+        ) from e
+
     scheduler = get_scheduler()
     return scheduler.get_job_status()
 
 
 @app.post("/api/cleanup/trigger")
-async def trigger_cleanup():
+@handle_auth_errors
+async def trigger_cleanup(request: Request):
     """
     Manually trigger a cleanup job.
 
+    Note: This is an admin endpoint that requires valid user authentication.
+    Future versions may implement role-based access control.
+
+    Headers:
+        X-User-Email: User's email address for authentication
+
     This will run the two-stage cleanup process immediately.
     """
+    # Basic authentication - require valid user email
+    email = request.headers.get("X-User-Email")
+    if not email:
+        raise HTTPException(
+            status_code=400,
+            detail="X-User-Email header is required for admin endpoints",
+        )
+
+    # Verify user exists in system (basic authentication check)
+    auth_service = get_auth_service()
+    try:
+        # This will throw an exception if the user doesn't exist or has invalid PATs
+        await auth_service.get_pat(email, "cloudbees")
+    except Exception as e:
+        raise HTTPException(
+            status_code=401, detail="Invalid user authentication"
+        ) from e
+
     scheduler = get_scheduler()
     return await scheduler.trigger_cleanup_now()

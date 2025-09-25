@@ -1,5 +1,6 @@
 """Background job scheduler for automated resource cleanup."""
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any
@@ -19,7 +20,7 @@ class CleanupScheduler:
     def __init__(self):
         self.scheduler = AsyncIOScheduler()
         self.cleanup_service = CleanupService()
-        self._job_running = False
+        self._cleanup_lock = asyncio.Lock()
         self._last_run: datetime | None = None
         self._last_run_result: dict[str, Any] | None = None
 
@@ -27,6 +28,18 @@ class CleanupScheduler:
         """Start the background scheduler."""
         # Get cleanup interval from settings (default 1 hour)
         interval_seconds = getattr(settings, "CLEANUP_JOB_INTERVAL", 3600)
+
+        # Validate interval is reasonable (minimum 5 minutes, maximum 24 hours)
+        if interval_seconds < 300:
+            logger.warning(
+                f"Cleanup interval {interval_seconds}s too short, using 300s minimum"
+            )
+            interval_seconds = 300
+        elif interval_seconds > 86400:
+            logger.warning(
+                f"Cleanup interval {interval_seconds}s too long, using 86400s maximum"
+            )
+            interval_seconds = 86400
 
         # Add the cleanup job
         self.scheduler.add_job(
@@ -49,52 +62,49 @@ class CleanupScheduler:
 
     async def _run_cleanup_job(self) -> None:
         """Execute the two-stage cleanup process."""
-        if self._job_running:
-            logger.warning("Cleanup job already running, skipping this execution")
-            return
+        async with self._cleanup_lock:
+            start_time = datetime.utcnow()
 
-        self._job_running = True
-        start_time = datetime.utcnow()
+            try:
+                logger.info("Starting automated cleanup job")
 
-        try:
-            logger.info("Starting automated cleanup job")
+                # Stage 1: Mark expired resources for deletion
+                marked_count = await self.cleanup_service.mark_expired_resources()
 
-            # Stage 1: Mark expired resources for deletion
-            marked_count = await self.cleanup_service.mark_expired_resources()
+                # Stage 2: Process resources marked for deletion
+                cleanup_result = await self.cleanup_service.process_pending_deletions()
 
-            # Stage 2: Process resources marked for deletion
-            cleanup_result = await self.cleanup_service.process_pending_deletions()
+                # Store results for monitoring
+                self._last_run = start_time
+                self._last_run_result = {
+                    "start_time": start_time.isoformat(),
+                    "duration_seconds": (
+                        datetime.utcnow() - start_time
+                    ).total_seconds(),
+                    "marked_for_deletion": marked_count,
+                    **cleanup_result,
+                }
 
-            # Store results for monitoring
-            self._last_run = start_time
-            self._last_run_result = {
-                "start_time": start_time.isoformat(),
-                "duration_seconds": (datetime.utcnow() - start_time).total_seconds(),
-                "marked_for_deletion": marked_count,
-                **cleanup_result,
-            }
+                logger.info(
+                    f"Cleanup job completed: marked {marked_count} resources, "
+                    f"processed {cleanup_result['total_resources']} pending deletions"
+                )
 
-            logger.info(
-                f"Cleanup job completed: marked {marked_count} resources, "
-                f"processed {cleanup_result['total_resources']} pending deletions"
-            )
-
-        except Exception as e:
-            logger.error(f"Cleanup job failed: {e}")
-            self._last_run_result = {
-                "start_time": start_time.isoformat(),
-                "duration_seconds": (datetime.utcnow() - start_time).total_seconds(),
-                "error": str(e),
-                "status": "failed",
-            }
-            # Don't raise - we don't want to crash the scheduler
-
-        finally:
-            self._job_running = False
+            except Exception as e:
+                logger.error(f"Cleanup job failed: {e}")
+                self._last_run_result = {
+                    "start_time": start_time.isoformat(),
+                    "duration_seconds": (
+                        datetime.utcnow() - start_time
+                    ).total_seconds(),
+                    "error": str(e),
+                    "status": "failed",
+                }
+                # Don't raise - we don't want to crash the scheduler
 
     async def trigger_cleanup_now(self) -> dict[str, Any]:
         """Manually trigger a cleanup job (for admin endpoints)."""
-        if self._job_running:
+        if self._cleanup_lock.locked():
             return {
                 "status": "error",
                 "message": "Cleanup job is already running",
@@ -115,7 +125,7 @@ class CleanupScheduler:
 
         return {
             "scheduler_running": self.scheduler.running,
-            "job_running": self._job_running,
+            "job_running": self._cleanup_lock.locked(),
             "job_configured": job is not None,
             "next_run_time": job.next_run_time.isoformat()
             if job and job.next_run_time

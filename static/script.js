@@ -624,7 +624,12 @@ class ScenarioForm {
         for (const [key, value] of formData.entries()) {
             if (key === 'expires_in_days') {
                 // Handle expires_in_days as top-level field, convert empty string to null
-                payload.expires_in_days = value === '' ? null : parseInt(value, 10);
+                let expirationValue = value === '' ? null : parseInt(value, 10);
+                if (expirationValue !== null && (isNaN(expirationValue) || expirationValue <= 0)) {
+                    this.showMessage('Expiration days must be a positive number', 'error');
+                    return;
+                }
+                payload.expires_in_days = expirationValue;
             } else if (!['organization_id', 'email', 'invitee_username'].includes(key) && value) {
                 payload.parameters[key] = value;
             }

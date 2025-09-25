@@ -97,7 +97,7 @@ def client():
 def mock_auth_service():
     """Create a mock auth service."""
     auth_service = AsyncMock()
-    auth_service.get_working_pat = AsyncMock(return_value="test-unify-pat")
+    auth_service.get_pat = AsyncMock(return_value="test-unify-pat")
     return auth_service
 
 
@@ -131,6 +131,7 @@ async def test_list_my_sessions_success(test_db_with_data, client):
 @pytest.mark.asyncio
 async def test_list_my_sessions_with_expiration(test_key):
     """Test session listing with expiration dates."""
+    import datetime as dt
     from datetime import datetime, timedelta
 
     # Create a temporary database file
@@ -153,8 +154,8 @@ async def test_list_my_sessions_with_expiration(test_key):
             await db.store_pat("test@cloudbees.com", encrypted_unify_pat, "cloudbees")
 
             # Create sessions with different expiration scenarios
-            future_date = (datetime.utcnow() + timedelta(days=5)).isoformat()
-            past_date = (datetime.utcnow() - timedelta(days=1)).isoformat()
+            future_date = (datetime.now(dt.UTC) + timedelta(days=5)).isoformat()
+            past_date = (datetime.now(dt.UTC) - timedelta(days=1)).isoformat()
 
             # Session with future expiration
             await db.create_session(
@@ -269,7 +270,9 @@ async def test_list_my_sessions_unauthenticated():
     """Test session listing when user has no valid PAT."""
     with patch("src.main.get_auth_service") as mock_get_auth:
         mock_auth = AsyncMock()
-        mock_auth.get_working_pat = AsyncMock(side_effect=Exception("No valid PAT"))
+        from src.security import NoValidPATFoundError
+
+        mock_auth.get_pat = AsyncMock(side_effect=NoValidPATFoundError("No valid PAT"))
         mock_get_auth.return_value = mock_auth
 
         client = TestClient(app)
@@ -277,7 +280,7 @@ async def test_list_my_sessions_unauthenticated():
             "/api/my/sessions", headers={"X-User-Email": "test@cloudbees.com"}
         )
 
-        assert response.status_code == 500  # Should be handled by @handle_auth_errors
+        assert response.status_code == 401  # Should be handled by @handle_auth_errors
 
 
 @pytest.mark.asyncio
@@ -454,7 +457,7 @@ async def test_api_endpoints_require_authentication():
     from src.security import NoValidPATFoundError
 
     mock_auth_service = AsyncMock()
-    mock_auth_service.get_working_pat = AsyncMock(
+    mock_auth_service.get_pat = AsyncMock(
         side_effect=NoValidPATFoundError("No valid PAT found")
     )
 

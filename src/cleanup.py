@@ -46,18 +46,36 @@ class CleanupService:
         logger.info(f"Cleaning up {resource_type} {resource_ref} for {user_email}")
 
         try:
-            # Get the appropriate PAT for this user and platform
-            pat = await self.auth.get_pat(user_email, platform)
+            # Get all available PATs for fallback logic
+            pats = await self.auth.get_fallback_pats(user_email, platform)
 
-            # Use the PAT to clean up the resource
-            if platform == "github":
-                await self._cleanup_github_resource(resource, pat)
-            elif platform == "cloudbees":
-                await self._cleanup_cloudbees_resource(resource, pat)
-            else:
-                raise ValueError(f"Unknown platform: {platform}")
+            last_error = None
+            for pat in pats:
+                try:
+                    # Use the PAT to clean up the resource
+                    if platform == "github":
+                        await self._cleanup_github_resource(resource, pat)
+                    elif platform == "cloudbees":
+                        await self._cleanup_cloudbees_resource(resource, pat)
+                    else:
+                        raise ValueError(f"Unknown platform: {platform}")
 
-            logger.info(f"Successfully cleaned up {resource_type} {resource_ref}")
+                    logger.info(
+                        f"Successfully cleaned up {resource_type} {resource_ref}"
+                    )
+                    return  # Success, exit early
+
+                except Exception as e:
+                    logger.warning(
+                        f"PAT failed for {resource_type} {resource_ref}: {e}"
+                    )
+                    last_error = e
+                    continue  # Try next PAT
+
+            # All PATs failed
+            raise NoValidPATFoundError(
+                f"All PATs failed for {user_email} on {platform}: {last_error}"
+            )
 
         except NoValidPATFoundError:
             logger.error(f"No valid PATs found for {user_email} on {platform}")

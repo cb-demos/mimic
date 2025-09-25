@@ -108,6 +108,48 @@ class AuthService:
         else:
             raise ValueError(f"Unknown platform: {platform}")
 
+    async def get_working_pat(self, email: str, platform: str = "cloudbees") -> str:
+        """Get a working PAT for the user, trying fallbacks if needed.
+
+        This is an alias for get_pat for backward compatibility.
+        """
+        return await self.get_pat(email, platform)
+
+    async def get_fallback_pats(
+        self, email: str, platform: str = "cloudbees"
+    ) -> list[str]:
+        """Get all valid PATs for a user, newest first.
+
+        Used for fallback logic when a PAT fails.
+        """
+        email = email.lower().strip()
+        pats = await self.db.get_user_pats(email, platform)
+
+        if not pats:
+            raise NoValidPATFoundError(
+                f"No PATs found for user {email} on platform {platform}"
+            )
+
+        valid_pats = []
+        for pat_record in pats:
+            try:
+                decrypted_pat = self.pat_manager.decrypt(pat_record["encrypted_pat"])
+                valid_pats.append(decrypted_pat)
+            except Exception as e:
+                logger.warning(f"Failed to decrypt PAT for {email}: {e}")
+                # Mark this PAT as inactive
+                await self.db.execute(
+                    "UPDATE user_pats SET is_active = false WHERE id = ?",
+                    (pat_record["id"],),
+                )
+
+        if not valid_pats:
+            raise NoValidPATFoundError(
+                f"No valid PATs found for user {email} on platform {platform}"
+            )
+
+        return valid_pats
+
     async def refresh_user_activity(self, email: str) -> None:
         """Update user's last_active timestamp.
 

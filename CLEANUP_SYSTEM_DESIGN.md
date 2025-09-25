@@ -391,11 +391,15 @@ POST /mcp
 3. ✅ Add cleanup status and history tracking (sessions marked as 'deleted', not physically removed)
 4. ✅ Test manual cleanup flow via UI (sessions with 0 resources filtered at database level)
 
-### Phase 5: Background Jobs & Automation
-1. Implement two-stage automated cleanup background job
-2. Add cleanup job scheduling and monitoring
-3. Add expired session handling
-4. Test automated cleanup with real scenarios
+### ✅ Phase 5: Background Jobs & Automation (COMPLETED)
+1. ✅ Implement two-stage automated cleanup background job
+2. ✅ Add cleanup job scheduling and monitoring
+3. ✅ Add expired session handling
+4. ✅ Test automated cleanup with real scenarios
+5. ✅ Add user-controlled expiration settings in UI (1, 7, 14, 30 days, Never)
+6. ✅ Enhance My Resources view with expiration display and color-coded status
+7. ✅ Add comprehensive test coverage for expiration functionality
+8. ✅ Successfully tested real resource cleanup (GitHub repo, CloudBees components)
 
 ### Phase 6: MCP Integration (FINAL PHASE)
 1. Remove local MCP components (`mcp_main.py`, `mcp_server.py`)
