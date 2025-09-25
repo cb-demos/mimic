@@ -1,10 +1,12 @@
 """Service layer for scenario management and execution."""
 
 import logging
+import uuid
 from typing import Any
 
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
+from src.database import get_database
 from src.scenarios import Scenario, get_scenario_manager
 
 logger = logging.getLogger(__name__)
@@ -29,6 +31,7 @@ class ScenarioService:
         scenario_id: str,
         organization_id: str,
         unify_pat: str,
+        email: str,
         invitee_username: str | None = None,
         parameters: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
@@ -67,6 +70,19 @@ class ScenarioService:
 
         # Validate and preprocess input parameters
         processed_parameters = scenario.validate_input(scenario_parameters)
+
+        # Create resource session for tracking
+        session_id = str(uuid.uuid4())
+        db = get_database()
+
+        async with db.connection() as conn:
+            await conn.execute("""
+                INSERT INTO resource_sessions (id, email, scenario_id, parameters)
+                VALUES (?, ?, ?, ?)
+            """, (session_id, email, scenario_id, str(processed_parameters)))
+            await conn.commit()
+
+        logger.info(f"Created resource session {session_id} for user {email}")
 
         # Create and execute pipeline
         pipeline = CreationPipeline(

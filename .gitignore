@@ -75,3 +75,5 @@ test.md
 *.tfplan
 .terraform/
 .terraform.lock.hcl
+
+*.db

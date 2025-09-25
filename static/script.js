@@ -83,7 +83,7 @@ class Organizations {
         }
     }
     
-    static async fetchDetails(orgId, unifyPat) {
+    static async fetchDetails(orgId, email) {
         try {
             const response = await fetch('/api/organizations/details', {
                 method: 'POST',
@@ -92,7 +92,7 @@ class Organizations {
                 },
                 body: JSON.stringify({
                     organization_id: orgId,
-                    unify_pat: unifyPat
+                    email: email
                 })
             });
             
@@ -253,21 +253,21 @@ class OrganizationManager {
         }
         
         try {
-            // Get PAT from settings
-            const unifyPat = Settings.get('unify_pat');
-            if (!unifyPat) {
-                alert('Please set your CloudBees Unify Personal Access Token first');
+            // Get authenticated user data
+            const userData = AuthComponent.getUserData();
+            if (!userData || !userData.email) {
+                alert('Please sign in first to add organizations');
                 return;
             }
-            
+
             // Show loading state
             const addBtn = document.querySelector('.input-group-btn.add-btn');
             const originalText = addBtn.textContent;
             addBtn.disabled = true;
             addBtn.textContent = '...';
-            
+
             // Fetch organization details
-            const orgDetails = await Organizations.fetchDetails(orgId, unifyPat);
+            const orgDetails = await Organizations.fetchDetails(orgId, userData.email);
             
             // Add to local storage
             Organizations.add(orgDetails);
@@ -387,13 +387,20 @@ class SettingsManager {
     
     static populateSettingsForm() {
         const settings = Settings.getAll();
+        const userData = AuthComponent.getUserData();
         const form = document.querySelector('.settings-dropdown .settings-form');
-        
+
+        // Update user email display
+        const userEmailElement = document.getElementById('current_user_email');
+        if (userEmailElement && userData) {
+            userEmailElement.textContent = userData.email;
+        }
+
+        // Populate form fields
         const fieldMapping = {
-            'invitee_username': 'invitee_username_settings',
-            'unify_pat': 'unify_pat_settings'
+            'invitee_username': 'invitee_username_settings'
         };
-        
+
         Object.entries(fieldMapping).forEach(([settingKey, fieldId]) => {
             const input = document.getElementById(fieldId);
             const value = settings[settingKey];
@@ -594,21 +601,28 @@ class ScenarioForm {
         // Get organization ID from web component
         const orgDropdown = form.querySelector('dropdown-selector[id*="organization_id"]');
         const organizationId = orgDropdown ? orgDropdown.getSelectedValue() : null;
-        
+
+        // Get authenticated user data
+        const userData = AuthComponent.getUserData();
+        if (!userData || !userData.email) {
+            this.showMessage('Error: User not authenticated', 'error');
+            return;
+        }
+
         // Get global settings
         const settings = Settings.getAll();
-        
+
         // Build request payload
         const payload = {
             organization_id: organizationId,
-            unify_pat: settings.unify_pat,
+            email: userData.email,
             invitee_username: settings.invitee_username || null,
             parameters: {}
         };
         
         // Add scenario parameters
         for (const [key, value] of formData.entries()) {
-            if (!['organization_id', 'unify_pat', 'invitee_username'].includes(key) && value) {
+            if (!['organization_id', 'email', 'invitee_username'].includes(key) && value) {
                 payload.parameters[key] = value;
             }
         }
@@ -644,7 +658,16 @@ class ScenarioForm {
                 this.showExecutionResults(result);
                 this.showMessage('Scenario executed successfully!', 'success');
             } else {
-                this.showMessage(`Error: ${result.detail || 'Unknown error'}`, 'error');
+                // Handle authentication errors
+                if (response.status === 401) {
+                    this.showMessage('Authentication failed. Please sign in again.', 'error');
+                    // Redirect to authentication after a delay
+                    setTimeout(() => {
+                        AuthComponent.logout();
+                    }, 2000);
+                } else {
+                    this.showMessage(`Error: ${result.detail || 'Unknown error'}`, 'error');
+                }
             }
         } catch (error) {
             console.error('Execution error:', error);
@@ -773,9 +796,48 @@ class ScenarioForm {
     }
 }
 
+// Authentication Manager
+class AuthManager {
+    static init() {
+        // Check if user is authenticated
+        if (AuthComponent.isAuthenticated()) {
+            this.showMainApp();
+        } else {
+            this.showAuth();
+        }
+
+        // Listen for authentication events
+        window.addEventListener('user-authenticated', (event) => {
+            this.showMainApp();
+        });
+    }
+
+    static showAuth() {
+        const authComponent = document.getElementById('auth-component');
+        const mainContent = document.getElementById('main-content');
+
+        if (authComponent) authComponent.style.display = 'block';
+        if (mainContent) mainContent.style.display = 'none';
+    }
+
+    static showMainApp() {
+        const authComponent = document.getElementById('auth-component');
+        const mainContent = document.getElementById('main-content');
+
+        if (authComponent) authComponent.style.display = 'none';
+        if (mainContent) mainContent.style.display = 'block';
+
+        // Initialize main app components
+        SettingsManager.init();
+        new ScenarioForm();
+    }
+
+    static getCurrentUser() {
+        return AuthComponent.getUserData();
+    }
+}
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    WelcomeManager.init();
-    SettingsManager.init();
-    new ScenarioForm();
+    AuthManager.init();
 });

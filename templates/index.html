@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="sheet">
+<!-- Authentication Component (shown when not authenticated) -->
+<auth-component id="auth-component" style="display: none;"></auth-component>
+
+<!-- Main Application Content (shown when authenticated) -->
+<div class="sheet" id="main-content" style="display: none;">
     <header class="sheet-header">
         <p><strong>CloudBees Scenario Manager</strong></p>
         <div class="header-actions">
@@ -16,7 +20,14 @@
         <!-- Settings Dropdown -->
         <div class="settings-dropdown" id="settings_dropdown" style="display: none;">
             <div class="settings-dropdown-content">
-                <h3>Settings</h3>
+                <h3>Account Settings</h3>
+                <div class="user-info">
+                    <div class="form-group">
+                        <label>Signed in as:</label>
+                        <div class="user-email" id="current_user_email">Loading...</div>
+                    </div>
+                </div>
+
                 <form class="settings-form">
                     <div class="form-group">
                         <label for="invitee_username_settings">GitHub Username *</label>
@@ -24,48 +35,15 @@
                         <div class="description">Default username to invite to repositories</div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="unify_pat_settings">CloudBees Unify Personal Access Token</label>
-                        <input type="password" name="unify_pat" id="unify_pat_settings" placeholder="Enter your Unify PAT">
-                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this secure.</div>
-                    </div>
-
                     <div class="form-actions">
                         <button type="submit" class="btn primary">Save Settings</button>
-                        <button type="button" class="btn" onclick="if(confirm('Clear all saved settings?')) { Settings.clear(); location.reload(); }">Clear</button>
+                        <button type="button" class="btn secondary" onclick="AuthComponent.logout()">Sign Out</button>
                     </div>
                 </form>
             </div>
         </div>
     </header>
     <main class="sheet-content">
-        <!-- Welcome card for new users -->
-        <div class="welcome-card" id="welcome_card" style="display: none;">
-            <div class="welcome-content">
-                <h3>Welcome to CloudBees Scenario Manager!</h3>
-                <p>To get started, you'll need to set your CloudBees Personal Access Token. This is used to create resources in your CloudBees organization.</p>
-                <form class="welcome-form">
-                    <div class="form-group">
-                        <label for="welcome_unify_pat">CloudBees Unify Personal Access Token *</label>
-                        <input type="password" name="unify_pat" id="welcome_unify_pat" required
-                            placeholder="Enter your Unify PAT">
-                        <div class="description">Your personal access token for CloudBees Platform API access. Keep this secure.</div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="welcome_invitee_username">GitHub Username *</label>
-                        <input type="text" name="invitee_username" id="welcome_invitee_username" required
-                            placeholder="myusername">
-                        <div class="description">Default username to invite to created repositories</div>
-                    </div>
-
-                    <div class="form-actions">
-                        <button type="submit" class="btn primary">Save & Continue</button>
-                        <button type="button" class="btn" onclick="WelcomeManager.dismiss()">Skip for now</button>
-                    </div>
-                </form>
-            </div>
-        </div>
 
         <h1>Available Scenarios</h1>
         <p>Click on a scenario to configure and execute it. Your saved settings will be automatically filled in.</p>

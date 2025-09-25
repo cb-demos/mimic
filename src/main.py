@@ -10,10 +10,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from src.auth import get_auth_service
 from src.config import settings
+from src.database import initialize_database
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
 from src.scenario_service import ScenarioService
 from src.scenarios import initialize_scenarios
+from src.security import NoValidPATFoundError
 from src.unify import UnifyAPIClient
 
 logger = logging.getLogger(__name__)
@@ -36,6 +39,10 @@ def compute_asset_hashes():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup."""
+    # Initialize database first
+    await initialize_database()
+    print("✓ Database initialized")
+
     # Initialize scenario manager at startup
     initialize_scenarios("scenarios")
     print("✓ Scenario manager initialized")
@@ -72,14 +79,32 @@ class HealthResponse(BaseModel):
 
 class InstantiateRequest(BaseModel):
     organization_id: str
-    unify_pat: str
+    email: str
     invitee_username: str | None = None
     parameters: dict[str, Any] | None = None
 
 
 class OrganizationRequest(BaseModel):
     organization_id: str
+    email: str
+
+
+class VerifyTokensRequest(BaseModel):
+    email: str
     unify_pat: str
+    github_pat: str | None = None
+    name: str | None = None
+
+
+class AuthStatusResponse(BaseModel):
+    authenticated: bool
+    email: str | None = None
+    name: str | None = None
+    has_github_pat: bool = False
+
+
+class LogoutRequest(BaseModel):
+    email: str
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -189,17 +214,28 @@ async def get_organization_details(request: OrganizationRequest):
     """
     Get organization details from CloudBees Platform API.
 
-    This endpoint fetches organization information using the provided PAT
+    This endpoint fetches organization information using the user's stored PAT
     and returns the display name.
     """
+    auth_service = get_auth_service()
+
     try:
-        with UnifyAPIClient(api_key=request.unify_pat) as client:
+        # Get user's CloudBees PAT from database
+        unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
+
+        with UnifyAPIClient(api_key=unify_pat) as client:
             org_data = client.get_organization(request.organization_id)
 
             # Extract what we need from the known response structure
             org = org_data["organization"]
             return {"id": org["id"], "displayName": org["displayName"]}
 
+    except NoValidPATFoundError as e:
+        logger.error(f"No valid PAT found for user {request.email}: {e}")
+        raise HTTPException(
+            status_code=401,
+            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials."
+        ) from e
     except UnifyAPIError as e:
         logger.error(f"UnifyAPI error fetching organization details: {e}")
         raise HTTPException(
@@ -210,6 +246,89 @@ async def get_organization_details(request: OrganizationRequest):
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch organization details: {str(e)}"
         ) from e
+
+
+@app.post("/api/auth/verify-tokens", response_model=AuthStatusResponse)
+async def verify_tokens(request: VerifyTokensRequest):
+    """
+    Verify and store user authentication tokens.
+
+    This endpoint:
+    1. Validates the provided email format
+    2. Stores encrypted tokens in the database
+    3. Returns user authentication status
+    """
+    try:
+        auth_service = get_auth_service()
+
+        # Store user tokens (auth service handles encryption)
+        user_details = await auth_service.store_user_tokens(
+            email=request.email,
+            unify_pat=request.unify_pat,
+            github_pat=request.github_pat,
+            name=request.name
+        )
+
+        # Update user activity
+        await auth_service.refresh_user_activity(request.email)
+
+        return AuthStatusResponse(
+            authenticated=True,
+            email=user_details["email"],
+            name=user_details.get("name"),
+            has_github_pat=user_details["has_github_pat"]
+        )
+
+    except ValueError as e:
+        logger.error(f"Validation error in auth: {e}")
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.error(f"Unexpected error in auth: {e}")
+        raise HTTPException(status_code=500, detail="Authentication failed") from e
+
+
+@app.get("/api/auth/status", response_model=AuthStatusResponse)
+async def get_auth_status(email: str):
+    """Check if a user is authenticated by verifying they have stored tokens."""
+    try:
+        auth_service = get_auth_service()
+
+        # Try to get a working PAT - this will raise NoValidPATFoundError if none exists
+        await auth_service.get_working_pat(email, "cloudbees")
+
+        # Check if user has GitHub PAT
+        has_github_pat = True
+        try:
+            await auth_service.get_working_pat(email, "github")
+        except:
+            has_github_pat = False
+
+        # Update activity if authenticated
+        await auth_service.refresh_user_activity(email)
+
+        return AuthStatusResponse(
+            authenticated=True,
+            email=email,
+            has_github_pat=has_github_pat
+        )
+
+    except Exception:
+        # User not authenticated or no valid tokens
+        return AuthStatusResponse(authenticated=False)
+
+
+@app.post("/api/auth/logout")
+async def logout(request: LogoutRequest):
+    """Clear user authentication (placeholder - tokens remain in DB for now)."""
+    try:
+        # For now, this just returns success
+        # In a full implementation, we might mark tokens as inactive
+        # or implement session-based auth with session invalidation
+        return {"success": True, "message": "Logged out successfully"}
+
+    except Exception as e:
+        logger.error(f"Error in logout: {e}")
+        raise HTTPException(status_code=500, detail="Logout failed") from e
 
 
 @app.post("/instantiate/{scenario_id}")
@@ -226,17 +345,28 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     6. Configure flags across environments
     """
     service = ScenarioService()
+    auth_service = get_auth_service()
 
     try:
+        # Get user's CloudBees PAT from database
+        unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
+
         result = await service.execute_scenario(
             scenario_id=scenario_id,
             organization_id=request.organization_id,
-            unify_pat=request.unify_pat,
+            unify_pat=unify_pat,
+            email=request.email,
             invitee_username=request.invitee_username,
             parameters=request.parameters,
         )
         return result
 
+    except NoValidPATFoundError as e:
+        logger.error(f"No valid PAT found for user {request.email}: {e}")
+        raise HTTPException(
+            status_code=401,
+            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials."
+        ) from e
     except ValidationError as e:
         logger.error(f"Validation error in scenario instantiation: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
