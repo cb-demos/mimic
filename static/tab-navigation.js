@@ -20,6 +20,9 @@ class TabNavigation extends HTMLElement {
     this.initialize();
     this.render();
     this.setupEventListeners();
+    this.setupBadgeEventListeners();
+    // Apply initial tab states to content panels
+    this.updateTabStates();
   }
 
   static get observedAttributes() {
@@ -30,6 +33,9 @@ class TabNavigation extends HTMLElement {
     if (oldValue !== newValue) {
       this.initialize();
       this.render();
+      this.setupEventListeners();
+      // Make sure initial tab state is applied to content panels
+      this.updateTabStates();
     }
   }
 
@@ -52,64 +58,44 @@ class TabNavigation extends HTMLElement {
     this.shadowRoot.innerHTML = `
       <style>
         :host {
-          display: block;
-          width: 100%;
-        }
-
-        .tab-container {
           display: flex;
-          flex-direction: column;
-          width: 100%;
-        }
-
-        .tab-nav {
-          display: flex;
-          border-bottom: 2px solid #e5e7eb;
-          margin-bottom: 1.5rem;
           gap: 0.5rem;
         }
 
         .tab-button {
-          background: none;
-          border: none;
-          padding: 0.75rem 1.5rem;
-          font-size: 1rem;
+          padding: 0.5rem 1rem;
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: 6px;
+          font-size: 14px;
           font-weight: 500;
           color: #6b7280;
           cursor: pointer;
-          border-bottom: 3px solid transparent;
           transition: all 0.2s ease;
-          position: relative;
+          text-decoration: none;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          white-space: nowrap;
+          min-width: 120px;
         }
 
         .tab-button:hover {
+          background: #f3f4f6;
           color: #374151;
-          background-color: #f9fafb;
         }
 
         .tab-button:focus {
-          outline: 2px solid #3b82f6;
+          outline: 2px solid #806FF6;
           outline-offset: -2px;
         }
 
         .tab-button.active {
+          background: #f3f4f6;
           color: #1f2937;
-          border-bottom-color: #3b82f6;
-          font-weight: 600;
+          border-color: #d1d5db;
         }
 
-        .tab-content {
-          width: 100%;
-        }
-
-        .tab-panel {
-          display: none;
-          width: 100%;
-        }
-
-        .tab-panel.active {
-          display: block;
-        }
 
         /* Badge styling for tab buttons */
         .tab-badge {
@@ -129,45 +115,24 @@ class TabNavigation extends HTMLElement {
         }
       </style>
 
-      <div class="tab-container">
-        <nav class="tab-nav" role="tablist" aria-label="Main navigation">
-          ${this.state.tabs
-            .map(
-              (tab, index) => `
-            <button
-              class="tab-button ${tab.id === this.state.activeTab ? "active" : ""}"
-              role="tab"
-              tabindex="${tab.id === this.state.activeTab ? "0" : "-1"}"
-              aria-selected="${tab.id === this.state.activeTab ? "true" : "false"}"
-              aria-controls="panel-${tab.id}"
-              data-tab-id="${tab.id}"
-              data-tab-index="${index}"
-            >
-              ${tab.label}
-              ${tab.badge !== undefined ? `<span class="tab-badge ${tab.badge === 0 ? "zero" : ""}">${tab.badge}</span>` : ""}
-            </button>
-          `,
-            )
-            .join("")}
-        </nav>
-
-        <div class="tab-content">
-          ${this.state.tabs
-            .map(
-              (tab) => `
-            <div
-              class="tab-panel ${tab.id === this.state.activeTab ? "active" : ""}"
-              role="tabpanel"
-              id="panel-${tab.id}"
-              aria-labelledby="tab-${tab.id}"
-            >
-              <slot name="${tab.id}"></slot>
-            </div>
-          `,
-            )
-            .join("")}
-        </div>
-      </div>
+      ${this.state.tabs
+        .map(
+          (tab, index) => `
+        <button
+          class="tab-button ${tab.id === this.state.activeTab ? "active" : ""}"
+          role="tab"
+          tabindex="${tab.id === this.state.activeTab ? "0" : "-1"}"
+          aria-selected="${tab.id === this.state.activeTab ? "true" : "false"}"
+          aria-controls="panel-${tab.id}"
+          data-tab-id="${tab.id}"
+          data-tab-index="${index}"
+        >
+          ${tab.label}
+          ${tab.badge !== undefined ? `<span class="tab-badge ${tab.badge === 0 ? "zero" : ""}">${tab.badge}</span>` : ""}
+        </button>
+      `,
+        )
+        .join("")}
     `;
   }
 
@@ -176,6 +141,15 @@ class TabNavigation extends HTMLElement {
     tabButtons.forEach((button) => {
       button.addEventListener("click", this.handleTabClick);
       button.addEventListener("keydown", this.handleKeyDown);
+    });
+  }
+
+  setupBadgeEventListeners() {
+    // Listen for badge update events from child components
+    document.addEventListener('badge-update', (event) => {
+      if (event.detail && event.detail.tabId && typeof event.detail.count !== 'undefined') {
+        this.updateBadge(event.detail.tabId, event.detail.count);
+      }
     });
   }
 
@@ -242,8 +216,8 @@ class TabNavigation extends HTMLElement {
 
   updateTabStates() {
     const tabButtons = this.shadowRoot.querySelectorAll(".tab-button");
-    const tabPanels = this.shadowRoot.querySelectorAll(".tab-panel");
 
+    // Update tab button states
     tabButtons.forEach((button) => {
       const tabId = button.getAttribute("data-tab-id");
       const isActive = tabId === this.state.activeTab;
@@ -253,11 +227,30 @@ class TabNavigation extends HTMLElement {
       button.setAttribute("tabindex", isActive ? "0" : "-1");
     });
 
-    tabPanels.forEach((panel) => {
-      const tabId = panel.id.replace("panel-", "");
-      const isActive = tabId === this.state.activeTab;
-      panel.classList.toggle("active", isActive);
+    // Update external content panels - first hide all, then show active
+    const contentPanels = document.querySelectorAll(".content-panel");
+
+    if (contentPanels.length === 0) {
+      console.warn("No content panels found for tab navigation");
+      return;
+    }
+
+    // First pass: remove active from all panels
+    contentPanels.forEach((panel) => {
+      if (panel && typeof panel.classList !== 'undefined') {
+        panel.classList.remove("active");
+      }
     });
+
+    // Second pass: add active to the target panel
+    if (this.state.activeTab) {
+      const activePanel = document.querySelector(`#panel-${this.state.activeTab}`);
+      if (activePanel && typeof activePanel.classList !== 'undefined') {
+        activePanel.classList.add("active");
+      } else if (this.state.activeTab !== 'undefined') {
+        console.warn(`Target panel not found: #panel-${this.state.activeTab}`);
+      }
+    }
   }
 
   // Public API methods
@@ -269,8 +262,16 @@ class TabNavigation extends HTMLElement {
     const tab = this.state.tabs.find((t) => t.id === tabId);
     if (tab) {
       tab.badge = count;
-      this.render();
-      this.setupEventListeners();
+
+      // Update only the specific badge element instead of full re-render
+      const tabButton = this.shadowRoot.querySelector(`[data-tab-id="${tabId}"]`);
+      if (tabButton) {
+        const badge = tabButton.querySelector('.tab-badge');
+        if (badge) {
+          badge.textContent = count;
+          badge.classList.toggle('zero', count === 0);
+        }
+      }
     }
   }
 

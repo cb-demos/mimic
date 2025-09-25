@@ -873,4 +873,17 @@ class AuthManager {
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
     AuthManager.init();
+
+    // Initialize tab navigation after custom elements are ready
+    customElements.whenDefined('tab-navigation').then(() => {
+        const tabNav = document.getElementById('main-tab-navigation');
+        if (tabNav) {
+            const tabs = [
+                {id: "scenarios", label: "Scenarios", badge: 0},
+                {id: "cleanup", label: "My Resources", badge: 0}
+            ];
+            tabNav.setAttribute('tabs', JSON.stringify(tabs));
+            tabNav.setAttribute('default-tab', 'scenarios');
+        }
+    });
 });

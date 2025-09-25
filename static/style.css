@@ -123,6 +123,29 @@ a {
   position: relative;
 }
 
+.header-nav {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  margin-left: 2rem;
+}
+
+/* Mobile responsive header */
+@media (max-width: 768px) {
+  .sheet-header {
+    flex-wrap: wrap;
+    padding: 20px;
+    gap: 1rem;
+  }
+
+  .header-nav {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
 .header-actions {
   display: flex;
   align-items: center;
@@ -221,6 +244,15 @@ a {
 
 .sheet-content {
   padding: 40px;
+}
+
+/* Content panels for tab navigation */
+.content-panel {
+  display: none;
+}
+
+.content-panel.active {
+  display: block;
 }
 
 .sheet-content h1 {

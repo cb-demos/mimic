@@ -8,6 +8,12 @@
 <div class="sheet" id="main-content" style="display: none;">
     <header class="sheet-header">
         <p><strong>CloudBees Scenario Manager</strong></p>
+
+        <!-- Header Tab Navigation -->
+        <div class="header-nav">
+            <tab-navigation id="main-tab-navigation"></tab-navigation>
+        </div>
+
         <div class="header-actions">
             <button type="button" class="settings-toggle-btn" id="settings_toggle" onclick="SettingsManager.toggleSettings()" title="Settings">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -44,10 +50,10 @@
         </div>
     </header>
     <main class="sheet-content">
-        <tab-navigation tabs='[{"id":"scenarios","label":"Scenarios","badge":0},{"id":"cleanup","label":"My Resources","badge":0}]' default-tab="scenarios">
-
-            <!-- Scenarios Tab -->
-            <div slot="scenarios">
+        <!-- Content panels managed by header tab navigation -->
+        <div id="content-panels">
+            <!-- Scenarios Panel -->
+            <div id="panel-scenarios" class="content-panel active">
                 <div class="tab-content-header">
                     <h1>Available Scenarios</h1>
                     <p>Click on a scenario to configure and execute it. Your saved settings will be automatically filled in.</p>
@@ -145,11 +151,11 @@
                 </div>
             </div>
 
-            <!-- Cleanup Tab -->
-            <div slot="cleanup">
+            <!-- Cleanup Panel -->
+            <div id="panel-cleanup" class="content-panel">
                 <cleanup-dashboard id="cleanup-dashboard" user-email=""></cleanup-dashboard>
             </div>
-        </tab-navigation>
+        </div>
     </main>
 
     <!-- Configuration Drawer -->

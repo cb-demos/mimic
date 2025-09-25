@@ -20,7 +20,12 @@ class CleanupDashboard extends HTMLElement {
 
   connectedCallback() {
     this.render();
-    this.refreshData();
+
+    // Only auto-load data if this tab is currently active
+    const cleanupTab = document.querySelector('tab-navigation');
+    if (cleanupTab && cleanupTab.getActiveTab && cleanupTab.getActiveTab() === 'cleanup') {
+      this.refreshData();
+    }
 
     // Auto-refresh every 30 seconds
     this.refreshInterval = setInterval(this.refreshData, 30000);
@@ -28,8 +33,11 @@ class CleanupDashboard extends HTMLElement {
     // Listen for tab changes to refresh data when tab becomes active
     document.addEventListener('tab-change', (event) => {
       if (event.detail.activeTab === 'cleanup') {
-        // Small delay to ensure DOM is ready
-        setTimeout(() => this.refreshData(), 100);
+        // Only refresh if we don't have data yet
+        if (this.state.sessions.length === 0 && !this.state.error) {
+          // Small delay to ensure DOM is ready
+          setTimeout(() => this.refreshData(), 100);
+        }
       }
     });
   }
@@ -93,12 +101,74 @@ class CleanupDashboard extends HTMLElement {
           font-size: 1.125rem;
         }
 
-        .loading-state {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 3rem;
-          color: #6b7280;
+        .skeleton-container {
+          padding: 1rem 0;
+        }
+
+        .skeleton-header {
+          margin-bottom: 2rem;
+        }
+
+        .skeleton-line {
+          background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+          background-size: 200% 100%;
+          animation: skeleton-loading 1.5s infinite;
+          border-radius: 4px;
+          height: 1rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .skeleton-title {
+          width: 60%;
+          height: 2rem;
+        }
+
+        .skeleton-subtitle {
+          width: 40%;
+          height: 1.25rem;
+        }
+
+        .skeleton-stats {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 1rem;
+          margin-bottom: 2rem;
+        }
+
+        .skeleton-card {
+          padding: 1rem;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+        }
+
+        .skeleton-stat-number {
+          width: 50%;
+          height: 1.5rem;
+        }
+
+        .skeleton-stat-label {
+          width: 70%;
+        }
+
+        .skeleton-list-item {
+          padding: 1rem;
+          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          margin-bottom: 0.5rem;
+        }
+
+        .skeleton-session-name {
+          width: 40%;
+          height: 1.25rem;
+        }
+
+        .skeleton-session-details {
+          width: 60%;
+        }
+
+        @keyframes skeleton-loading {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
         }
 
         .error-state {
@@ -340,11 +410,33 @@ class CleanupDashboard extends HTMLElement {
   renderContent() {
     if (this.state.loading) {
       return `
-        <div class="loading-state">
-          <svg class="btn-spinner" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 11-6.219-8.56"/>
-          </svg>
-          <span style="margin-left: 0.5rem;">Loading sessions...</span>
+        <div class="skeleton-container">
+          <div class="skeleton-header">
+            <div class="skeleton-line skeleton-title"></div>
+            <div class="skeleton-line skeleton-subtitle"></div>
+          </div>
+
+          <div class="skeleton-stats">
+            <div class="skeleton-card">
+              <div class="skeleton-line skeleton-stat-number"></div>
+              <div class="skeleton-line skeleton-stat-label"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton-line skeleton-stat-number"></div>
+              <div class="skeleton-line skeleton-stat-label"></div>
+            </div>
+            <div class="skeleton-card">
+              <div class="skeleton-line skeleton-stat-number"></div>
+              <div class="skeleton-line skeleton-stat-label"></div>
+            </div>
+          </div>
+
+          <div class="skeleton-list">
+            <div class="skeleton-list-item">
+              <div class="skeleton-line skeleton-session-name"></div>
+              <div class="skeleton-line skeleton-session-details"></div>
+            </div>
+          </div>
         </div>
       `;
     }
@@ -498,16 +590,16 @@ class CleanupDashboard extends HTMLElement {
   }
 
   updateTabBadge() {
-    // Try to find parent tab navigation and update badge
-    let parent = this.parentElement;
-    while (parent) {
-      if (parent.tagName === "TAB-NAVIGATION") {
-        const totalResources = this.state.sessions.reduce((sum, session) => sum + (session.resource_count || 0), 0);
-        parent.updateBadge("cleanup", totalResources);
-        break;
-      }
-      parent = parent.parentElement;
-    }
+    const totalResources = this.state.sessions.reduce((sum, session) => sum + (session.resource_count || 0), 0);
+
+    // Dispatch a custom event instead of DOM traversal
+    this.dispatchEvent(new CustomEvent('badge-update', {
+      detail: {
+        tabId: 'cleanup',
+        count: totalResources
+      },
+      bubbles: true
+    }));
   }
 
   confirmCleanup(sessionId, scenarioId) {
