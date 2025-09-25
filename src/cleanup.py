@@ -145,12 +145,9 @@ class CleanupService:
                     logger.info(f"Deleted CloudBees application {resource_ref}")
 
                 elif resource_type == "cloudbees_flag":
-                    # Need org_id from metadata to delete flag
-                    org_id = metadata.get("org_id")
-                    if not org_id:
-                        raise ValueError("Missing org_id in flag metadata")
-                    client.delete_flag(org_id, resource_ref)  # type: ignore[attr-defined]
-                    logger.info(f"Deleted CloudBees flag {resource_ref}")
+                    # Feature flags are shared resources and should NOT be cleaned up
+                    logger.info(f"Skipping cleanup of CloudBees flag {resource_ref} (shared resource)")
+                    return
 
                 else:
                     raise ValueError(

@@ -5,10 +5,12 @@ Orchestrates the setup of a complete scenario including repos, components, envir
 
 import asyncio
 import logging
+import uuid
 from typing import Any
 
+from .database import get_database
 from .exceptions import GitHubError, PipelineError, UnifyAPIError
-from .gh import github
+from .gh import GitHubClient
 from .scenarios import Scenario
 from .unify import UnifyAPIClient
 
@@ -23,11 +25,17 @@ class CreationPipeline:
         organization_id: str,
         endpoint_id: str,
         unify_pat: str,
+        session_id: str,
+        email: str,
+        github_pat: str,
         invitee_username: str | None = None,
     ):
         self.organization_id = organization_id
         self.endpoint_id = endpoint_id
         self.unify_pat = unify_pat
+        self.session_id = session_id
+        self.email = email
+        self.github_pat = github_pat
         self.invitee_username = invitee_username
         self.created_components = {}  # name -> component_data
         self.created_environments = {}  # name -> env_data
@@ -35,6 +43,10 @@ class CreationPipeline:
         self.created_applications = {}  # name -> app_data
         self.created_repositories = {}  # name -> repo_data
         self.current_step = "initialization"
+
+        # Initialize database and GitHub client
+        self.db = get_database()
+        self.github = GitHubClient(github_pat)
 
     async def execute_scenario(
         self, scenario: Scenario, parameters: dict[str, str]
@@ -122,7 +134,7 @@ class CreationPipeline:
             target_org = repo_config.target_org
 
             # Check if repository already exists
-            if await github.repo_exists(target_org, repo_name):
+            if await self.github.repo_exists(target_org, repo_name):
                 print(
                     f"   ⏭️  Repository {target_org}/{repo_name} already exists, skipping creation"
                 )
@@ -139,7 +151,7 @@ class CreationPipeline:
                 )
 
                 # Create repo from template
-                new_repo = await github.create_repo_from_template(
+                new_repo = await self.github.create_repo_from_template(
                     template_owner=template_org,
                     template_repo=template_repo,
                     owner=target_org,
@@ -161,6 +173,16 @@ class CreationPipeline:
 
                 # Wait for repo to be ready
                 await asyncio.sleep(3)
+
+            # Register repository in the session for cleanup tracking (all repos, new or existing)
+            await self._register_resource_safe(
+                resource_id=str(uuid.uuid4()),
+                resource_type="github_repo",
+                resource_name=repo_name,
+                platform="github",
+                resource_ref=f"{target_org}/{repo_name}",
+                metadata={"target_org": target_org, "repo_name": repo_name},
+            )
 
             # Apply content replacements to specified files
             for file_path in repo_config.files_to_modify:
@@ -224,6 +246,17 @@ class CreationPipeline:
                         "service", {}
                     )
                     print(f"   ✅ Component created: {repo_name}")
+
+                # Register component in the session for cleanup tracking (all components, new or existing)
+                component_data = self.created_components[repo_name]
+                await self._register_resource_safe(
+                    resource_id=str(uuid.uuid4()),
+                    resource_type="cloudbees_component",
+                    resource_name=repo_name,
+                    platform="cloudbees",
+                    resource_ref=component_data.get("id", ""),
+                    metadata={"org_id": self.organization_id, "repo_name": repo_name},
+                )
 
         print("   Waiting for components to be indexed...")
         await asyncio.sleep(2)
@@ -292,6 +325,17 @@ class CreationPipeline:
 
                     self.created_environments[env_name] = env_result
                     print(f"   ✅ Environment created: {env_name}")
+
+                # Register environment in the session for cleanup tracking (all environments, new or existing)
+                env_data = self.created_environments[env_name]
+                await self._register_resource_safe(
+                    resource_id=str(uuid.uuid4()),
+                    resource_type="cloudbees_environment",
+                    resource_name=env_name,
+                    platform="cloudbees",
+                    resource_ref=env_data.get("id", ""),
+                    metadata={"org_id": self.organization_id, "env_name": env_name},
+                )
 
     async def _update_environments_with_fm_tokens(self, environments):
         """Step 5.5: Update environments with FM_TOKEN SDK keys after applications are created."""
@@ -515,6 +559,17 @@ class CreationPipeline:
                     self.created_applications[app_name] = app_result.get("service", {})
                     print(f"   ✅ Application created: {app_name}")
 
+                # Register application in the session for cleanup tracking (all applications, new or existing)
+                app_data = self.created_applications[app_name]
+                await self._register_resource_safe(
+                    resource_id=str(uuid.uuid4()),
+                    resource_type="cloudbees_application",
+                    resource_name=app_name,
+                    platform="cloudbees",
+                    resource_ref=app_data.get("id", ""),
+                    metadata={"org_id": self.organization_id, "app_name": app_name},
+                )
+
         print("   Waiting for applications to be indexed...")
         await asyncio.sleep(2)
 
@@ -525,7 +580,7 @@ class CreationPipeline:
         print(f"     Applying replacements to {file_path}...")
 
         # Get file content from GitHub
-        file_data = await github.get_file_in_repo(owner, repo, file_path)
+        file_data = await self.github.get_file_in_repo(owner, repo, file_path)
         if not file_data:
             print(f"     Warning: File {file_path} not found")
             return
@@ -539,7 +594,7 @@ class CreationPipeline:
 
         # Only update if content actually changed
         if modified_content != original_content:
-            await github.replace_file(
+            await self.github.replace_file(
                 owner=owner,
                 repo=repo,
                 path=file_path,
@@ -587,13 +642,13 @@ class CreationPipeline:
         print(f"       Moving {source_path} -> {destination_path}...")
 
         # Get source file content
-        source_file_data = await github.get_file_in_repo(owner, repo, source_path)
+        source_file_data = await self.github.get_file_in_repo(owner, repo, source_path)
         if not source_file_data:
             print(f"       Warning: Source file {source_path} not found")
             return
 
         # Create destination file
-        await github.create_file(
+        await self.github.create_file(
             owner=owner,
             repo=repo,
             path=destination_path,
@@ -602,7 +657,7 @@ class CreationPipeline:
         )
 
         # Delete source file
-        await github.delete_file(
+        await self.github.delete_file(
             owner=owner,
             repo=repo,
             path=source_path,
@@ -626,16 +681,45 @@ class CreationPipeline:
         print(f"     Checking collaboration status for {username}...")
 
         # Check if user is already a collaborator
-        is_collaborator = await github.check_user_collaboration(owner, repo, username)
+        is_collaborator = await self.github.check_user_collaboration(owner, repo, username)
         if is_collaborator:
             print(f"     ⏭️  {username} is already a collaborator on {owner}/{repo}")
         else:
             print(f"     Inviting {username} as admin collaborator...")
-            success = await github.invite_collaborator(owner, repo, username, "admin")
+            success = await self.github.invite_collaborator(owner, repo, username, "admin")
             if success:
                 print(f"     ✅ {username} invited as collaborator to {owner}/{repo}")
             else:
                 print(f"     ❌ Failed to invite {username} to {owner}/{repo}")
+
+    async def _register_resource_safe(
+        self,
+        resource_id: str,
+        resource_type: str,
+        resource_name: str,
+        platform: str,
+        resource_ref: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """Safely register a resource to the session, logging any errors without failing."""
+        try:
+            await self.db.register_resource(
+                resource_id=resource_id,
+                session_id=self.session_id,
+                resource_type=resource_type,
+                resource_name=resource_name,
+                platform=platform,
+                resource_ref=resource_ref,
+                metadata=metadata,
+            )
+            logger.info(
+                f"Registered {resource_type} '{resource_name}' to session {self.session_id}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Failed to register {resource_type} '{resource_name}' to session {self.session_id}: {e}"
+            )
+            # Continue execution - resource registration failure shouldn't break the pipeline
 
     def _generate_summary(self) -> dict[str, Any]:
         """Generate a summary of what was created."""

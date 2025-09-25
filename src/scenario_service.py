@@ -4,6 +4,7 @@ import logging
 import uuid
 from typing import Any
 
+from src.auth import get_auth_service
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
 from src.database import get_database
@@ -84,12 +85,31 @@ class ScenarioService:
 
         logger.info(f"Created resource session {session_id} for user {email}")
 
+        # Determine GitHub PAT (user's custom PAT or default service account)
+        github_pat = settings.GITHUB_TOKEN  # Default service account
+        auth_service = get_auth_service()
+
+        try:
+            # Try to get user's custom GitHub PAT if they provided one
+            user_github_pat = await auth_service.get_working_pat(email, "github")
+            if user_github_pat:
+                github_pat = user_github_pat
+                logger.info(f"Using user's custom GitHub PAT for {email}")
+            else:
+                logger.info(f"Using default service account GitHub PAT for {email}")
+        except Exception as e:
+            # If user doesn't have a GitHub PAT or it fails, use service account
+            logger.info(f"Using default service account GitHub PAT for {email} (fallback: {e})")
+
         # Create and execute pipeline
         pipeline = CreationPipeline(
             organization_id=organization_id,
             endpoint_id=settings.CLOUDBEES_ENDPOINT_ID,
             invitee_username=invitee_username,
             unify_pat=unify_pat,
+            session_id=session_id,
+            email=email,
+            github_pat=github_pat,
         )
 
         # Execute the complete scenario

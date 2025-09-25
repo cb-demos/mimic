@@ -415,3 +415,93 @@ class TestConditionalFileOperations:
         # Should still have the same structure
         assert operation_manual.condition_parameter == "auto_setup_workflow"
         assert operation_manual.when_false == {}
+
+
+class TestResourceTracking:
+    """Test resource tracking integration in CreationPipeline."""
+
+    @pytest.mark.asyncio
+    async def test_creation_pipeline_resource_registration(self):
+        """Test that CreationPipeline registers resources properly."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from src.creation_pipeline import CreationPipeline
+        from src.database import Database
+
+        # Mock database
+        mock_db = MagicMock(spec=Database)
+        mock_db.register_resource = AsyncMock()
+
+        # Mock GitHub client
+        mock_github = MagicMock()
+        mock_github.repo_exists = AsyncMock(return_value=True)
+
+        # Create pipeline with mocked dependencies
+        pipeline = CreationPipeline(
+            organization_id="org-123",
+            endpoint_id="endpoint-123",
+            unify_pat="test-pat",
+            session_id="session-123",
+            email="test@example.com",
+            github_pat="github-pat",
+        )
+
+        # Replace the database and github client with mocks
+        pipeline.db = mock_db
+        pipeline.github = mock_github
+
+        # Test resource registration
+        await pipeline._register_resource_safe(
+            resource_id="resource-123",
+            resource_type="github_repo",
+            resource_name="test-repo",
+            platform="github",
+            resource_ref="org/repo",
+            metadata={"test": "data"},
+        )
+
+        # Verify database registration was called
+        mock_db.register_resource.assert_called_once_with(
+            resource_id="resource-123",
+            session_id="session-123",
+            resource_type="github_repo",
+            resource_name="test-repo",
+            platform="github",
+            resource_ref="org/repo",
+            metadata={"test": "data"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_resource_registration_error_handling(self):
+        """Test that resource registration errors don't break the pipeline."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        from src.creation_pipeline import CreationPipeline
+        from src.database import Database
+
+        # Mock database that raises an error
+        mock_db = MagicMock(spec=Database)
+        mock_db.register_resource = AsyncMock(side_effect=Exception("DB error"))
+
+        # Create pipeline
+        pipeline = CreationPipeline(
+            organization_id="org-123",
+            endpoint_id="endpoint-123",
+            unify_pat="test-pat",
+            session_id="session-123",
+            email="test@example.com",
+            github_pat="github-pat",
+        )
+        pipeline.db = mock_db
+
+        # Test that registration failure doesn't raise an exception
+        await pipeline._register_resource_safe(
+            resource_id="resource-123",
+            resource_type="github_repo",
+            resource_name="test-repo",
+            platform="github",
+            resource_ref="org/repo",
+        )
+
+        # Verify it was attempted
+        mock_db.register_resource.assert_called_once()
