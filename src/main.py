@@ -2,7 +2,8 @@ import hashlib
 import logging
 import os
 from contextlib import asynccontextmanager
-from typing import Any
+from functools import wraps
+from typing import Any, Callable
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -16,10 +17,50 @@ from src.database import initialize_database
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
 from src.scenario_service import ScenarioService
 from src.scenarios import initialize_scenarios
-from src.security import NoValidPATFoundError
+from src.security import NoValidPATFoundError, validate_encryption_key
 from src.unify import UnifyAPIClient
 
 logger = logging.getLogger(__name__)
+
+
+def handle_auth_errors(func: Callable) -> Callable:
+    """Decorator to handle common authentication and API errors consistently."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except NoValidPATFoundError as e:
+            # Extract email from request args
+            email = getattr(kwargs.get('request'), 'email', 'unknown')
+            if hasattr(args[0] if args else None, 'email'):
+                email = args[0].email
+
+            logger.error(f"No valid PAT found for user {email}: {e}")
+            raise HTTPException(
+                status_code=401,
+                detail=f"No valid CloudBees PAT found for {email}. Please update your credentials."
+            ) from e
+        except ValidationError as e:
+            logger.error(f"Validation error: {e}")
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except PipelineError as e:
+            logger.error(f"Pipeline error: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Pipeline execution failed at {e.step}: {str(e)}"
+            ) from e
+        except UnifyAPIError as e:
+            logger.error(f"UnifyAPI error: {e}")
+            raise HTTPException(
+                status_code=400, detail=f"CloudBees API error: {str(e)}"
+            ) from e
+        except ValueError as e:
+            logger.error(f"Value error: {e}")
+            raise HTTPException(status_code=400, detail=str(e)) from e
+        except Exception as e:
+            logger.error(f"Unexpected error in {func.__name__}: {e}")
+            raise HTTPException(status_code=500, detail="Operation failed") from e
+    return wrapper
+
 
 # Dictionary to hold asset hashes for cache busting
 asset_hashes = {}
@@ -39,6 +80,14 @@ def compute_asset_hashes():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize resources on startup."""
+    # Validate encryption key first
+    if not validate_encryption_key():
+        raise RuntimeError(
+            "PAT_ENCRYPTION_KEY is invalid or missing. "
+            'Generate one with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"'
+        )
+    print("✓ Encryption key validated")
+
     # Initialize database first
     await initialize_database()
     print("✓ Database initialized")
@@ -210,6 +259,7 @@ async def get_scenario(scenario_id: str):
 
 
 @app.post("/api/organizations/details")
+@handle_auth_errors
 async def get_organization_details(request: OrganizationRequest):
     """
     Get organization details from CloudBees Platform API.
@@ -219,33 +269,15 @@ async def get_organization_details(request: OrganizationRequest):
     """
     auth_service = get_auth_service()
 
-    try:
-        # Get user's CloudBees PAT from database
-        unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
+    # Get user's CloudBees PAT from database
+    unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
 
-        with UnifyAPIClient(api_key=unify_pat) as client:
-            org_data = client.get_organization(request.organization_id)
+    with UnifyAPIClient(api_key=unify_pat) as client:
+        org_data = client.get_organization(request.organization_id)
 
-            # Extract what we need from the known response structure
-            org = org_data["organization"]
-            return {"id": org["id"], "displayName": org["displayName"]}
-
-    except NoValidPATFoundError as e:
-        logger.error(f"No valid PAT found for user {request.email}: {e}")
-        raise HTTPException(
-            status_code=401,
-            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials.",
-        ) from e
-    except UnifyAPIError as e:
-        logger.error(f"UnifyAPI error fetching organization details: {e}")
-        raise HTTPException(
-            status_code=400, detail=f"Failed to fetch organization details: {str(e)}"
-        ) from e
-    except Exception as e:
-        logger.error(f"Unexpected error fetching organization details: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch organization details: {str(e)}"
-        ) from e
+        # Extract what we need from the known response structure
+        org = org_data["organization"]
+        return {"id": org["id"], "displayName": org["displayName"]}
 
 
 @app.post("/api/auth/verify-tokens", response_model=AuthStatusResponse)
@@ -342,6 +374,7 @@ async def logout(request: LogoutRequest):
 
 
 @app.post("/instantiate/{scenario_id}")
+@handle_auth_errors
 async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     """
     Execute a complete scenario using the Creation Pipeline.
@@ -357,39 +390,15 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     service = ScenarioService()
     auth_service = get_auth_service()
 
-    try:
-        # Get user's CloudBees PAT from database
-        unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
+    # Get user's CloudBees PAT from database
+    unify_pat = await auth_service.get_working_pat(request.email, "cloudbees")
 
-        result = await service.execute_scenario(
-            scenario_id=scenario_id,
-            organization_id=request.organization_id,
-            unify_pat=unify_pat,
-            email=request.email,
-            invitee_username=request.invitee_username,
-            parameters=request.parameters,
-        )
-        return result
-
-    except NoValidPATFoundError as e:
-        logger.error(f"No valid PAT found for user {request.email}: {e}")
-        raise HTTPException(
-            status_code=401,
-            detail=f"No valid CloudBees PAT found for {request.email}. Please update your credentials.",
-        ) from e
-    except ValidationError as e:
-        logger.error(f"Validation error in scenario instantiation: {e}")
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except PipelineError as e:
-        logger.error(f"Pipeline error during scenario {scenario_id}: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Pipeline execution failed at {e.step}: {str(e)}"
-        ) from e
-    except ValueError as e:
-        logger.error(f"Value error in scenario instantiation: {e}")
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except Exception as e:
-        logger.error(f"Unexpected error during scenario {scenario_id}: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Pipeline execution failed: {str(e)}"
-        ) from e
+    result = await service.execute_scenario(
+        scenario_id=scenario_id,
+        organization_id=request.organization_id,
+        unify_pat=unify_pat,
+        email=request.email,
+        invitee_username=request.invitee_username,
+        parameters=request.parameters,
+    )
+    return result
