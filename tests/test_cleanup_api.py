@@ -240,6 +240,7 @@ async def test_cleanup_session_success(test_db_with_data, client):
         "successful": 2,
         "failed": 0,
         "errors": [],
+        "session_deleted": True,
     }
     mock_cleanup_service.cleanup_session = AsyncMock(return_value=mock_cleanup_result)
 
@@ -278,6 +279,7 @@ async def test_cleanup_session_partial_failure(test_db_with_data, client):
         "successful": 1,
         "failed": 1,
         "errors": ["Failed to delete resource2: API error"],
+        "session_deleted": False,
     }
     mock_cleanup_service.cleanup_session = AsyncMock(return_value=mock_cleanup_result)
 

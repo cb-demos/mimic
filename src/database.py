@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS resource_sessions (
     scenario_id TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP,  -- NULL = no expiration
+    status TEXT NOT NULL DEFAULT 'active',  -- 'active' or 'deleted'
     parameters JSON
 );
 
@@ -59,6 +60,7 @@ CREATE INDEX IF NOT EXISTS idx_resources_session ON resources(session_id);
 CREATE INDEX IF NOT EXISTS idx_resources_status ON resources(status); -- For finding resources to clean up
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON resource_sessions(email);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON resource_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_status ON resource_sessions(status); -- For filtering active sessions
 """
 
 
@@ -229,14 +231,15 @@ class Database:
         )
 
     async def get_user_sessions(self, email: str) -> list[aiosqlite.Row]:
-        """Get all sessions for a user with resource counts."""
+        """Get all active sessions for a user that have active resources."""
         return await self.fetchall(
             """
             SELECT s.*, COUNT(r.id) as resource_count
             FROM resource_sessions s
             LEFT JOIN resources r ON s.id = r.session_id AND r.status = 'active'
-            WHERE s.email = ?
-            GROUP BY s.id, s.email, s.scenario_id, s.created_at, s.expires_at, s.parameters
+            WHERE s.email = ? AND s.status = 'active'
+            GROUP BY s.id, s.email, s.scenario_id, s.created_at, s.expires_at, s.status, s.parameters
+            HAVING COUNT(r.id) > 0
             ORDER BY s.created_at DESC
             """,
             (email,),
@@ -291,6 +294,12 @@ class Database:
         """Mark a resource cleanup as failed."""
         await self.execute(
             "UPDATE resources SET status = 'failed' WHERE id = ?", (resource_id,)
+        )
+
+    async def mark_session_deleted(self, session_id: str) -> None:
+        """Mark a session as deleted."""
+        await self.execute(
+            "UPDATE resource_sessions SET status = 'deleted' WHERE id = ?", (session_id,)
         )
 
 

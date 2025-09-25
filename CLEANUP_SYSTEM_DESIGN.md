@@ -385,11 +385,11 @@ POST /mcp
 6. ✅ Add comprehensive test coverage (75 passing tests)
 7. ✅ Implement robust error handling for resource registration
 
-### Phase 4: Cleanup UI & Manual Operations
-1. Add cleanup dashboard UI (`/cleanup` page) showing user's sessions
-2. Add manual cleanup APIs (`DELETE /api/sessions/{id}`)
-3. Add cleanup status and history tracking
-4. Test manual cleanup flow via UI
+### ✅ Phase 4: Cleanup UI & Manual Operations (COMPLETED)
+1. ✅ Add cleanup dashboard UI (`/cleanup` page) showing user's sessions
+2. ✅ Add manual cleanup APIs (`DELETE /api/sessions/{id}`)
+3. ✅ Add cleanup status and history tracking (sessions marked as 'deleted', not physically removed)
+4. ✅ Test manual cleanup flow via UI (sessions with 0 resources filtered at database level)
 
 ### Phase 5: Background Jobs & Automation
 1. Implement two-stage automated cleanup background job

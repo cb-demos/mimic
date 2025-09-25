@@ -179,6 +179,7 @@ class CleanupService:
             "successful": 0,
             "failed": 0,
             "errors": [],
+            "session_deleted": False,
         }
 
         for resource in resources:
@@ -200,19 +201,15 @@ class CleanupService:
             f"Session {session_id} cleanup completed: {results['successful']} successful, {results['failed']} failed"
         )
 
-        # If all resources were successfully deleted, clean up the empty session
+        # If all resources were successfully deleted, mark the session as deleted
         if results["successful"] > 0 and results["failed"] == 0:
             try:
-                await self.db.execute(
-                    "DELETE FROM resource_sessions WHERE id = ?", (session_id,)
-                )
-                logger.info(f"Deleted empty session {session_id}")
+                await self.db.mark_session_deleted(session_id)
+                logger.info(f"Marked session {session_id} as deleted")
                 results["session_deleted"] = True
             except Exception as e:
-                logger.error(f"Failed to delete session {session_id}: {e}")
+                logger.error(f"Failed to mark session {session_id} as deleted: {e}")
                 results["session_deleted"] = False
-        else:
-            results["session_deleted"] = False
 
         return results
 
@@ -269,7 +266,29 @@ class CleanupService:
             f"{results['no_valid_pat']} no valid PAT"
         )
 
+        # Mark sessions as deleted if all their resources have been cleaned up
+        await self._mark_empty_sessions_as_deleted()
+
         return results
+
+    async def _mark_empty_sessions_as_deleted(self) -> None:
+        """Mark sessions as deleted if all their resources have been deleted."""
+        # Find sessions that have no active resources left but are still marked as active
+        sessions_to_mark_deleted = await self.db.fetchall(
+            """
+            SELECT s.id
+            FROM resource_sessions s
+            LEFT JOIN resources r ON s.id = r.session_id AND r.status = 'active'
+            WHERE s.status = 'active' AND r.id IS NULL
+            """
+        )
+
+        for session in sessions_to_mark_deleted:
+            try:
+                await self.db.mark_session_deleted(session["id"])
+                logger.info(f"Marked empty session {session['id']} as deleted")
+            except Exception as e:
+                logger.error(f"Failed to mark session {session['id']} as deleted: {e}")
 
 
 # Global cleanup service instance
