@@ -27,6 +27,10 @@ data "google_secret_manager_secret" "cloudbees_endpoint_id" {
   secret_id = "mimic-cloudbees-endpoint-id"
 }
 
+data "google_secret_manager_secret" "pat_encryption_key" {
+  secret_id = "mimic-pat-encryption-key"
+}
+
 # Service account for GCE instance (pre-existing)
 data "google_service_account" "mimic_service" {
   account_id = "mimic-service"
@@ -83,6 +87,19 @@ resource "google_compute_address" "mimic" {
   region = var.region
 }
 
+# Persistent disk for database storage
+resource "google_compute_disk" "mimic_data" {
+  name  = "mimic-data-disk"
+  type  = "pd-standard"
+  zone  = var.zone
+  size  = 10
+
+  labels = {
+    environment = "production"
+    service     = "mimic"
+  }
+}
+
 # GCE Instance
 resource "google_compute_instance" "mimic" {
   name         = "mimic-server"
@@ -106,6 +123,11 @@ resource "google_compute_instance" "mimic" {
     access_config {
       nat_ip = google_compute_address.mimic.address
     }
+  }
+
+  attached_disk {
+    source      = google_compute_disk.mimic_data.id
+    device_name = "mimic-data"
   }
 
   service_account {

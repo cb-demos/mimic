@@ -26,6 +26,27 @@ apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin do
 systemctl enable docker
 systemctl start docker
 
+# Mount and format the persistent disk for database storage
+log "Setting up persistent disk for database"
+DEVICE="/dev/disk/by-id/google-mimic-data"
+MOUNT_POINT="/opt/mimic/data"
+
+# Check if the disk is already formatted
+if ! blkid "$DEVICE" > /dev/null 2>&1; then
+    log "Formatting persistent disk"
+    mkfs.ext4 -F "$DEVICE"
+fi
+
+# Create mount point and mount the disk
+mkdir -p "$MOUNT_POINT"
+mount "$DEVICE" "$MOUNT_POINT"
+
+# Add to fstab for automatic mounting on reboot
+echo "$DEVICE $MOUNT_POINT ext4 defaults 0 2" >> /etc/fstab
+
+# Set permissions for the mimic user (will be created by Docker)
+chown 1000:1000 "$MOUNT_POINT"
+
 # Create mimic directory
 mkdir -p /opt/mimic
 cd /opt/mimic
@@ -36,6 +57,7 @@ cat > /opt/mimic/.env << EOF
 # Mimic environment variables
 GITHUB_TOKEN=$(gcloud secrets versions access latest --secret=mimic-github-token --project=${project_id})
 CLOUDBEES_ENDPOINT_ID=$(gcloud secrets versions access latest --secret=mimic-cloudbees-endpoint-id --project=${project_id})
+PAT_ENCRYPTION_KEY=$(gcloud secrets versions access latest --secret=mimic-pat-encryption-key --project=${project_id})
 EOF
 chmod 600 /opt/mimic/.env
 
@@ -52,6 +74,8 @@ services:
       - MODE=api
     env_file:
       - /opt/mimic/.env
+    volumes:
+      - /opt/mimic/data:/app
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
@@ -202,6 +226,7 @@ ENV_FILE="/opt/mimic/.env"
   echo "# Mimic environment variables"
   echo "GITHUB_TOKEN=$(gcloud secrets versions access latest --secret=mimic-github-token --project=$PROJECT_ID)"
   echo "CLOUDBEES_ENDPOINT_ID=$(gcloud secrets versions access latest --secret=mimic-cloudbees-endpoint-id --project=$PROJECT_ID)"
+  echo "PAT_ENCRYPTION_KEY=$(gcloud secrets versions access latest --secret=mimic-pat-encryption-key --project=$PROJECT_ID)"
 } > "$ENV_FILE"
 
 chmod 600 "$ENV_FILE"
