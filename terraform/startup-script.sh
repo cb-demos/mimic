@@ -75,7 +75,7 @@ services:
     env_file:
       - /opt/mimic/.env
     volumes:
-      - /opt/mimic/data:/app
+      - /opt/mimic/data/mimic.db:/app/mimic.db
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
@@ -172,6 +172,11 @@ EOF
 # Pull and start containers
 log "Pulling Docker images"
 docker compose pull
+
+# Ensure database file exists for first run
+log "Ensuring database file exists"
+touch /opt/mimic/data/mimic.db
+chown 1000:1000 /opt/mimic/data/mimic.db
 
 log "Starting Docker services"
 docker compose up -d
