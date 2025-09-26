@@ -136,7 +136,26 @@ ${domain} {
       gcp_project ${project_id}
     }
   }
-  
+
+  # Handle MCP endpoints specifically for SSE support
+  handle /mcp* {
+    reverse_proxy mimic:8000 {
+      health_uri /health
+      health_interval 30s
+      health_timeout 10s
+      flush_interval -1
+      header_up X-Real-IP {remote_host}
+      header_up X-Forwarded-For {remote_host}
+      header_up X-Forwarded-Proto {scheme}
+    }
+    header {
+      Cache-Control "no-cache"
+      Connection "keep-alive"
+      X-Accel-Buffering "no"
+    }
+  }
+
+  # Handle all other endpoints
   reverse_proxy mimic:8000 {
     health_uri /health
     health_interval 30s
