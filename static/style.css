@@ -834,7 +834,7 @@ a {
 }
 
 .execution-results h4::before {
-  content: "🎉";
+  content: "✓";
 }
 
 .execution-results .results-section {

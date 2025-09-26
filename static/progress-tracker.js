@@ -18,46 +18,38 @@ class ProgressTracker extends HTMLElement {
             hasFailed: false
         };
 
-        // Step definitions with icons and descriptions
+        // Step definitions with descriptions
         this.stepDefinitions = {
             'initialization': {
                 label: 'Initializing',
-                icon: '⚡',
                 description: 'Preparing scenario execution'
             },
             'repository_creation': {
                 label: 'Creating Repositories',
-                icon: '📁',
                 description: 'Setting up GitHub repositories from templates'
             },
             'component_creation': {
                 label: 'Creating Components',
-                icon: '🧩',
                 description: 'Mapping repositories to CloudBees components'
             },
             'flag_creation': {
                 label: 'Planning Feature Flags',
-                icon: '🚩',
                 description: 'Defining feature flag configurations'
             },
             'environment_creation': {
                 label: 'Setting up Environments',
-                icon: '🌍',
                 description: 'Creating CloudBees environments with variables'
             },
             'application_creation': {
                 label: 'Creating Applications',
-                icon: '📱',
                 description: 'Linking components and environments'
             },
             'environment_fm_token_update': {
                 label: 'Configuring SDK Keys',
-                icon: '🔑',
                 description: 'Adding feature management tokens'
             },
             'flag_configuration': {
                 label: 'Configuring Feature Flags',
-                icon: '⚙️',
                 description: 'Setting up flags across environments'
             }
         };
@@ -317,17 +309,17 @@ class ProgressTracker extends HTMLElement {
             const isFailed = this.progressData.hasFailed && isCurrent;
 
             let statusClass = '';
-            let statusIcon = step.icon;
+            let statusIcon = '';
 
             if (isFailed) {
                 statusClass = 'failed';
-                statusIcon = '❌';
+                statusIcon = 'FAILED';
             } else if (isCompleted) {
                 statusClass = 'completed';
-                statusIcon = '✅';
+                statusIcon = 'DONE';
             } else if (isCurrent) {
                 statusClass = 'active';
-                statusIcon = '⏳';
+                statusIcon = 'IN PROGRESS';
             }
 
             return `
