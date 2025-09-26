@@ -186,6 +186,8 @@ class AuthComponent extends HTMLElement {
         "mimic_user_data",
         JSON.stringify({
           email: userData.email,
+          cloudbees_token: userData.cloudbees_token,
+          github_token: userData.github_token,
           has_github_pat: userData.has_github_pat,
           authenticated: true,
         }),

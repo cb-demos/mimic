@@ -175,6 +175,24 @@ class Database:
             "UPDATE user_pats SET is_active = false WHERE id = ?", (pat_id,)
         )
 
+    async def get_pat_by_id(self, pat_id: int) -> aiosqlite.Row | None:
+        """Get a PAT by its ID (used for token-based auth)."""
+        return await self.fetchone(
+            """
+            SELECT id, email, encrypted_pat, platform, created_at, last_used, is_active
+            FROM user_pats
+            WHERE id = ? AND is_active = true
+            """,
+            (pat_id,)
+        )
+
+    async def update_pat_last_used(self, pat_id: int) -> None:
+        """Update the last_used timestamp for a PAT."""
+        await self.execute(
+            "UPDATE user_pats SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
+            (pat_id,)
+        )
+
     async def create_session(
         self,
         session_id: str,

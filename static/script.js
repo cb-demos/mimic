@@ -83,7 +83,7 @@ class Organizations {
         }
     }
     
-    static async fetchDetails(orgId, email) {
+    static async fetchDetails(orgId, email, authToken) {
         try {
             const response = await fetch('/api/organizations/details', {
                 method: 'POST',
@@ -92,7 +92,8 @@ class Organizations {
                 },
                 body: JSON.stringify({
                     organization_id: orgId,
-                    email: email
+                    email: email,
+                    auth_token: authToken
                 })
             });
             
@@ -267,7 +268,7 @@ class OrganizationManager {
             addBtn.textContent = '...';
 
             // Fetch organization details
-            const orgDetails = await Organizations.fetchDetails(orgId, userData.email);
+            const orgDetails = await Organizations.fetchDetails(orgId, userData.email, userData.cloudbees_token);
             
             // Add to local storage
             Organizations.add(orgDetails);
@@ -616,6 +617,7 @@ class ScenarioForm {
         const payload = {
             organization_id: organizationId,
             email: userData.email,
+            auth_token: userData.cloudbees_token,
             invitee_username: settings.invitee_username || null,
             parameters: {}
         };

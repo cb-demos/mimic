@@ -70,23 +70,19 @@ def test_instantiate_scenario_with_expiration(
 
     # Mock the auth service
     mock_auth = AsyncMock()
-    mock_auth.get_pat.return_value = "test-pat"
+    mock_auth.get_pat_by_token.return_value = "test-pat"
     mock_auth_service_func.return_value = mock_auth
 
     # Mock the scenario service
     mock_service = AsyncMock()
-    mock_service.execute_scenario.return_value = {
-        "status": "success",
-        "message": "Scenario executed successfully",
-        "scenario_id": "test-scenario",
-        "summary": {"created_resources": 3},
-    }
+    mock_service.start_scenario_execution.return_value = "test-session-id"
     mock_service_class.return_value = mock_service
 
     # Test request with expiration
     request_data = {
         "organization_id": "test-org-id",
         "email": "test@cloudbees.com",
+        "auth_token": "123",
         "invitee_username": "testuser",
         "parameters": {"app_name": "test-app"},
         "expires_in_days": 14,
@@ -96,10 +92,12 @@ def test_instantiate_scenario_with_expiration(
 
     assert response.status_code == 200
     result = response.json()
-    assert result["status"] == "success"
+    assert result["status"] == "started"
+    assert result["scenario_id"] == "test-scenario"
+    assert result["session_id"] == "test-session-id"
 
     # Verify the service was called with the expiration parameter
-    mock_service.execute_scenario.assert_called_once_with(
+    mock_service.start_scenario_execution.assert_called_once_with(
         scenario_id="test-scenario",
         organization_id="test-org-id",
         unify_pat="test-pat",
@@ -119,23 +117,19 @@ def test_instantiate_scenario_without_expiration(
 
     # Mock the auth service
     mock_auth = AsyncMock()
-    mock_auth.get_pat.return_value = "test-pat"
+    mock_auth.get_pat_by_token.return_value = "test-pat"
     mock_auth_service_func.return_value = mock_auth
 
     # Mock the scenario service
     mock_service = AsyncMock()
-    mock_service.execute_scenario.return_value = {
-        "status": "success",
-        "message": "Scenario executed successfully",
-        "scenario_id": "test-scenario",
-        "summary": {"created_resources": 2},
-    }
+    mock_service.start_scenario_execution.return_value = "test-session-id-2"
     mock_service_class.return_value = mock_service
 
     # Test request without expiration (should use default 7 days)
     request_data = {
         "organization_id": "test-org-id",
         "email": "test@cloudbees.com",
+        "auth_token": "456",
         "parameters": {"app_name": "test-app"},
     }
 
@@ -143,10 +137,12 @@ def test_instantiate_scenario_without_expiration(
 
     assert response.status_code == 200
     result = response.json()
-    assert result["status"] == "success"
+    assert result["status"] == "started"
+    assert result["scenario_id"] == "test-scenario"
+    assert result["session_id"] == "test-session-id-2"
 
     # Verify the service was called with the default expiration (7 days)
-    mock_service.execute_scenario.assert_called_once_with(
+    mock_service.start_scenario_execution.assert_called_once_with(
         scenario_id="test-scenario",
         organization_id="test-org-id",
         unify_pat="test-pat",

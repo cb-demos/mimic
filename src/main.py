@@ -18,12 +18,12 @@ from src.config import settings
 from src.database import get_database, initialize_database
 from src.exceptions import PipelineError, UnifyAPIError, ValidationError
 from src.mcp_http import mcp
+from src.progress_tracker import get_progress_tracker
 from src.scenario_service import ScenarioService
 from src.scenarios import initialize_scenarios
 from src.scheduler import get_scheduler, start_scheduler, stop_scheduler
 from src.security import NoValidPATFoundError, validate_encryption_key
 from src.unify import UnifyAPIClient
-from src.progress_tracker import get_progress_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +155,7 @@ class HealthResponse(BaseModel):
 class InstantiateRequest(BaseModel):
     organization_id: str
     email: str
+    auth_token: str
     invitee_username: str | None = None
     parameters: dict[str, Any] | None = None
     expires_in_days: int | None = 7  # Default to 7 days, None for no expiration
@@ -163,6 +164,7 @@ class InstantiateRequest(BaseModel):
 class OrganizationRequest(BaseModel):
     organization_id: str
     email: str
+    auth_token: str
 
 
 class VerifyTokensRequest(BaseModel):
@@ -177,6 +179,8 @@ class AuthStatusResponse(BaseModel):
     email: str | None = None
     name: str | None = None
     has_github_pat: bool = False
+    cloudbees_token: str | None = None
+    github_token: str | None = None
 
 
 class LogoutRequest(BaseModel):
@@ -319,13 +323,17 @@ async def get_organization_details(request: OrganizationRequest):
     """
     Get organization details from CloudBees Platform API.
 
-    This endpoint fetches organization information using the user's stored PAT
+    This endpoint fetches organization information using the user's token
     and returns the display name.
     """
     auth_service = get_auth_service()
 
-    # Get user's CloudBees PAT from database
-    unify_pat = await auth_service.get_pat(request.email, "cloudbees")
+    # Get the PAT using the provided token
+    unify_pat = await auth_service.get_pat_by_token(
+        request.email,
+        request.auth_token,
+        "cloudbees"
+    )
 
     with UnifyAPIClient(api_key=unify_pat) as client:
         org_data = client.get_organization(request.organization_id)
@@ -372,6 +380,8 @@ async def verify_tokens(request: VerifyTokensRequest):
             email=user_details["email"],
             name=user_details.get("name"),
             has_github_pat=user_details["has_github_pat"],
+            cloudbees_token=user_details["cloudbees_token"],
+            github_token=user_details.get("github_token"),
         )
 
     except ValueError as e:
@@ -446,8 +456,12 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     service = ScenarioService()
     auth_service = get_auth_service()
 
-    # Get user's CloudBees PAT from database
-    unify_pat = await auth_service.get_pat(request.email, "cloudbees")
+    # Get the PAT using the provided token
+    unify_pat = await auth_service.get_pat_by_token(
+        request.email,
+        request.auth_token,
+        "cloudbees"
+    )
 
     # Start execution asynchronously and get session ID
     session_id = await service.start_scenario_execution(

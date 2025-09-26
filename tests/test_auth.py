@@ -200,7 +200,7 @@ async def test_get_fallback_pats_no_valid_pats(test_db_and_auth):
     """Test fallback PATs when no valid ones exist."""
     db, auth = test_db_and_auth
 
-    with pytest.raises(NoValidPATFoundError, match="No PATs found"):
+    with pytest.raises(NoValidPATFoundError, match="No valid PATs found"):
         await auth.get_fallback_pats("user@example.com", "cloudbees")
 
 

@@ -10,7 +10,7 @@ from src.auth import get_auth_service
 from src.config import settings
 from src.creation_pipeline import CreationPipeline
 from src.database import get_database
-from src.progress_tracker import create_progress_tracker, cleanup_progress_tracker
+from src.progress_tracker import cleanup_progress_tracker, create_progress_tracker
 from src.scenarios import Scenario, get_scenario_manager
 
 logger = logging.getLogger(__name__)
@@ -98,7 +98,7 @@ class ScenarioService:
         logger.info(f"Created resource session {session_id} for user {email}")
 
         # Create progress tracker for real-time updates
-        progress_tracker = create_progress_tracker(session_id)
+        create_progress_tracker(session_id)
 
         # Determine GitHub PAT (user's custom PAT or default service account)
         github_pat = settings.GITHUB_TOKEN  # Default service account
@@ -209,7 +209,7 @@ class ScenarioService:
         logger.info(f"Created resource session {session_id} for user {email}")
 
         # Create progress tracker for real-time updates
-        progress_tracker = create_progress_tracker(session_id)
+        create_progress_tracker(session_id)
 
         # Start execution in background task
         import asyncio

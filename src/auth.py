@@ -23,7 +23,7 @@ class AuthService:
         github_pat: str | None = None,
         name: str | None = None,
     ) -> dict:
-        """Store user tokens securely without verification.
+        """Store user tokens securely, avoiding duplicates.
 
         Args:
             email: User's company email address
@@ -32,7 +32,7 @@ class AuthService:
             name: Optional display name
 
         Returns:
-            User details dictionary
+            User details dictionary with auth tokens
         """
         # Normalize email to lowercase
         email = email.lower().strip()
@@ -40,17 +40,56 @@ class AuthService:
         # Store user record
         await self.db.create_user(email, name)
 
-        # Encrypt and store PATs
-        encrypted_unify_pat = self.pat_manager.encrypt(unify_pat)
-        await self.db.store_pat(email, encrypted_unify_pat, "cloudbees")
+        # Handle CloudBees PAT - check for existing before storing
+        cloudbees_token = await self._store_pat_if_new(email, unify_pat, "cloudbees")
 
+        # Handle GitHub PAT if provided
+        github_token = None
         if github_pat:
-            encrypted_github_pat = self.pat_manager.encrypt(github_pat)
-            await self.db.store_pat(email, encrypted_github_pat, "github")
+            github_token = await self._store_pat_if_new(email, github_pat, "github")
 
-        logger.info(f"Successfully stored tokens for {email}")
+        logger.info(f"Successfully stored/updated tokens for {email}")
 
-        return {"email": email, "name": name, "has_github_pat": bool(github_pat)}
+        return {
+            "email": email,
+            "name": name,
+            "cloudbees_token": str(cloudbees_token),
+            "github_token": str(github_token) if github_token else None,
+            "has_github_pat": bool(github_pat)
+        }
+
+    async def _store_pat_if_new(self, email: str, pat: str, platform: str) -> int:
+        """Store PAT only if it doesn't already exist for this user.
+
+        Args:
+            email: User's email
+            pat: Plain text PAT
+            platform: Platform ('cloudbees' or 'github')
+
+        Returns:
+            The database ID (token) of the PAT
+        """
+        # Check if this exact PAT already exists for this user
+        existing_pats = await self.db.get_user_pats(email, platform)
+
+        for pat_record in existing_pats:
+            try:
+                decrypted_pat = self.pat_manager.decrypt(pat_record["encrypted_pat"])
+                if decrypted_pat == pat:
+                    # PAT already exists, just update last_used
+                    await self.db.update_pat_last_used(pat_record["id"])
+                    logger.info(f"Found existing {platform} PAT for {email}, updated last_used")
+                    return pat_record["id"]
+            except Exception as e:
+                # Failed to decrypt - mark as inactive and continue
+                logger.warning(f"Failed to decrypt existing PAT for {email}: {e}")
+                await self.db.mark_pat_inactive(pat_record["id"])
+
+        # PAT doesn't exist, store it
+        encrypted_pat = self.pat_manager.encrypt(pat)
+        pat_id = await self.db.store_pat(email, encrypted_pat, platform)
+        logger.info(f"Stored new {platform} PAT for {email} with token {pat_id}")
+        return pat_id
 
     async def get_pat(self, email: str, platform: str = "cloudbees") -> str:
         """Get the appropriate PAT for a user and platform.
@@ -154,6 +193,43 @@ class AuthService:
             )
 
         return valid_pats
+
+    async def get_pat_by_token(self, email: str, token: str, platform: str = "cloudbees") -> str:
+        """Get PAT using a token (database ID).
+
+        Args:
+            email: User's email (for verification)
+            token: The token (PAT database ID)
+            platform: Platform ('cloudbees' or 'github')
+
+        Returns:
+            PAT string to use
+
+        Raises:
+            NoValidPATFoundError: If token is invalid or doesn't belong to user
+        """
+        email = email.lower().strip()
+
+        try:
+            pat_id = int(token)
+        except ValueError:
+            raise NoValidPATFoundError(f"Invalid token format for user {email}") from None
+
+        # Get PAT by ID and verify it belongs to the user
+        pat_record = await self.db.get_pat_by_id(pat_id)
+
+        if not pat_record:
+            raise NoValidPATFoundError(f"Token not found for user {email}")
+
+        # Verify the PAT belongs to the correct user and platform
+        if pat_record["email"] != email or pat_record["platform"] != platform:
+            raise NoValidPATFoundError(f"Token doesn't belong to user {email} on platform {platform}")
+
+        # Update last_used timestamp
+        await self.db.update_pat_last_used(pat_id)
+
+        # Decrypt and return the PAT
+        return self.pat_manager.decrypt(pat_record["encrypted_pat"])
 
     async def refresh_user_activity(self, email: str) -> None:
         """Update user's last_active timestamp.

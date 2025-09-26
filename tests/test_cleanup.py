@@ -287,17 +287,17 @@ async def test_process_pending_deletions_with_no_valid_pat(test_db_and_services)
     # Process pending deletions (stage 2)
     result = await cleanup.process_pending_deletions()
 
-    # Should fail due to no PATs
+    # Should succeed using GitHub service account fallback
     assert result["total_resources"] == 1
-    assert result["successful"] == 0
+    assert result["successful"] == 1
     assert result["failed"] == 0
-    assert result["no_valid_pat"] == 1
+    assert result["no_valid_pat"] == 0
 
-    # Resource should be marked as failed
+    # Resource should be marked as deleted (cleanup succeeded)
     resource = await db.fetchone(
         "SELECT * FROM resources WHERE id = ?", ("orphaned_res",)
     )
-    assert resource["status"] == "failed"
+    assert resource["status"] == "deleted"
 
 
 @pytest.mark.asyncio
@@ -320,7 +320,7 @@ async def test_unknown_platform_error(test_db_and_services):
     )
 
     # Should raise NoValidPATFoundError because no PATs exist for unknown platform
-    with pytest.raises(NoValidPATFoundError, match="No PATs found.*unknown_platform"):
+    with pytest.raises(NoValidPATFoundError, match="No valid PATs found.*unknown_platform"):
         await cleanup.cleanup_single_resource("bad_res", "user@example.com")
 
 

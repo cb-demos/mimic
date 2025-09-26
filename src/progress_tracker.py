@@ -1,11 +1,10 @@
 """Real-time progress tracking for scenario execution."""
 
 import asyncio
-import json
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -37,11 +36,11 @@ class ProgressStep(str, Enum):
 class ProgressEvent(BaseModel):
     """A progress event in the scenario execution."""
     event_type: ProgressEventType
-    step: Optional[ProgressStep] = None
+    step: ProgressStep | None = None
     message: str
     timestamp: str
-    percentage: Optional[int] = None
-    details: Optional[Dict[str, Any]] = None
+    percentage: int | None = None
+    details: dict[str, Any] | None = None
 
 
 class ProgressTracker:
@@ -71,8 +70,8 @@ class ProgressTracker:
         self,
         event_type: ProgressEventType,
         message: str,
-        step: Optional[ProgressStep] = None,
-        details: Optional[Dict[str, Any]] = None,
+        step: ProgressStep | None = None,
+        details: dict[str, Any] | None = None,
     ) -> ProgressEvent:
         """Create a progress event."""
         percentage = None
@@ -96,34 +95,34 @@ class ProgressTracker:
         except Exception as e:
             logger.error(f"Failed to emit progress event: {e}")
 
-    async def start_step(self, step: ProgressStep, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def start_step(self, step: ProgressStep, message: str, details: dict[str, Any] | None = None) -> None:
         """Mark a step as started."""
         self.current_step = step
         event = self._create_event(ProgressEventType.STEP_STARTED, message, step, details)
         await self._emit_event(event)
 
-    async def complete_step(self, step: ProgressStep, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def complete_step(self, step: ProgressStep, message: str, details: dict[str, Any] | None = None) -> None:
         """Mark a step as completed."""
         self.completed_steps.add(step)
         event = self._create_event(ProgressEventType.STEP_COMPLETED, message, step, details)
         await self._emit_event(event)
 
-    async def fail_step(self, step: ProgressStep, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def fail_step(self, step: ProgressStep, message: str, details: dict[str, Any] | None = None) -> None:
         """Mark a step as failed."""
         event = self._create_event(ProgressEventType.STEP_FAILED, message, step, details)
         await self._emit_event(event)
 
-    async def log_message(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+    async def log_message(self, message: str, details: dict[str, Any] | None = None) -> None:
         """Emit a log message."""
         event = self._create_event(ProgressEventType.LOG_MESSAGE, message, self.current_step, details)
         await self._emit_event(event)
 
-    async def complete_scenario(self, message: str, summary: Optional[Dict[str, Any]] = None) -> None:
+    async def complete_scenario(self, message: str, summary: dict[str, Any] | None = None) -> None:
         """Mark the entire scenario as completed."""
         event = self._create_event(ProgressEventType.SCENARIO_COMPLETED, message, details=summary)
         await self._emit_event(event)
 
-    async def fail_scenario(self, message: str, error_details: Optional[Dict[str, Any]] = None) -> None:
+    async def fail_scenario(self, message: str, error_details: dict[str, Any] | None = None) -> None:
         """Mark the entire scenario as failed."""
         event = self._create_event(ProgressEventType.SCENARIO_FAILED, message, details=error_details)
         await self._emit_event(event)
@@ -155,7 +154,7 @@ class ProgressTracker:
                     logger.info(f"Scenario finished for {self.session_id}, ending stream")
                     break
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send keep-alive event
                 logger.debug(f"Sending keep-alive for {self.session_id}")
                 yield "data: {\"event_type\": \"keep_alive\", \"message\": \"Connection active\"}\n\n"
@@ -172,7 +171,7 @@ class ProgressTracker:
 
 
 # Global registry of progress trackers by session ID
-_progress_trackers: Dict[str, ProgressTracker] = {}
+_progress_trackers: dict[str, ProgressTracker] = {}
 
 
 def create_progress_tracker(session_id: str) -> ProgressTracker:
@@ -183,7 +182,7 @@ def create_progress_tracker(session_id: str) -> ProgressTracker:
     return tracker
 
 
-def get_progress_tracker(session_id: str) -> Optional[ProgressTracker]:
+def get_progress_tracker(session_id: str) -> ProgressTracker | None:
     """Get an existing progress tracker for a session."""
     tracker = _progress_trackers.get(session_id)
     if tracker:
