@@ -9,7 +9,7 @@ class DropdownSelector extends HTMLElement {
         this.displayField = this.getAttribute('display-field') || 'displayName';
         this.valueField = this.getAttribute('value-field') || 'id';
         this.truncateLength = parseInt(this.getAttribute('truncate-length')) || 4;
-        this.requiresPat = this.getAttribute('requires-pat') === 'true';
+        this.requiresAuth = this.getAttribute('requires-auth') === 'true';
         
         this.items = [];
         this.selectedItem = null;
@@ -175,13 +175,13 @@ class DropdownSelector extends HTMLElement {
             
             if (this.fetchEndpoint) {
                 // Fetch from API
-                if (this.requiresPat) {
-                    const unifyPat = this.getPatFromSettings();
-                    if (!unifyPat) {
-                        alert('Please set your CloudBees Unify Personal Access Token first');
+                if (this.requiresAuth) {
+                    const userData = AuthComponent.getUserData();
+                    if (!userData || !userData.email) {
+                        alert('Please sign in first to add organizations');
                         return;
                     }
-                    item = await this.fetchItemDetails(value, unifyPat);
+                    item = await this.fetchItemDetails(value, userData);
                 } else {
                     item = await this.fetchItemDetails(value);
                 }
@@ -220,16 +220,20 @@ class DropdownSelector extends HTMLElement {
         }
     }
     
-    async fetchItemDetails(value, pat = null) {
+    async fetchItemDetails(value, userData = null) {
+        const body = { organization_id: value };
+
+        if (userData) {
+            body.email = userData.email;
+            body.auth_token = userData.cloudbees_token;
+        }
+
         const response = await fetch(this.fetchEndpoint, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                organization_id: value,
-                ...(pat && { unify_pat: pat })
-            })
+            body: JSON.stringify(body)
         });
 
         if (!response.ok) {
@@ -240,15 +244,6 @@ class DropdownSelector extends HTMLElement {
         return await response.json();
     }
     
-    getPatFromSettings() {
-        try {
-            const settings = localStorage.getItem('mimic_settings');
-            const parsed = settings ? JSON.parse(settings) : {};
-            return parsed.unify_pat || null;
-        } catch (e) {
-            return null;
-        }
-    }
     
     hideAddForm() {
         const selectGroup = this.querySelector(`#select-group-${this.storageKey}`);
