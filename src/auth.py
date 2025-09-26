@@ -118,19 +118,19 @@ class AuthService:
     async def get_fallback_pats(
         self, email: str, platform: str = "cloudbees"
     ) -> list[str]:
-        """Get all valid PATs for a user, newest first.
+        """Get all valid PATs for a user, newest first, with system fallback.
 
         Used for fallback logic when a PAT fails.
+        For GitHub, includes system-wide GitHub PAT as final fallback.
         """
+        from .config import settings
+
         email = email.lower().strip()
         pats = await self.db.get_user_pats(email, platform)
 
-        if not pats:
-            raise NoValidPATFoundError(
-                f"No PATs found for user {email} on platform {platform}"
-            )
-
         valid_pats = []
+
+        # First, try user's custom PATs
         for pat_record in pats:
             try:
                 decrypted_pat = self.pat_manager.decrypt(pat_record["encrypted_pat"])
@@ -142,6 +142,11 @@ class AuthService:
                     "UPDATE user_pats SET is_active = false WHERE id = ?",
                     (pat_record["id"],),
                 )
+
+        # For GitHub, add system-wide GitHub PAT as fallback
+        if platform == "github" and settings.GITHUB_TOKEN:
+            valid_pats.append(settings.GITHUB_TOKEN)
+            logger.info(f"Added system GitHub PAT as fallback for {email}")
 
         if not valid_pats:
             raise NoValidPATFoundError(

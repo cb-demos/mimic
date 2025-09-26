@@ -185,4 +185,10 @@
     </div>
     <div class="drawer-overlay" onclick="DrawerManager.close()"></div>
 </div>
+
+<!-- Progress Tracker Component -->
+<progress-tracker id="progress-tracker"></progress-tracker>
+
+<!-- Load Progress Tracker Script -->
+<script src="/static/progress-tracker.js?v={{ asset_hashes.get('progress-tracker.js', 'dev') }}"></script>
 {% endblock %}

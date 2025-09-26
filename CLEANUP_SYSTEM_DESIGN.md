@@ -401,11 +401,13 @@ POST /mcp
 7. ✅ Add comprehensive test coverage for expiration functionality
 8. ✅ Successfully tested real resource cleanup (GitHub repo, CloudBees components)
 
-### Phase 6: MCP Integration (FINAL PHASE)
-1. Remove local MCP components (`mcp_main.py`, `mcp_server.py`)
-2. Add HTTP MCP endpoint to FastAPI app
-3. Update MCP client configuration to pass tokens via environment
-4. Test MCP authentication and cleanup flows
+### ✅ Phase 6: MCP Integration (COMPLETED)
+1. ✅ Remove local MCP components (`mcp_main.py`, `mcp_server.py`)
+2. ✅ Add HTTP MCP endpoint to FastAPI app with FastMCP streamable HTTP transport
+3. ✅ Update MCP client configuration for both HTTP clients (Cursor) and stdio clients (Amazon Q via mcp-remote)
+4. ✅ Test MCP authentication and cleanup flows - successfully validated with both client types
+5. ✅ Remove obsolete MCP integration tests and ensure all remaining tests pass (92 passing tests)
+6. ✅ Implement proper header-based authentication using FastMCP's `get_http_headers()`
 
 ### Phase 7: Production Readiness
 1. Security review and hardening

@@ -7,7 +7,7 @@ from functools import wraps
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -23,6 +23,7 @@ from src.scenarios import initialize_scenarios
 from src.scheduler import get_scheduler, start_scheduler, stop_scheduler
 from src.security import NoValidPATFoundError, validate_encryption_key
 from src.unify import UnifyAPIClient
+from src.progress_tracker import get_progress_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -435,15 +436,12 @@ async def logout(request: LogoutRequest):
 @handle_auth_errors
 async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     """
-    Execute a complete scenario using the Creation Pipeline.
+    Start scenario execution and return session ID immediately for progress tracking.
 
-    This will:
-    1. Create repositories from templates with content replacements
-    2. Create CloudBees components for repos that need them
-    3. Create feature flags
-    4. Create environments
-    5. Create applications linking components and environments
-    6. Configure flags across environments
+    This endpoint:
+    1. Creates a session and progress tracker
+    2. Starts execution asynchronously
+    3. Returns session ID for real-time progress tracking
     """
     service = ScenarioService()
     auth_service = get_auth_service()
@@ -451,7 +449,8 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
     # Get user's CloudBees PAT from database
     unify_pat = await auth_service.get_pat(request.email, "cloudbees")
 
-    result = await service.execute_scenario(
+    # Start execution asynchronously and get session ID
+    session_id = await service.start_scenario_execution(
         scenario_id=scenario_id,
         organization_id=request.organization_id,
         unify_pat=unify_pat,
@@ -460,7 +459,13 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
         parameters=request.parameters,
         expires_in_days=request.expires_in_days,
     )
-    return result
+
+    return {
+        "status": "started",
+        "message": "Scenario execution started",
+        "session_id": session_id,
+        "scenario_id": scenario_id,
+    }
 
 
 @app.get("/api/my/sessions", response_model=list[SessionResponse])
@@ -713,3 +718,35 @@ async def trigger_cleanup(request: Request):
 
     scheduler = get_scheduler()
     return await scheduler.trigger_cleanup_now()
+
+
+@app.get("/api/scenario/{session_id}/progress")
+async def scenario_progress_stream(session_id: str):
+    """
+    Server-Sent Events stream for real-time scenario execution progress.
+
+    Args:
+        session_id: The session ID to stream progress for
+
+    Returns:
+        Server-Sent Events stream with progress updates
+    """
+    logger.info(f"Starting progress stream for session: {session_id}")
+
+    tracker = get_progress_tracker(session_id)
+    if not tracker:
+        logger.error(f"No progress tracker found for session: {session_id}")
+        raise HTTPException(status_code=404, detail=f"No active scenario found for session {session_id}")
+
+    logger.info(f"Progress tracker found, starting stream for session: {session_id}")
+
+    return StreamingResponse(
+        tracker.get_events_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "Access-Control-Allow-Origin": "*",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        }
+    )

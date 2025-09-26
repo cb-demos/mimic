@@ -649,9 +649,8 @@ class ScenarioForm {
             const originalText = submitBtn.textContent;
             submitBtn.disabled = true;
             submitBtn.textContent = 'Executing...';
-            
-            this.showMessage('Starting scenario execution...', 'info');
-            
+
+            // First, get a session ID by starting the scenario
             const response = await fetch(`/instantiate/${scenarioId}`, {
                 method: 'POST',
                 headers: {
@@ -659,17 +658,28 @@ class ScenarioForm {
                 },
                 body: JSON.stringify(payload)
             });
-            
+
             const result = await response.json();
-            
+
             if (response.ok) {
-                this.showExecutionResults(result);
-                this.showMessage('Scenario executed successfully!', 'success');
+                // Show progress tracker with session ID for real-time updates
+                const progressTracker = document.getElementById('progress-tracker');
+                if (progressTracker && result.session_id && result.status === 'started') {
+                    // Scenario started successfully - show progress tracker
+                    progressTracker.show(result.session_id);
+                } else if (result.summary) {
+                    // Legacy response format - show results directly
+                    this.showExecutionResults(result);
+                    this.showMessage('Scenario executed successfully!', 'success');
+                } else {
+                    // Unknown response format
+                    this.showMessage('Scenario started but progress tracking unavailable', 'info');
+                }
 
                 // Refresh cleanup dashboard to show new resources
                 const cleanupDashboard = document.getElementById('cleanup-dashboard');
                 if (cleanupDashboard && typeof cleanupDashboard.refreshData === 'function') {
-                    setTimeout(() => cleanupDashboard.refreshData(), 1000);
+                    setTimeout(() => cleanupDashboard.refreshData(), 3000);
                 }
             } else {
                 // Handle authentication errors
@@ -767,43 +777,71 @@ class ScenarioForm {
     
     showExecutionResults(result) {
         const resultsContainer = document.querySelector('.execution-results') || this.createResultsContainer();
-        
-        let html = '<h4>Execution Results</h4>';
-        
+
+        let html = '<h4>Scenario Execution Complete</h4>';
+
         if (result.summary) {
             const summary = result.summary;
             html += '<div class="results-section">';
-            
-            if (summary.components && summary.components.length > 0) {
-                html += '<p><strong>Components created:</strong></p>';
-                html += '<ul>' + summary.components.map(c => `<li>${c}</li>`).join('') + '</ul>';
-            }
-            
-            if (summary.environments && summary.environments.length > 0) {
-                html += '<p><strong>Environments created:</strong></p>';
-                html += '<ul>' + summary.environments.map(e => `<li>${e}</li>`).join('') + '</ul>';
-            }
-            
-            if (summary.applications && summary.applications.length > 0) {
-                html += '<p><strong>Applications created:</strong></p>';
-                html += '<ul>' + summary.applications.map(a => `<li>${a}</li>`).join('') + '</ul>';
-            }
-            
-            if (summary.flags && summary.flags.length > 0) {
-                html += '<p><strong>Feature flags created:</strong></p>';
-                html += '<ul>' + summary.flags.map(f => `<li>${f}</li>`).join('') + '</ul>';
-            }
-            
+
             if (summary.repositories && summary.repositories.length > 0) {
-                html += '<p><strong>GitHub repositories:</strong></p>';
-                html += '<ul>' + summary.repositories.map(repo => 
-                    `<li><a href="${repo.html_url}" target="_blank" rel="noopener">${repo.full_name}</a>${repo.existed ? ' (existing)' : ''}</li>`
-                ).join('') + '</ul>';
+                html += '<div class="resource-category">';
+                html += '<div class="category-title">📁 GitHub Repositories</div>';
+                html += '<div class="resource-list">';
+                summary.repositories.forEach(repo => {
+                    html += `
+                        <div class="resource-item">
+                            <a href="${repo.html_url}" target="_blank" rel="noopener">${repo.full_name}</a>
+                            ${repo.existed ? '<span class="resource-badge existing">existing</span>' : '<span class="resource-badge">created</span>'}
+                        </div>
+                    `;
+                });
+                html += '</div></div>';
             }
-            
+
+            if (summary.components && summary.components.length > 0) {
+                html += '<div class="resource-category">';
+                html += '<div class="category-title">🧩 CloudBees Components</div>';
+                html += '<div class="resource-list">';
+                summary.components.forEach(c => {
+                    html += `<div class="resource-item">${c} <span class="resource-badge">created</span></div>`;
+                });
+                html += '</div></div>';
+            }
+
+            if (summary.environments && summary.environments.length > 0) {
+                html += '<div class="resource-category">';
+                html += '<div class="category-title">🌍 Environments</div>';
+                html += '<div class="resource-list">';
+                summary.environments.forEach(e => {
+                    html += `<div class="resource-item">${e} <span class="resource-badge">created</span></div>`;
+                });
+                html += '</div></div>';
+            }
+
+            if (summary.applications && summary.applications.length > 0) {
+                html += '<div class="resource-category">';
+                html += '<div class="category-title">📱 Applications</div>';
+                html += '<div class="resource-list">';
+                summary.applications.forEach(a => {
+                    html += `<div class="resource-item">${a} <span class="resource-badge">created</span></div>`;
+                });
+                html += '</div></div>';
+            }
+
+            if (summary.flags && summary.flags.length > 0) {
+                html += '<div class="resource-category">';
+                html += '<div class="category-title">🚩 Feature Flags</div>';
+                html += '<div class="resource-list">';
+                summary.flags.forEach(f => {
+                    html += `<div class="resource-item">${f} <span class="resource-badge">created</span></div>`;
+                });
+                html += '</div></div>';
+            }
+
             html += '</div>';
         }
-        
+
         resultsContainer.innerHTML = html;
         resultsContainer.style.display = 'block';
     }
