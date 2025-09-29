@@ -1,0 +1,36 @@
+id: java-gha
+name: GHA-only Java Demo
+summary: A demo where all operations occur in GHA and push the results to Unify.
+details: |
+  This demo is for scenarios where you want to demonstrate to prospects/customers who already have existing workloads in GHA and don't want to have to rewrite anything. Here everything happens inside of GHA and it sends the data to Unify.
+
+  Requires the following GHA secrets to be set (can be done at org level):
+    secrets.NEXUS_URL
+    secrets.NEXUS_USERNAME
+    secrets.NEXUS_PASSWORD
+
+repositories:
+  - source: cb-demos/java-gha
+    target_org: "${target_org}"
+    repo_name_template: "${project_name}"
+    create_component: true
+    replacements:
+      "PROJECT_NAME": "${project_name}"
+    files_to_modify:
+      - ".github/workflows/ci.yml"
+      - README.md
+      - pom.xml
+parameter_schema:
+  properties:
+    project_name:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      description: The name of the project (lowercase, alphanumeric with hyphens)
+      placeholder: "e.g., java-gha-sept"
+    target_org:
+      type: string
+      pattern: "^[a-z0-9-]+$"
+      description: The GitHub organization to create the repository in
+  required:
+    - project_name
+    - target_org
