@@ -87,18 +87,6 @@ resource "google_compute_address" "mimic" {
   region = var.region
 }
 
-# Persistent disk for database storage
-resource "google_compute_disk" "mimic_data" {
-  name  = "mimic-data-disk"
-  type  = "pd-standard"
-  zone  = var.zone
-  size  = 10
-
-  labels = {
-    environment = "production"
-    service     = "mimic"
-  }
-}
 
 # GCE Instance
 resource "google_compute_instance" "mimic" {
@@ -125,10 +113,6 @@ resource "google_compute_instance" "mimic" {
     }
   }
 
-  attached_disk {
-    source      = google_compute_disk.mimic_data.id
-    device_name = "mimic-data"
-  }
 
   service_account {
     email  = data.google_service_account.mimic_service.email
