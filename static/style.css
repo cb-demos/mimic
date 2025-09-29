@@ -410,6 +410,76 @@ a {
 }
 
 
+/* Scenario Details in Drawer */
+.scenario-details {
+    margin-bottom: 1.5rem;
+}
+
+.details-content {
+    color: #555 !important;
+    line-height: 1.4 !important;
+    font-size: 16px !important;
+}
+
+.details-content * {
+    font-size: inherit !important;
+}
+
+.details-content h1,
+.details-content h2,
+.details-content h3 {
+    margin: 0.75rem 0 0.4rem 0 !important;
+    color: #2c3e50 !important;
+    font-weight: 600 !important;
+}
+
+.details-content h1:first-child,
+.details-content h2:first-child,
+.details-content h3:first-child {
+    margin-top: 0 !important;
+}
+
+.details-content h2 {
+    font-size: 18px !important;
+}
+
+.details-content h3 {
+    font-size: 17px !important;
+}
+
+.details-content p {
+    margin: 0.5rem 0 !important;
+    font-size: 16px !important;
+}
+
+.details-content ul {
+    margin: 0.5rem 0 !important;
+    padding-left: 1.25rem !important;
+}
+
+.details-content li {
+    margin: 0.15rem 0 !important;
+    font-size: 16px !important;
+}
+
+.details-content a {
+    color: #4f46e5 !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: inherit !important;
+}
+
+.details-content a:hover {
+    color: #3730a3 !important;
+    text-decoration: underline !important;
+}
+
+.details-content strong {
+    font-weight: 600 !important;
+    color: #1f2937 !important;
+    font-size: inherit !important;
+}
+
 /* Forms */
 .scenario-form {
 }

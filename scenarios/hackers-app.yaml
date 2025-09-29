@@ -1,6 +1,10 @@
 id: hackers-app
 name: Hackers App
-description: The full Hackers App RO demo
+summary: The full Hackers App RO demo
+details: |
+  This scenario sets up the complete Hackers App demonstration environment featuring a full-stack application with three services.
+
+  This is currently a work-in-progress scenario being developed for comprehensive demonstrations.
 wip: true
 repositories:
   - source: cloudbees-days/hackers-web

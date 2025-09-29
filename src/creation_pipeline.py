@@ -65,7 +65,7 @@ class CreationPipeline:
             Summary of what was created
         """
         print(f"🚀 Starting scenario: {scenario.name}")
-        print(f"📝 Description: {scenario.description}")
+        print(f"📝 Description: {scenario.summary}")
         print("=" * 60)
 
         # Start progress tracking

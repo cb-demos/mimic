@@ -110,7 +110,8 @@ class Scenario(BaseModel):
 
     id: str
     name: str
-    description: str
+    summary: str
+    details: str | None = None
     repositories: list[RepositoryConfig]
     applications: list[ApplicationConfig] = Field(default_factory=list)
     environments: list[EnvironmentConfig] = Field(default_factory=list)
@@ -418,7 +419,8 @@ class ScenarioManager:
             scenario_info: dict[str, Any] = {
                 "id": scenario.id,
                 "name": scenario.name,
-                "description": scenario.description,
+                "summary": scenario.summary,
+                "details": scenario.details,
             }
 
             # Include parameter schema if present

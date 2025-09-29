@@ -1,6 +1,13 @@
 id: hackers-organized
 name: Hackers Organized
-description: The standard Hackers Organized demo
+summary: The standard Hackers Organized demo
+details: |
+  This scenario creates the classic Hackers Organized demo. It creates a new repo from the template that you can then demo the component and workflow creation process.
+  Optionally, you can tell it to pre-run either of those steps so you are left with the final result.
+
+  This scenario will generate a new environment for you and map it to the deployment.
+  You can optionally use an existing environment to reuse it across apps (note that the cleanup process deletes the environment).
+
 repositories:
   - source: cb-demos/hackers-source
     target_org: "${target_org}"

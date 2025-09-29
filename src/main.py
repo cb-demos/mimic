@@ -229,7 +229,8 @@ async def root(request: Request):
             scenario_info = {
                 "id": scenario.id,
                 "name": scenario.name,
-                "description": scenario.description,
+                "summary": scenario.summary,
+                "details": scenario.details,
                 "repositories": len(scenario.repositories),
                 "applications": len(scenario.applications),
                 "environments": len(scenario.environments),
@@ -297,7 +298,8 @@ async def get_scenario(scenario_id: str):
     result = {
         "id": scenario.id,
         "name": scenario.name,
-        "description": scenario.description,
+        "summary": scenario.summary,
+        "details": scenario.details,
         "repositories": len(scenario.repositories),
     }
 

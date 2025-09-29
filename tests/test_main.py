@@ -22,7 +22,8 @@ def test_ui_root(mock_service_class, client: TestClient):
     mock_scenario = MagicMock()
     mock_scenario.id = "test-scenario"
     mock_scenario.name = "Test Scenario"
-    mock_scenario.description = "Test description"
+    mock_scenario.summary = "Test description"
+    mock_scenario.details = None
     mock_scenario.repositories = []
     mock_scenario.applications = []
     mock_scenario.environments = []

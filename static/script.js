@@ -371,11 +371,56 @@ class ScenarioForm {
             });
 
             DrawerManager.open(`Configure: ${scenarioName}`, formClone);
+            this.renderScenarioDetails(formClone);
             this.populateFormWithSettings(formClone);
         }
     }
 
-    
+    renderScenarioDetails(formElement) {
+        const detailsElement = formElement.querySelector('.details-content');
+        if (detailsElement && detailsElement.dataset.details) {
+            const markdownText = detailsElement.dataset.details;
+            const htmlContent = this.markdownToHtml(markdownText);
+            detailsElement.innerHTML = htmlContent;
+
+            // Make all links open in new tabs
+            const links = detailsElement.querySelectorAll('a');
+            links.forEach(link => {
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+            });
+        }
+    }
+
+    markdownToHtml(markdown) {
+        // Simple markdown parser - handles basic formatting
+        let html = markdown;
+
+        // Convert headers
+        html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+        // Convert bold text
+        html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        // Convert links
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
+
+        // Convert line breaks to paragraphs
+        html = html.replace(/\n\n/g, '</p><p>');
+        html = '<p>' + html + '</p>';
+
+        // Convert single line breaks to <br>
+        html = html.replace(/\n/g, '<br>');
+
+        // Convert lists
+        html = html.replace(/^[\s]*-\s+(.*$)/gim, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+        return html;
+    }
+
     populateSettingsOnLoad() {
         // Populate settings form if it exists
         const settingsForm = document.querySelector('.settings-form');

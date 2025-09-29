@@ -67,7 +67,7 @@
                         {% endif %}
                         <div class="scenario-header">
                             <div class="title">{{ scenario.name }}</div>
-                            <div class="description">{{ scenario.description }}</div>
+                            <div class="description">{{ scenario.summary }}</div>
                             <div class="stats">
                                 {{ scenario.repositories }} repositories,
                                 {{ scenario.applications }} applications,
@@ -76,6 +76,11 @@
                         </div>
 
                         <div class="scenario-form" style="display: none;">
+                            {% if scenario.details %}
+                            <div class="scenario-details">
+                                <div class="details-content" data-details="{{ scenario.details|e }}"></div>
+                            </div>
+                            {% endif %}
                             <form class="scenario-execute-form" data-scenario-id="{{ scenario.id }}">
                                 <!-- CloudBees Organization -->
                                 <div class="form-group">

@@ -76,7 +76,7 @@ class TestScenarioTemplateResolution:
         return Scenario(
             id="test-scenario",
             name="Test Scenario",
-            description="Test scenario for computed variables",
+            summary="Test scenario for computed variables",
             repositories=[repository_config],
             environments=[environment_config],
             parameter_schema=parameter_schema,
