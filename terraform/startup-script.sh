@@ -11,9 +11,9 @@ log() {
 log "Starting Mimic service deployment on Debian"
 
 # Install required packages
-log "Installing Docker, Docker Compose, and Litestream"
+log "Installing Docker, Docker Compose, Litestream, and SQLite"
 apt-get update -y
-apt-get install -y ca-certificates curl wget
+apt-get install -y ca-certificates curl wget sqlite3
 
 # Add Docker GPG key and repository
 curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --yes --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
@@ -44,35 +44,60 @@ if ! gsutil ls "gs://$BACKUP_BUCKET/" >/dev/null 2>&1; then
 fi
 log "GCS bucket access validated successfully"
 
-# Setup SQLite database and restore from Litestream if available
+# Create mimic system user for database ownership
+log "Creating mimic system user"
+if ! id mimic >/dev/null 2>&1; then
+    useradd --system --no-create-home --shell /bin/false mimic
+fi
+MIMIC_UID=$(id -u mimic)
+MIMIC_GID=$(id -g mimic)
+
+# Setup SQLite database
 log "Setting up SQLite database"
 mkdir -p /opt/mimic
 
-# Restore database from Litestream backup if it exists
+# Create Litestream configuration
+log "Creating Litestream configuration"
+cat > /etc/litestream.yml << EOF
+dbs:
+  - path: /opt/mimic/mimic.db
+    replicas:
+      - type: gcs
+        bucket: mimic-backups
+        path: litestream
+        retention: 72h
+        sync-interval: 1s
+EOF
+
+# Restore database before starting Litestream
 DB_PATH="/opt/mimic/mimic.db"
-if ! [ -f "$DB_PATH" ]; then
-    log "Attempting to restore database from Litestream backup"
-    # Try to restore from backup with proper error handling
-    if litestream restore -if-db-not-exists gs://mimic-backups/litestream "$DB_PATH" 2>/dev/null; then
-        log "Successfully restored database from backup"
-    else
-        log "No existing backup found, creating new database"
-        if ! touch "$DB_PATH"; then
-            log "ERROR: Failed to create database file"
-            exit 1
-        fi
-    fi
+
+log "Attempting to restore from backup"
+if litestream restore -if-db-not-exists "$DB_PATH" 2>&1 | tee -a /var/log/mimic-startup.log; then
+    log "Database restore completed successfully"
 else
-    log "Database file already exists, skipping restore"
+    log "No existing backups found or restore failed, will create new database"
 fi
 
-# Ensure proper permissions
-if ! chown 1000:1000 "$DB_PATH"; then
+# Create database file if it doesn't exist
+if ! [ -f "$DB_PATH" ]; then
+    log "Creating new database file"
+    if ! touch "$DB_PATH"; then
+        log "ERROR: Failed to create database file"
+        exit 1
+    fi
+fi
+
+# Create WAL and SHM files for Docker volume mounts
+touch "$DB_PATH-wal" "$DB_PATH-shm"
+
+# Ensure proper permissions for all SQLite files
+if ! chown $MIMIC_UID:$MIMIC_GID "$DB_PATH" "$DB_PATH-wal" "$DB_PATH-shm"; then
     log "ERROR: Failed to set database file ownership"
     exit 1
 fi
 
-# Restore Caddy certificates if they exist
+# Restore Caddy certificates
 log "Restoring Caddy certificates from backup"
 if ! mkdir -p /opt/mimic/caddy_data_restore; then
     log "ERROR: Failed to create Caddy restore directory"
@@ -92,19 +117,14 @@ fi
 
 cd /opt/mimic
 
-# Create .env file with secrets (fetch fresh on each restart)
+# Fetch secrets from Secret Manager
 log "Fetching secrets from Google Secret Manager"
 
-# Use temporary files to avoid exposing secrets in process list
 TEMP_DIR=$(mktemp -d)
 chmod 700 "$TEMP_DIR"
-
-# Fetch secrets securely
 gcloud secrets versions access latest --secret=mimic-github-token --project=${project_id} > "$TEMP_DIR/github_token"
 gcloud secrets versions access latest --secret=mimic-cloudbees-endpoint-id --project=${project_id} > "$TEMP_DIR/cloudbees_endpoint"
 gcloud secrets versions access latest --secret=mimic-pat-encryption-key --project=${project_id} > "$TEMP_DIR/pat_key"
-
-# Create .env file
 cat > /opt/mimic/.env << EOF
 # Mimic environment variables
 GITHUB_TOKEN=$(cat "$TEMP_DIR/github_token")
@@ -112,17 +132,16 @@ CLOUDBEES_ENDPOINT_ID=$(cat "$TEMP_DIR/cloudbees_endpoint")
 PAT_ENCRYPTION_KEY=$(cat "$TEMP_DIR/pat_key")
 EOF
 chmod 600 /opt/mimic/.env
-
-# Clean up temporary files
 rm -rf "$TEMP_DIR"
 
-# Create docker-compose.yml with Mimic, Caddy, and Watchtower
+# Create Docker Compose configuration
 log "Creating Docker Compose configuration"
 cat > /opt/mimic/docker-compose.yml << EOF
 services:
   mimic:
     image: cloudbeesdemo/mimic:latest
     restart: unless-stopped
+    user: "$MIMIC_UID:$MIMIC_GID"
     ports:
       - "127.0.0.1:8000:8000"
     environment:
@@ -131,6 +150,8 @@ services:
       - /opt/mimic/.env
     volumes:
       - /opt/mimic/mimic.db:/app/mimic.db
+      - /opt/mimic/mimic.db-wal:/app/mimic.db-wal
+      - /opt/mimic/mimic.db-shm:/app/mimic.db-shm
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
@@ -176,20 +197,7 @@ volumes:
   caddy_logs:
 EOF
 
-# Create Litestream configuration
-log "Creating Litestream configuration"
-cat > /etc/litestream.yml << EOF
-dbs:
-  - path: /opt/mimic/mimic.db
-    replicas:
-      - type: gcs
-        bucket: mimic-backups
-        path: litestream
-        retention: 72h
-        sync-interval: 1s
-EOF
-
-# Create Caddyfile for containerized Caddy
+# Create Caddy configuration
 log "Creating Caddy configuration"
 cat > /opt/mimic/Caddyfile << EOF
 {
@@ -276,27 +284,18 @@ ${domain} {
 }
 EOF
 
-# Start Litestream replication FIRST to avoid race condition
+# Start Litestream
 log "Starting Litestream replication"
 systemctl start litestream
-
-# Wait for Litestream to initialize
-log "Waiting for Litestream to initialize"
 sleep 10
 
-# Pull and start containers
+# Start Docker services
 log "Pulling Docker images"
 docker compose pull
 
 log "Starting Docker services"
 docker compose up -d
-
-# Wait for services to be healthy
-log "Waiting for services to be healthy"
 sleep 60
-
-# Check Docker service status
-log "Checking Docker service status"
 docker compose ps
 
 # Create systemd service for Docker containers
@@ -327,7 +326,7 @@ RestartSec=30
 WantedBy=multi-user.target
 EOF
 
-# Create secrets fetch script for restarts
+# Create secrets fetch script
 log "Creating secrets fetch script"
 cat > /opt/mimic/fetch-secrets.sh << 'EOF'
 #!/bin/bash
@@ -336,16 +335,11 @@ set -euo pipefail
 PROJECT_ID="${project_id}"
 ENV_FILE="/opt/mimic/.env"
 
-# Create .env file with fresh secrets using secure method
 TEMP_DIR=$(mktemp -d)
 chmod 700 "$TEMP_DIR"
-
-# Fetch secrets securely
 gcloud secrets versions access latest --secret=mimic-github-token --project=$PROJECT_ID > "$TEMP_DIR/github_token"
 gcloud secrets versions access latest --secret=mimic-cloudbees-endpoint-id --project=$PROJECT_ID > "$TEMP_DIR/cloudbees_endpoint"
 gcloud secrets versions access latest --secret=mimic-pat-encryption-key --project=$PROJECT_ID > "$TEMP_DIR/pat_key"
-
-# Create .env file
 {
   echo "# Mimic environment variables"
   echo "GITHUB_TOKEN=$(cat "$TEMP_DIR/github_token")"
@@ -354,8 +348,6 @@ gcloud secrets versions access latest --secret=mimic-pat-encryption-key --projec
 } > "$ENV_FILE"
 
 chmod 600 "$ENV_FILE"
-
-# Clean up temporary files
 rm -rf "$TEMP_DIR"
 EOF
 chmod +x /opt/mimic/fetch-secrets.sh
@@ -384,12 +376,9 @@ cat > /opt/mimic/backup-caddy.sh << 'EOF'
 #!/bin/bash
 set -euo pipefail
 
-# Logging function
 log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >> /var/log/caddy-backup.log
 }
-
-# Backup Caddy certificates to GCS
 if [ -d "/opt/mimic/caddy_data_restore" ] && [ "$(ls -A /opt/mimic/caddy_data_restore)" ]; then
     log "Starting Caddy certificate backup"
     if gsutil -m rsync -r -d /opt/mimic/caddy_data_restore/ gs://mimic-backups/caddy/; then
@@ -411,11 +400,9 @@ echo "0 * * * * /opt/mimic/backup-caddy.sh" | crontab -
 systemctl enable mimic-docker.service
 systemctl enable litestream.service
 
-# Wait a bit for SSL certificate to be obtained
 log "Waiting for SSL certificate provisioning"
 sleep 30
 
-# Check service status
 log "Checking final service status"
 systemctl status mimic-docker --no-pager -l
 docker compose ps
