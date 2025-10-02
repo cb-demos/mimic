@@ -332,9 +332,7 @@ async def get_organization_details(request: OrganizationRequest):
 
     # Get the PAT using the provided token
     unify_pat = await auth_service.get_pat_by_token(
-        request.email,
-        request.auth_token,
-        "cloudbees"
+        request.email, request.auth_token, "cloudbees"
     )
 
     with UnifyAPIClient(api_key=unify_pat) as client:
@@ -460,9 +458,7 @@ async def instantiate_scenario(scenario_id: str, request: InstantiateRequest):
 
     # Get the PAT using the provided token
     unify_pat = await auth_service.get_pat_by_token(
-        request.email,
-        request.auth_token,
-        "cloudbees"
+        request.email, request.auth_token, "cloudbees"
     )
 
     # Start execution asynchronously and get session ID
@@ -752,7 +748,9 @@ async def scenario_progress_stream(session_id: str):
     tracker = get_progress_tracker(session_id)
     if not tracker:
         logger.error(f"No progress tracker found for session: {session_id}")
-        raise HTTPException(status_code=404, detail=f"No active scenario found for session {session_id}")
+        raise HTTPException(
+            status_code=404, detail=f"No active scenario found for session {session_id}"
+        )
 
     logger.info(f"Progress tracker found, starting stream for session: {session_id}")
 
@@ -764,5 +762,5 @@ async def scenario_progress_stream(session_id: str):
             "Connection": "keep-alive",
             "Access-Control-Allow-Origin": "*",
             "X-Accel-Buffering": "no",  # Disable nginx buffering
-        }
+        },
     )

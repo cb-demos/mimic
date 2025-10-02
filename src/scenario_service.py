@@ -146,6 +146,7 @@ class ScenarioService:
         finally:
             # Clean up progress tracker after a delay to allow final events to be consumed
             import asyncio
+
             asyncio.create_task(self._cleanup_progress_tracker_delayed(session_id))
 
     async def _cleanup_progress_tracker_delayed(self, session_id: str) -> None:
@@ -213,15 +214,18 @@ class ScenarioService:
 
         # Start execution in background task
         import asyncio
-        asyncio.create_task(self._execute_scenario_background(
-            session_id=session_id,
-            scenario=scenario,
-            processed_parameters=processed_parameters,
-            organization_id=organization_id,
-            unify_pat=unify_pat,
-            email=email,
-            invitee_username=invitee_username,
-        ))
+
+        asyncio.create_task(
+            self._execute_scenario_background(
+                session_id=session_id,
+                scenario=scenario,
+                processed_parameters=processed_parameters,
+                organization_id=organization_id,
+                unify_pat=unify_pat,
+                email=email,
+                invitee_username=invitee_username,
+            )
+        )
 
         return session_id
 

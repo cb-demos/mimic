@@ -183,14 +183,13 @@ class Database:
             FROM user_pats
             WHERE id = ? AND is_active = true
             """,
-            (pat_id,)
+            (pat_id,),
         )
 
     async def update_pat_last_used(self, pat_id: int) -> None:
         """Update the last_used timestamp for a PAT."""
         await self.execute(
-            "UPDATE user_pats SET last_used = CURRENT_TIMESTAMP WHERE id = ?",
-            (pat_id,)
+            "UPDATE user_pats SET last_used = CURRENT_TIMESTAMP WHERE id = ?", (pat_id,)
         )
 
     async def create_session(

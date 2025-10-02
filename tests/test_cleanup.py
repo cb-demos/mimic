@@ -320,7 +320,9 @@ async def test_unknown_platform_error(test_db_and_services):
     )
 
     # Should raise NoValidPATFoundError because no PATs exist for unknown platform
-    with pytest.raises(NoValidPATFoundError, match="No valid PATs found.*unknown_platform"):
+    with pytest.raises(
+        NoValidPATFoundError, match="No valid PATs found.*unknown_platform"
+    ):
         await cleanup.cleanup_single_resource("bad_res", "user@example.com")
 
 

@@ -93,50 +93,23 @@ class UnifyAPIClient:
         """List repositories for an organization"""
         return self._make_request("GET", f"/v1/resources/{org_id}/repositories")
 
-    # Automations API
-    def list_automations(self, org_id: str, service_id: str) -> dict[str, Any]:
-        """List automations for a service"""
-        return self._make_request(
-            "GET", f"/v1/organizations/{org_id}/services/{service_id}/automations"
-        )
-
-    def get_automation_yaml(
-        self, org_id: str, service_id: str, automation_id: str
-    ) -> dict[str, Any]:
-        """Get YAML content of an automation"""
-        return self._make_request(
-            "GET",
-            f"/v1/organizations/{org_id}/services/{service_id}/automations/{automation_id}/yaml",
-        )
-
-    def update_automation(
-        self,
-        org_id: str,
-        service_id: str,
-        automation_id: str,
-        yaml_content: str,
-        commit_message: str,
-        commit_sha: str | None = None,
-    ) -> dict[str, Any]:
-        """Update an automation"""
-        data = {
-            "yamlContent": yaml_content,
-            "commitMessage": commit_message,
-        }
-        if commit_sha:
-            data["commitSha"] = commit_sha
-
-        return self._make_request(
-            "PUT",
-            f"/v1/organizations/{org_id}/services/{service_id}/automations/{automation_id}",
-            json=data,
-        )
-
     # Teams API
     def get_team(self, organization_id: str, team_id: str) -> dict[str, Any]:
         """Get team by ID"""
         return self._make_request(
             "GET", f"/v1/organizations/{organization_id}/teams/{team_id}"
+        )
+
+    # Runs API
+    def list_runs(
+        self, org_id: str, service_id: str, page_length: int = 50
+    ) -> dict[str, Any]:
+        """List workflow runs for a service/component"""
+        params = {"pagination.pageLength": page_length}
+        return self._make_request(
+            "GET",
+            f"/v1/organizations/{org_id}/services/{service_id}/runs",
+            params=params,
         )
 
     # Environments API

@@ -33,6 +33,19 @@ class GitHubClient:
         response = await self._request("GET", f"/repos/{owner}/{repo}")
         return response.status_code == 200
 
+    async def get_repo(self, owner: str, repo: str) -> dict[str, Any] | None:
+        """
+        Get repository details including creation and last push dates.
+
+        Returns:
+            Repository data including created_at, pushed_at, updated_at
+            None if repo doesn't exist or request fails
+        """
+        response = await self._request("GET", f"/repos/{owner}/{repo}")
+        if response.status_code == 200:
+            return response.json()
+        return None
+
     async def create_repo_from_template(
         self,
         template_owner: str,

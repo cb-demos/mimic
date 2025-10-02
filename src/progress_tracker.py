@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 class ProgressEventType(str, Enum):
     """Types of progress events."""
+
     STEP_STARTED = "step_started"
     STEP_COMPLETED = "step_completed"
     STEP_FAILED = "step_failed"
@@ -23,6 +24,7 @@ class ProgressEventType(str, Enum):
 
 class ProgressStep(str, Enum):
     """Scenario execution steps."""
+
     INITIALIZATION = "initialization"
     REPOSITORY_CREATION = "repository_creation"
     COMPONENT_CREATION = "component_creation"
@@ -35,6 +37,7 @@ class ProgressStep(str, Enum):
 
 class ProgressEvent(BaseModel):
     """A progress event in the scenario execution."""
+
     event_type: ProgressEventType
     step: ProgressStep | None = None
     message: str
@@ -75,7 +78,10 @@ class ProgressTracker:
     ) -> ProgressEvent:
         """Create a progress event."""
         percentage = None
-        if step and event_type in [ProgressEventType.STEP_STARTED, ProgressEventType.STEP_COMPLETED]:
+        if step and event_type in [
+            ProgressEventType.STEP_STARTED,
+            ProgressEventType.STEP_COMPLETED,
+        ]:
             percentage = self._calculate_percentage(step)
 
         return ProgressEvent(
@@ -91,40 +97,66 @@ class ProgressTracker:
         """Emit a progress event to the queue."""
         try:
             await self.events_queue.put(event)
-            logger.debug(f"Progress event emitted for {self.session_id}: {event.event_type} - {event.message}")
+            logger.debug(
+                f"Progress event emitted for {self.session_id}: {event.event_type} - {event.message}"
+            )
         except Exception as e:
             logger.error(f"Failed to emit progress event: {e}")
 
-    async def start_step(self, step: ProgressStep, message: str, details: dict[str, Any] | None = None) -> None:
+    async def start_step(
+        self, step: ProgressStep, message: str, details: dict[str, Any] | None = None
+    ) -> None:
         """Mark a step as started."""
         self.current_step = step
-        event = self._create_event(ProgressEventType.STEP_STARTED, message, step, details)
+        event = self._create_event(
+            ProgressEventType.STEP_STARTED, message, step, details
+        )
         await self._emit_event(event)
 
-    async def complete_step(self, step: ProgressStep, message: str, details: dict[str, Any] | None = None) -> None:
+    async def complete_step(
+        self, step: ProgressStep, message: str, details: dict[str, Any] | None = None
+    ) -> None:
         """Mark a step as completed."""
         self.completed_steps.add(step)
-        event = self._create_event(ProgressEventType.STEP_COMPLETED, message, step, details)
+        event = self._create_event(
+            ProgressEventType.STEP_COMPLETED, message, step, details
+        )
         await self._emit_event(event)
 
-    async def fail_step(self, step: ProgressStep, message: str, details: dict[str, Any] | None = None) -> None:
+    async def fail_step(
+        self, step: ProgressStep, message: str, details: dict[str, Any] | None = None
+    ) -> None:
         """Mark a step as failed."""
-        event = self._create_event(ProgressEventType.STEP_FAILED, message, step, details)
+        event = self._create_event(
+            ProgressEventType.STEP_FAILED, message, step, details
+        )
         await self._emit_event(event)
 
-    async def log_message(self, message: str, details: dict[str, Any] | None = None) -> None:
+    async def log_message(
+        self, message: str, details: dict[str, Any] | None = None
+    ) -> None:
         """Emit a log message."""
-        event = self._create_event(ProgressEventType.LOG_MESSAGE, message, self.current_step, details)
+        event = self._create_event(
+            ProgressEventType.LOG_MESSAGE, message, self.current_step, details
+        )
         await self._emit_event(event)
 
-    async def complete_scenario(self, message: str, summary: dict[str, Any] | None = None) -> None:
+    async def complete_scenario(
+        self, message: str, summary: dict[str, Any] | None = None
+    ) -> None:
         """Mark the entire scenario as completed."""
-        event = self._create_event(ProgressEventType.SCENARIO_COMPLETED, message, details=summary)
+        event = self._create_event(
+            ProgressEventType.SCENARIO_COMPLETED, message, details=summary
+        )
         await self._emit_event(event)
 
-    async def fail_scenario(self, message: str, error_details: dict[str, Any] | None = None) -> None:
+    async def fail_scenario(
+        self, message: str, error_details: dict[str, Any] | None = None
+    ) -> None:
         """Mark the entire scenario as failed."""
-        event = self._create_event(ProgressEventType.SCENARIO_FAILED, message, details=error_details)
+        event = self._create_event(
+            ProgressEventType.SCENARIO_FAILED, message, details=error_details
+        )
         await self._emit_event(event)
 
     async def get_events_stream(self):
@@ -133,8 +165,7 @@ class ProgressTracker:
 
         # Send initial connection event
         initial_event = self._create_event(
-            ProgressEventType.LOG_MESSAGE,
-            "Progress tracking connected"
+            ProgressEventType.LOG_MESSAGE, "Progress tracking connected"
         )
         yield f"data: {initial_event.model_dump_json()}\n\n"
 
@@ -143,26 +174,33 @@ class ProgressTracker:
                 # Wait for next event with timeout
                 event = await asyncio.wait_for(self.events_queue.get(), timeout=30.0)
 
-                logger.info(f"Streaming event for {self.session_id}: {event.event_type} - {event.message}")
+                logger.info(
+                    f"Streaming event for {self.session_id}: {event.event_type} - {event.message}"
+                )
 
                 # Format as Server-Sent Events
                 event_data = event.model_dump_json()
                 yield f"data: {event_data}\n\n"
 
                 # Break if scenario is complete or failed
-                if event.event_type in [ProgressEventType.SCENARIO_COMPLETED, ProgressEventType.SCENARIO_FAILED]:
-                    logger.info(f"Scenario finished for {self.session_id}, ending stream")
+                if event.event_type in [
+                    ProgressEventType.SCENARIO_COMPLETED,
+                    ProgressEventType.SCENARIO_FAILED,
+                ]:
+                    logger.info(
+                        f"Scenario finished for {self.session_id}, ending stream"
+                    )
                     break
 
             except TimeoutError:
                 # Send keep-alive event
                 logger.debug(f"Sending keep-alive for {self.session_id}")
-                yield "data: {\"event_type\": \"keep_alive\", \"message\": \"Connection active\"}\n\n"
+                yield 'data: {"event_type": "keep_alive", "message": "Connection active"}\n\n'
             except Exception as e:
                 logger.error(f"Error in events stream for {self.session_id}: {e}")
                 error_event = self._create_event(
                     ProgressEventType.SCENARIO_FAILED,
-                    f"Progress tracking error: {str(e)}"
+                    f"Progress tracking error: {str(e)}",
                 )
                 yield f"data: {error_event.model_dump_json()}\n\n"
                 break
@@ -178,7 +216,9 @@ def create_progress_tracker(session_id: str) -> ProgressTracker:
     """Create and register a new progress tracker for a session."""
     tracker = ProgressTracker(session_id)
     _progress_trackers[session_id] = tracker
-    logger.info(f"Created progress tracker for session {session_id}. Total trackers: {len(_progress_trackers)}")
+    logger.info(
+        f"Created progress tracker for session {session_id}. Total trackers: {len(_progress_trackers)}"
+    )
     return tracker
 
 
@@ -188,7 +228,9 @@ def get_progress_tracker(session_id: str) -> ProgressTracker | None:
     if tracker:
         logger.info(f"Found progress tracker for session {session_id}")
     else:
-        logger.warning(f"No progress tracker found for session {session_id}. Available: {list(_progress_trackers.keys())}")
+        logger.warning(
+            f"No progress tracker found for session {session_id}. Available: {list(_progress_trackers.keys())}"
+        )
     return tracker
 
 

@@ -27,7 +27,9 @@ class Settings(BaseSettings):
 
     # Timing configuration for resource creation
     REPO_BASIC_DELAY: int = 3  # Seconds to wait for basic repo availability
-    REPO_TO_COMPONENT_DELAY: int = 15  # Seconds for GitHub indexing before creating components
+    REPO_TO_COMPONENT_DELAY: int = (
+        15  # Seconds for GitHub indexing before creating components
+    )
     MAX_RETRY_ATTEMPTS: int = 3  # Maximum retry attempts for component creation
     RETRY_BACKOFF_BASE: int = 5  # Base seconds for exponential backoff on retries
 

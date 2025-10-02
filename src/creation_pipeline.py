@@ -71,8 +71,7 @@ class CreationPipeline:
         # Start progress tracking
         if self.progress_tracker:
             await self.progress_tracker.start_step(
-                ProgressStep.INITIALIZATION,
-                f"Starting scenario: {scenario.name}"
+                ProgressStep.INITIALIZATION, f"Starting scenario: {scenario.name}"
             )
 
         # Validate and resolve template variables
@@ -83,8 +82,7 @@ class CreationPipeline:
             # Complete initialization
             if self.progress_tracker:
                 await self.progress_tracker.complete_step(
-                    ProgressStep.INITIALIZATION,
-                    "Scenario validation complete"
+                    ProgressStep.INITIALIZATION, "Scenario validation complete"
                 )
 
             # Step 1: Create repositories (with content replacements)
@@ -92,7 +90,7 @@ class CreationPipeline:
             if self.progress_tracker:
                 await self.progress_tracker.start_step(
                     ProgressStep.REPOSITORY_CREATION,
-                    "Creating GitHub repositories from templates"
+                    "Creating GitHub repositories from templates",
                 )
             await self._create_repositories(
                 resolved_scenario.repositories, processed_parameters
@@ -100,23 +98,25 @@ class CreationPipeline:
             if self.progress_tracker:
                 await self.progress_tracker.complete_step(
                     ProgressStep.REPOSITORY_CREATION,
-                    f"Created {len(self.created_repositories)} repositories"
+                    f"Created {len(self.created_repositories)} repositories",
                 )
 
             # Step 2: Create components for repos that need them
             self.current_step = "component_creation"
-            component_repos = [r for r in resolved_scenario.repositories if r.create_component]
+            component_repos = [
+                r for r in resolved_scenario.repositories if r.create_component
+            ]
             if component_repos:
                 if self.progress_tracker:
                     await self.progress_tracker.start_step(
                         ProgressStep.COMPONENT_CREATION,
-                        f"Creating {len(component_repos)} CloudBees components"
+                        f"Creating {len(component_repos)} CloudBees components",
                     )
                 await self._create_components(resolved_scenario.repositories)
                 if self.progress_tracker:
                     await self.progress_tracker.complete_step(
                         ProgressStep.COMPONENT_CREATION,
-                        f"Created {len(self.created_components)} components"
+                        f"Created {len(self.created_components)} components",
                     )
 
             # Step 3: Create feature flags (store for later - need app IDs first)
@@ -125,13 +125,13 @@ class CreationPipeline:
                 if self.progress_tracker:
                     await self.progress_tracker.start_step(
                         ProgressStep.FLAG_CREATION,
-                        f"Planning {len(resolved_scenario.flags)} feature flags"
+                        f"Planning {len(resolved_scenario.flags)} feature flags",
                     )
                 await self._create_flags(resolved_scenario.flags)
                 if self.progress_tracker:
                     await self.progress_tracker.complete_step(
                         ProgressStep.FLAG_CREATION,
-                        f"Defined {len(self.created_flags)} feature flags"
+                        f"Defined {len(self.created_flags)} feature flags",
                     )
 
             # Step 4: Create environments
@@ -139,13 +139,13 @@ class CreationPipeline:
             if self.progress_tracker:
                 await self.progress_tracker.start_step(
                     ProgressStep.ENVIRONMENT_CREATION,
-                    f"Creating {len(resolved_scenario.environments)} environments"
+                    f"Creating {len(resolved_scenario.environments)} environments",
                 )
             await self._create_environments(resolved_scenario.environments)
             if self.progress_tracker:
                 await self.progress_tracker.complete_step(
                     ProgressStep.ENVIRONMENT_CREATION,
-                    f"Created {len(self.created_environments)} environments"
+                    f"Created {len(self.created_environments)} environments",
                 )
 
             # Step 5: Create applications (linking components and environments)
@@ -153,31 +153,32 @@ class CreationPipeline:
             if self.progress_tracker:
                 await self.progress_tracker.start_step(
                     ProgressStep.APPLICATION_CREATION,
-                    f"Creating {len(resolved_scenario.applications)} applications"
+                    f"Creating {len(resolved_scenario.applications)} applications",
                 )
             await self._create_applications(resolved_scenario.applications)
             if self.progress_tracker:
                 await self.progress_tracker.complete_step(
                     ProgressStep.APPLICATION_CREATION,
-                    f"Created {len(self.created_applications)} applications"
+                    f"Created {len(self.created_applications)} applications",
                 )
 
             # Step 5.5: Update environments with FM_TOKEN SDK keys
             self.current_step = "environment_fm_token_update"
-            fm_envs = [e for e in resolved_scenario.environments if e.create_fm_token_var]
+            fm_envs = [
+                e for e in resolved_scenario.environments if e.create_fm_token_var
+            ]
             if fm_envs:
                 if self.progress_tracker:
                     await self.progress_tracker.start_step(
                         ProgressStep.ENVIRONMENT_FM_TOKEN_UPDATE,
-                        f"Adding SDK keys to {len(fm_envs)} environments"
+                        f"Adding SDK keys to {len(fm_envs)} environments",
                     )
                 await self._update_environments_with_fm_tokens(
                     resolved_scenario.environments
                 )
                 if self.progress_tracker:
                     await self.progress_tracker.complete_step(
-                        ProgressStep.ENVIRONMENT_FM_TOKEN_UPDATE,
-                        "SDK keys configured"
+                        ProgressStep.ENVIRONMENT_FM_TOKEN_UPDATE, "SDK keys configured"
                     )
 
             # Step 6: Configure flags across environments (set to off initially)
@@ -186,13 +187,13 @@ class CreationPipeline:
                 if self.progress_tracker:
                     await self.progress_tracker.start_step(
                         ProgressStep.FLAG_CONFIGURATION,
-                        "Configuring feature flags across environments"
+                        "Configuring feature flags across environments",
                     )
                 await self._configure_flags_in_environments(resolved_scenario)
                 if self.progress_tracker:
                     await self.progress_tracker.complete_step(
                         ProgressStep.FLAG_CONFIGURATION,
-                        "Feature flags configured across all environments"
+                        "Feature flags configured across all environments",
                     )
 
             self.current_step = "completed"
@@ -201,8 +202,7 @@ class CreationPipeline:
             # Complete scenario
             if self.progress_tracker:
                 await self.progress_tracker.complete_scenario(
-                    "🎉 Scenario executed successfully!",
-                    summary
+                    "🎉 Scenario executed successfully!", summary
                 )
 
             return summary
@@ -212,7 +212,11 @@ class CreationPipeline:
             if self.progress_tracker:
                 await self.progress_tracker.fail_scenario(
                     f"Pipeline failed at {self.current_step}: {str(e)}",
-                    {"scenario": scenario.name, "error_type": type(e).__name__, "step": self.current_step}
+                    {
+                        "scenario": scenario.name,
+                        "error_type": type(e).__name__,
+                        "step": self.current_step,
+                    },
                 )
             raise PipelineError(
                 f"Pipeline failed at {self.current_step}: {str(e)}",
@@ -224,7 +228,11 @@ class CreationPipeline:
             if self.progress_tracker:
                 await self.progress_tracker.fail_scenario(
                     f"Unexpected error at {self.current_step}: {str(e)}",
-                    {"scenario": scenario.name, "error_type": type(e).__name__, "step": self.current_step}
+                    {
+                        "scenario": scenario.name,
+                        "error_type": type(e).__name__,
+                        "step": self.current_step,
+                    },
                 )
             raise PipelineError(
                 f"Unexpected error at {self.current_step}: {str(e)}",
@@ -319,10 +327,14 @@ class CreationPipeline:
         # Smart delay based on whether we need component creation
         needs_component_creation = any(repo.create_component for repo in repositories)
         if needs_component_creation:
-            print(f"   Waiting {settings.REPO_TO_COMPONENT_DELAY}s for GitHub to index repositories before creating components...")
+            print(
+                f"   Waiting {settings.REPO_TO_COMPONENT_DELAY}s for GitHub to index repositories before creating components..."
+            )
             await asyncio.sleep(settings.REPO_TO_COMPONENT_DELAY)
         else:
-            print(f"   Waiting {settings.REPO_BASIC_DELAY}s for repositories to be ready...")
+            print(
+                f"   Waiting {settings.REPO_BASIC_DELAY}s for repositories to be ready..."
+            )
             await asyncio.sleep(settings.REPO_BASIC_DELAY)
 
     async def _create_components(self, repositories):
@@ -605,31 +617,48 @@ class CreationPipeline:
 
                 # Check if error is related to repository not being indexed
                 error_msg = str(e).lower()
-                is_indexing_error = any(keyword in error_msg for keyword in [
-                    "repository not found", "repo not found", "not indexed",
-                    "repository does not exist", "invalid repository"
-                ])
+                is_indexing_error = any(
+                    keyword in error_msg
+                    for keyword in [
+                        "repository not found",
+                        "repo not found",
+                        "not indexed",
+                        "repository does not exist",
+                        "invalid repository",
+                    ]
+                )
 
                 if is_indexing_error and not is_last_attempt:
-                    wait_time = settings.RETRY_BACKOFF_BASE * (2 ** attempt)
-                    print(f"     Repository not indexed yet (attempt {attempt + 1}/{settings.MAX_RETRY_ATTEMPTS}), retrying in {wait_time}s...")
+                    wait_time = settings.RETRY_BACKOFF_BASE * (2**attempt)
+                    print(
+                        f"     Repository not indexed yet (attempt {attempt + 1}/{settings.MAX_RETRY_ATTEMPTS}), retrying in {wait_time}s..."
+                    )
                     await asyncio.sleep(wait_time)
                 else:
                     # Re-raise if not an indexing error or if this is the last attempt
                     raise
 
         # Should never reach here, but just in case
-        raise UnifyAPIError(f"Failed to create component {repo_name} after {settings.MAX_RETRY_ATTEMPTS} attempts")
+        raise UnifyAPIError(
+            f"Failed to create component {repo_name} after {settings.MAX_RETRY_ATTEMPTS} attempts"
+        )
 
     async def _update_environment_with_retry(
-        self, client: UnifyAPIClient, env_name: str, env_id: str, env_data: dict, properties: list
+        self,
+        client: UnifyAPIClient,
+        env_name: str,
+        env_id: str,
+        env_data: dict,
+        properties: list,
     ) -> None:
         """Update environment with retry logic for concurrent modification errors."""
         for attempt in range(settings.MAX_RETRY_ATTEMPTS):
             try:
                 # If this is a retry, fetch fresh environment data
                 if attempt > 0:
-                    print(f"     Retrying environment update (attempt {attempt + 1}/{settings.MAX_RETRY_ATTEMPTS})...")
+                    print(
+                        f"     Retrying environment update (attempt {attempt + 1}/{settings.MAX_RETRY_ATTEMPTS})..."
+                    )
                     env_response = client.get_environment(self.organization_id, env_id)
                     env_data = env_response.get("endpoint", env_response)
 
@@ -640,7 +669,9 @@ class CreationPipeline:
                     "contributionType": env_data.get("contributionType"),
                     "contributionTargets": env_data.get("contributionTargets", []),
                     "name": env_data.get("name", env_name),
-                    "description": env_data.get("description", f"Environment for {env_name}"),
+                    "description": env_data.get(
+                        "description", f"Environment for {env_name}"
+                    ),
                     "properties": properties,
                     "version": env_data.get("version", 1),
                 }
@@ -658,15 +689,19 @@ class CreationPipeline:
                 is_concurrent_error = "concurrent modification" in error_msg
 
                 if is_concurrent_error and not is_last_attempt:
-                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
-                    print(f"     Concurrent modification detected, retrying in {wait_time}s...")
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                    print(
+                        f"     Concurrent modification detected, retrying in {wait_time}s..."
+                    )
                     await asyncio.sleep(wait_time)
                 else:
                     # Re-raise if not a concurrent error or if this is the last attempt
                     raise
 
         # Should never reach here
-        raise UnifyAPIError(f"Failed to update environment {env_name} after {settings.MAX_RETRY_ATTEMPTS} attempts")
+        raise UnifyAPIError(
+            f"Failed to update environment {env_name} after {settings.MAX_RETRY_ATTEMPTS} attempts"
+        )
 
     async def _create_applications(self, applications):
         """Step 5: Create CloudBees applications linking components and environments."""

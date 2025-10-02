@@ -55,7 +55,7 @@ class AuthService:
             "name": name,
             "cloudbees_token": str(cloudbees_token),
             "github_token": str(github_token) if github_token else None,
-            "has_github_pat": bool(github_pat)
+            "has_github_pat": bool(github_pat),
         }
 
     async def _store_pat_if_new(self, email: str, pat: str, platform: str) -> int:
@@ -78,7 +78,9 @@ class AuthService:
                 if decrypted_pat == pat:
                     # PAT already exists, just update last_used
                     await self.db.update_pat_last_used(pat_record["id"])
-                    logger.info(f"Found existing {platform} PAT for {email}, updated last_used")
+                    logger.info(
+                        f"Found existing {platform} PAT for {email}, updated last_used"
+                    )
                     return pat_record["id"]
             except Exception as e:
                 # Failed to decrypt - mark as inactive and continue
@@ -194,7 +196,9 @@ class AuthService:
 
         return valid_pats
 
-    async def get_pat_by_token(self, email: str, token: str, platform: str = "cloudbees") -> str:
+    async def get_pat_by_token(
+        self, email: str, token: str, platform: str = "cloudbees"
+    ) -> str:
         """Get PAT using a token (database ID).
 
         Args:
@@ -213,7 +217,9 @@ class AuthService:
         try:
             pat_id = int(token)
         except ValueError:
-            raise NoValidPATFoundError(f"Invalid token format for user {email}") from None
+            raise NoValidPATFoundError(
+                f"Invalid token format for user {email}"
+            ) from None
 
         # Get PAT by ID and verify it belongs to the user
         pat_record = await self.db.get_pat_by_id(pat_id)
@@ -223,7 +229,9 @@ class AuthService:
 
         # Verify the PAT belongs to the correct user and platform
         if pat_record["email"] != email or pat_record["platform"] != platform:
-            raise NoValidPATFoundError(f"Token doesn't belong to user {email} on platform {platform}")
+            raise NoValidPATFoundError(
+                f"Token doesn't belong to user {email} on platform {platform}"
+            )
 
         # Update last_used timestamp
         await self.db.update_pat_last_used(pat_id)
