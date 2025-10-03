@@ -4,41 +4,64 @@ summary: The full Hackers App RO demo
 details: |
   This scenario sets up the complete Hackers App demonstration environment featuring a full-stack application with three services.
 
-  This is currently a work-in-progress scenario being developed for comprehensive demonstrations.
-wip: true
+  Requires:
+    - vars.DOCKERHUB_USER
+    - secrets.DOCKERHUB_TOKEN
+    - secrets.kubeconfig
+    - secrets.UNIFY_TOKEN
+    - secrets.JIRA_URL
+    - secrets.JIRA_USERNAME
+    - secrets.JIRA_TOKEN
+    - vars.SERVICENOW_URL
+    - secrets.SERVICENOW_USERNAME
+    - secrets.SERVICENOW_PASSWORD
+
 repositories:
-  - source: cloudbees-days/hackers-web
+  - source: cb-demos/hackers-web-template
     repo_name_template: "${project_name}-web"
     create_component: true
     target_org: "${target_org}"
     replacements:
+      TARGET_ORG: "${target_org}"
       PROJECT_NAME: "${project_name}"
     files_to_modify:
-      - README.md
-  - source: cloudbees-days/hackers-api
+      - ".cloudbees/workflows/deploy.yaml"
+      - ".cloudbees/workflows/build.yaml"
+  - source: cb-demos/hackers-api-template
     target_org: "${target_org}"
     create_component: true
     repo_name_template: "${project_name}-api"
     replacements:
+      TARGET_ORG: "${target_org}"
       PROJECT_NAME: "${project_name}"
     files_to_modify:
-      - README.md
-  - source: cloudbees-days/hackers-auth
+      - ".cloudbees/workflows/deploy.yaml"
+      - ".cloudbees/workflows/build.yaml"
+  - source: cb-demos/hackers-auth-template
     target_org: "${target_org}"
     create_component: true
     repo_name_template: "${project_name}-auth"
     replacements:
+      TARGET_ORG: "${target_org}"
       PROJECT_NAME: "${project_name}"
     files_to_modify:
-      - README.md
-  - source: cloudbees-days/hackers-app
+      - ".cloudbees/workflows/deploy.yaml"
+      - ".cloudbees/workflows/build.yaml"
+  - source: cb-demos/hackers-app-template
     target_org: "${target_org}"
     create_component: false
     repo_name_template: "${project_name}-app"
     replacements:
+      TARGET_ORG: "${target_org}"
       PROJECT_NAME: "${project_name}"
     files_to_modify:
-      - README.md
+      - ".cloudbees/workflows/deployer.yaml"
+      - ".cloudbees/workflows/full-release.yaml"
+      - ".cloudbees/workflows/full-release-snow.yaml"
+  - source: cb-demos/hackers-workflows-template
+    target_org: "${target_org}"
+    create_component: false
+    repo_name_template: "${project_name}-workflows"
 applications:
   - name: "${project_name}-app"
     repository: "${target_org}/${project_name}-app"
@@ -55,25 +78,25 @@ environments:
     env:
       - name: "namespace"
         value: "${project_name}-qa"
-    create_fm_token_var: true # This will create an env var named FM_TOKEN using the token value (generated after env is created)
+    create_fm_token_var: true
     flags:
-      - "enable-feature-x"
+      - "default.score"
   - name: "${project_name}-staging"
     env:
       - name: "namespace"
         value: "${project_name}-staging"
     create_fm_token_var: true
     flags:
-      - "enable-feature-x"
+      - "default.score"
   - name: "${project_name}-prod"
     env:
       - name: "namespace"
         value: "${project_name}-prod"
     create_fm_token_var: true
     flags:
-      - "enable-feature-x"
+      - "default.score"
 flags:
-  - name: "enable-feature-x"
+  - name: "default.score"
     type: boolean
 parameter_schema:
   properties:
