@@ -2,6 +2,10 @@
 
 Tool for orchestrating demo scenarios on CloudBees Unify with CLI/TUI/MCP interfaces.
 
+## Prerequisites
+
+Mimic requires [uv](https://docs.astral.sh/uv/) to be installed on your system. Follow the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/) to install uv.
+
 ## Quick Start
 
 ### Installation
@@ -10,6 +14,14 @@ Install globally with uv:
 
 ```bash
 uv tool install git+https://github.com/cb-demos/mimic
+```
+
+### Upgrading
+
+To upgrade to the latest version:
+
+```bash
+uv tool upgrade mimic
 ```
 
 ### First-Time Setup
