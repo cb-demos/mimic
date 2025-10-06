@@ -559,4 +559,4 @@ def initialize_scenarios_from_config() -> ScenarioManager:
                 f"Run 'mimic scenario-pack update {pack_name}' to install it."
             )
 
-    return initialize_scenarios(scenarios_dirs=scenarios_dirs)
+    return initialize_scenarios(scenarios_dirs=scenarios_dirs, local_dir=None)

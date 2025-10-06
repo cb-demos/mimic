@@ -81,9 +81,14 @@ class TestMCPServerIntegration:
         assert "pack_source" in scenario
         # parameters is optional - not all scenarios have them
 
-        # Should include our test scenarios
+        # Should NOT include local test scenarios (only pack scenarios)
         scenario_ids = [s["id"] for s in scenarios]
-        assert "minimal-demo" in scenario_ids or "param-demo" in scenario_ids
+        assert "minimal-demo" not in scenario_ids
+        assert "param-demo" not in scenario_ids
+
+        # Should only include pack scenarios
+        for scenario in scenarios:
+            assert scenario["pack_source"] != "local"
 
     @pytest.mark.asyncio
     async def test_instantiate_scenario_validates_credentials(self):

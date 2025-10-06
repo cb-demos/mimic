@@ -10,7 +10,7 @@ from .cleanup_manager import CleanupManager
 from .config_manager import ConfigManager
 from .creation_pipeline import CreationPipeline
 from .exceptions import PipelineError, ValidationError
-from .scenarios import ScenarioManager
+from .scenarios import initialize_scenarios_from_config
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ mcp = FastMCP("Mimic Demo Orchestrator")
 
 # Initialize managers
 config_manager = ConfigManager()
-scenario_manager = ScenarioManager()
+scenario_manager = initialize_scenarios_from_config()
 
 
 def _list_scenarios_impl() -> list[dict[str, Any]]:

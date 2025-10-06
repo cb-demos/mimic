@@ -22,7 +22,7 @@ from textual.widgets import (
 
 from .cleanup_manager import CleanupManager
 from .config_manager import ConfigManager
-from .scenarios import ScenarioManager
+from .scenarios import initialize_scenarios_from_config
 from .state_tracker import StateTracker
 
 
@@ -125,7 +125,7 @@ class WelcomeScreen(Screen):
 
         # Get scenario info
         try:
-            scenario_manager = ScenarioManager()
+            scenario_manager = initialize_scenarios_from_config()
             scenario_count = len(scenario_manager.list_scenarios())
         except Exception:
             scenario_count = 0
@@ -298,7 +298,7 @@ class ScenarioBrowserScreen(Screen):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.scenario_manager = ScenarioManager()
+        self.scenario_manager = initialize_scenarios_from_config()
         self.config_manager = ConfigManager()
 
     def compose(self) -> ComposeResult:

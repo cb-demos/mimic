@@ -172,7 +172,7 @@ def run(
     from pathlib import Path
 
     from .creation_pipeline import CreationPipeline
-    from .scenarios import ScenarioManager
+    from .scenarios import initialize_scenarios_from_config
     from .state_tracker import StateTracker
 
     # Check for first run
@@ -311,7 +311,7 @@ def run(
             raise typer.Exit(1)
 
         # Load scenario
-        scenario_manager = ScenarioManager()
+        scenario_manager = initialize_scenarios_from_config()
         scenario = scenario_manager.get_scenario(scenario_id)
 
         if not scenario:
