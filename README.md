@@ -18,10 +18,24 @@ uv tool install git+https://github.com/cb-demos/mimic
 
 ### Upgrading
 
-To upgrade to the latest version:
+To upgrade Mimic and all scenario packs to the latest versions:
 
 ```bash
+mimic upgrade
+```
+
+This single command will:
+1. Upgrade the Mimic tool itself (equivalent to `uv tool upgrade mimic`)
+2. Update all scenario packs by pulling latest changes (equivalent to `mimic scenario-pack update`)
+
+You can also upgrade components separately:
+
+```bash
+# Upgrade only the Mimic tool
 uv tool upgrade mimic
+
+# Update only scenario packs
+mimic scenario-pack update
 ```
 
 ### First-Time Setup
