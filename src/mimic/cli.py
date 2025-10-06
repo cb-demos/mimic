@@ -118,7 +118,7 @@ app.command("ls")(list_scenarios)
 
 @app.command()
 def run(
-    scenario_id: str = typer.Argument(..., help="Scenario ID to run"),
+    scenario_id: str = typer.Argument(None, help="Scenario ID to run (interactive selection if omitted)"),
     expires_in_days: int = typer.Option(
         None,
         "--expires-in",
@@ -156,6 +156,7 @@ def run(
 
     Examples:
         # Interactive mode
+        mimic run                  # Interactive scenario selection
         mimic run hackers-app
         mimic run hackers-app --expires-in 1
         mimic run hackers-app --no-expiration
@@ -311,8 +312,44 @@ def run(
             )
             raise typer.Exit(1)
 
-        # Load scenario
+        # Load scenarios
         scenario_manager = initialize_scenarios_from_config()
+
+        # Interactive scenario selection if not provided
+        if not scenario_id:
+            import questionary
+
+            scenarios = scenario_manager.list_scenarios()
+            if not scenarios:
+                console.print("[red]Error:[/red] No scenarios available")
+                console.print("\n[dim]Add a scenario pack with:[/dim] mimic pack add")
+                raise typer.Exit(1)
+
+            # Build choices with scenario name and summary
+            choices = []
+            scenario_map = {}
+            for s in scenarios:
+                display = f"{s['name']} ({s['id']})"
+                if s.get('summary'):
+                    display += f" - {s['summary']}"
+                choices.append(display)
+                scenario_map[display] = s['id']
+
+            console.print()
+            selection = questionary.select(
+                "Select a scenario to run:",
+                choices=choices,
+                use_shortcuts=True,
+                use_arrow_keys=True,
+            ).ask()
+
+            if not selection:
+                # User cancelled
+                raise typer.Exit(0)
+
+            scenario_id = scenario_map[selection]
+            console.print()
+
         scenario = scenario_manager.get_scenario(scenario_id)
 
         if not scenario:
@@ -322,9 +359,11 @@ def run(
 
         # Show scenario info
         console.print()
+        # Use details if available, fallback to summary
+        description = scenario.details if scenario.details else scenario.summary
         console.print(
             Panel(
-                f"[bold]{scenario.name}[/bold]\n\n{scenario.summary}",
+                f"[bold]{scenario.name}[/bold]\n\n{description}",
                 title=f"Scenario: {scenario.id}",
                 border_style="cyan",
             )
