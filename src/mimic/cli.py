@@ -895,10 +895,14 @@ def upgrade():
                             continue
                         branch = pack_config.get("branch", "main")
                         pack_manager.clone_pack(pack_name, url, branch)
-                        console.print(f"[green]✓[/green] {pack_name}: Cloned successfully")
+                        console.print(
+                            f"[green]✓[/green] {pack_name}: Cloned successfully"
+                        )
                     else:
                         pack_manager.update_pack(pack_name)
-                        console.print(f"[green]✓[/green] {pack_name}: Updated successfully")
+                        console.print(
+                            f"[green]✓[/green] {pack_name}: Updated successfully"
+                        )
 
                     success_count += 1
 
