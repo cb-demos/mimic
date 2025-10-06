@@ -1,5 +1,7 @@
 """Main CLI application for Mimic."""
 
+from typing import Any
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -517,6 +519,91 @@ def run(
                 console.print(
                     f"Organization ID: [yellow]{organization_id}[/yellow] [dim](from --org-id flag)[/dim]"
                 )
+
+        # Determine expiration (prompt if not specified via flags)
+        if no_expiration:
+            expiration_days = 365 * 10  # 10 years (effectively never expires)
+            expiration_label = "Never"
+        elif expires_in_days is not None:
+            expiration_days = expires_in_days
+            expiration_label = f"{expiration_days} days"
+        else:
+            # Interactive expiration selection
+            import questionary
+
+            default_expiration = config_manager.get_setting("default_expiration_days", 7)
+            recent_expirations = config_manager.get_recent_values("expiration_days")
+
+            # Build expiration options
+            expiration_options = []
+
+            # Add recent values first (deduplicated)
+            seen = set()
+            for exp_val in recent_expirations:
+                try:
+                    exp_int = int(exp_val)
+                    if exp_int not in seen and exp_int > 0:
+                        expiration_options.append((f"{exp_int} days", str(exp_int)))
+                        seen.add(exp_int)
+                except (ValueError, TypeError):
+                    pass
+
+            # Add default if not already in list
+            if default_expiration not in seen:
+                expiration_options.append(
+                    (f"{default_expiration} days (default)", str(default_expiration))
+                )
+                seen.add(default_expiration)
+
+            # Add common options if not in list
+            for common in [1, 7, 14, 30]:
+                if common not in seen:
+                    expiration_options.append((f"{common} days", str(common)))
+
+            # Add "never" option
+            expiration_options.append(("Never expires", "never"))
+
+            # Add custom option
+            expiration_options.append(("Custom...", "custom"))
+
+            console.print()
+            selected_expiration = questionary.select(
+                "Expiration:",
+                choices=[opt[0] for opt in expiration_options],
+                default=expiration_options[0][0]
+                if expiration_options
+                else f"{default_expiration} days (default)",
+            ).ask()
+
+            if not selected_expiration:
+                # User cancelled
+                raise typer.Exit(0)
+
+            # Find the selected value
+            selected_value = None
+            for label, value in expiration_options:
+                if label == selected_expiration:
+                    selected_value = value
+                    break
+
+            if selected_value == "never":
+                expiration_days = 365 * 10
+                expiration_label = "Never"
+                no_expiration = True
+            elif selected_value == "custom":
+                custom_days = typer.prompt("Enter custom expiration days", type=int)
+                expiration_days = custom_days
+                expiration_label = f"{expiration_days} days"
+                # Cache the custom value
+                config_manager.add_recent_value("expiration_days", str(custom_days))
+            else:
+                expiration_days = int(selected_value)
+                expiration_label = f"{expiration_days} days"
+                # Cache the selected value
+                config_manager.add_recent_value("expiration_days", selected_value)
+
+            console.print(f"Expiration: [yellow]{expiration_label}[/yellow]")
+
         console.print()
 
         # Validate credentials before starting scenario execution
@@ -587,25 +674,49 @@ def run(
             preview = CreationPipeline.preview_scenario(resolved_scenario)
 
             # Display preview
-            _display_scenario_preview(preview, scenario, current_env)
+            _display_scenario_preview(
+                preview, scenario, current_env, expiration_label, is_dry_run=True
+            )
 
             return
+
+        # Preview + confirmation (unless --yes flag is used)
+        if not yes:
+            from .creation_pipeline import CreationPipeline
+
+            console.print(
+                "[bold cyan]Preview - Resources to be created[/bold cyan]\n"
+            )
+
+            # Validate and resolve scenario parameters
+            processed_parameters = scenario.validate_input(parameters)
+            resolved_scenario = scenario.resolve_template_variables(
+                processed_parameters
+            )
+
+            # Generate preview
+            preview = CreationPipeline.preview_scenario(resolved_scenario)
+
+            # Display preview with expiration info
+            _display_scenario_preview(preview, scenario, current_env, expiration_label)
+
+            # Prompt for confirmation
+            console.print()
+            proceed = typer.confirm(
+                "Proceed with creation?", default=True
+            )
+
+            if not proceed:
+                console.print("[yellow]Cancelled by user[/yellow]")
+                raise typer.Exit(0)
+
+            console.print()
 
         # Generate session ID
         session_id = str(uuid.uuid4())[:8]
 
-        # Determine expiration
-        if no_expiration:
-            expiration_days = 365 * 10  # 10 years (effectively never expires)
-            expiration_label = "Never"
-        elif expires_in_days is not None:
-            expiration_days = expires_in_days
-            expiration_label = f"{expiration_days} days"
-        else:
-            expiration_days = config_manager.get_setting("default_expiration_days", 7)
-            expiration_label = f"{expiration_days} days (default)"
-
         # Create state tracker and session
+        # (expiration_days and expiration_label already determined above)
         state_tracker = StateTracker()
         state_tracker.create_session(
             session_id=session_id,
@@ -684,22 +795,14 @@ def run(
                 metadata=app_data,
             )
 
+        # Build success message with resource details
         console.print()
-        console.print(
-            Panel(
-                f"[bold green]✓ Scenario completed successfully![/bold green]\n\n"
-                f"Session ID: [cyan]{session_id}[/cyan]\n"
-                f"Environment: [cyan]{current_env}[/cyan]\n"
-                f"Expires: [yellow]{expiration_label}[/yellow]\n\n"
-                f"[dim]Resources created:[/dim]\n"
-                f"  • Repositories: {len(summary.get('repositories', []))}\n"
-                f"  • Components: {len(pipeline.created_components)}\n"
-                f"  • Environments: {len(pipeline.created_environments)}\n"
-                f"  • Applications: {len(pipeline.created_applications)}\n"
-                f"  • Feature Flags: {len(pipeline.created_flags)}",
-                title="Success",
-                border_style="green",
-            )
+        _display_success_summary(
+            session_id=session_id,
+            environment=current_env,
+            expiration_label=expiration_label,
+            summary=summary,
+            pipeline=pipeline,
         )
 
     except KeyboardInterrupt:
@@ -710,7 +813,84 @@ def run(
         raise typer.Exit(1) from e
 
 
-def _display_scenario_preview(preview: dict, scenario, environment: str) -> None:
+def _display_success_summary(
+    session_id: str,
+    environment: str,
+    expiration_label: str,
+    summary: dict,
+    pipeline: Any,
+) -> None:
+    """Display a detailed success summary with resource links."""
+
+    # Build success message content
+    lines = []
+    lines.append("[bold green]✓ Scenario completed successfully![/bold green]\n")
+    lines.append(f"Session ID: [cyan]{session_id}[/cyan]")
+    lines.append(f"Environment: [cyan]{environment}[/cyan]")
+    lines.append(f"Expires: [yellow]{expiration_label}[/yellow]\n")
+
+    # Display repositories
+    repositories = summary.get("repositories", [])
+    if repositories:
+        lines.append(f"[bold]GitHub Repositories ({len(repositories)}):[/bold]")
+        for repo in repositories:
+            repo_name = repo.get("name", "Unknown")
+            repo_url = repo.get("html_url", "")
+            if repo_url:
+                lines.append(f"  • [link={repo_url}]{repo_name}[/link] [dim]({repo_url})[/dim]")
+            else:
+                lines.append(f"  • {repo_name}")
+        lines.append("")
+
+    # Display components
+    if pipeline.created_components:
+        lines.append(f"[bold]CloudBees Components ({len(pipeline.created_components)}):[/bold]")
+        for comp_name in pipeline.created_components.keys():
+            lines.append(f"  • {comp_name}")
+        lines.append("")
+
+    # Display environments
+    if pipeline.created_environments:
+        lines.append(f"[bold]CloudBees Environments ({len(pipeline.created_environments)}):[/bold]")
+        for env_name in pipeline.created_environments.keys():
+            lines.append(f"  • {env_name}")
+        lines.append("")
+
+    # Display applications
+    if pipeline.created_applications:
+        lines.append(f"[bold]CloudBees Applications ({len(pipeline.created_applications)}):[/bold]")
+        for app_name in pipeline.created_applications.keys():
+            lines.append(f"  • {app_name}")
+        lines.append("")
+
+    # Display feature flags (grouped by application)
+    if pipeline.created_flags:
+        lines.append(f"[bold]Feature Flags ({len(pipeline.created_flags)}):[/bold]")
+        for flag_name in pipeline.created_flags.keys():
+            lines.append(f"  • {flag_name}")
+        lines.append("")
+
+    # Remove trailing empty line if present
+    if lines and lines[-1] == "":
+        lines.pop()
+
+    # Display the panel
+    console.print(
+        Panel(
+            "\n".join(lines),
+            title="Success",
+            border_style="green",
+        )
+    )
+
+
+def _display_scenario_preview(
+    preview: dict,
+    scenario,
+    environment: str,
+    expiration_label: str = "Not specified",
+    is_dry_run: bool = False,
+) -> None:
     """Display a formatted preview of resources that will be created."""
 
     # Display header
@@ -723,7 +903,8 @@ def _display_scenario_preview(preview: dict, scenario, environment: str) -> None
     )
     console.print()
 
-    console.print(f"[dim]Environment:[/dim] [cyan]{environment}[/cyan]\n")
+    console.print(f"[dim]Environment:[/dim] [cyan]{environment}[/cyan]")
+    console.print(f"[dim]Expiration:[/dim] [yellow]{expiration_label}[/yellow]\n")
 
     # Display repositories
     if preview["repositories"]:
@@ -787,10 +968,12 @@ def _display_scenario_preview(preview: dict, scenario, environment: str) -> None
             )
         console.print()
 
-    console.print(
-        "[dim]To execute this scenario, run the command again without --dry-run[/dim]"
-    )
-    console.print()
+    # Only show dry-run instruction when actually in dry-run mode
+    if is_dry_run:
+        console.print(
+            "[dim]To execute this scenario, run the command again without --dry-run[/dim]"
+        )
+        console.print()
 
 
 @app.command()
