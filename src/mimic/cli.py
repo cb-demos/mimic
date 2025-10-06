@@ -7,6 +7,7 @@ from rich.table import Table
 
 from .config_manager import ConfigManager
 from .environments import get_preset_environment, list_preset_environments
+from .input_helpers import format_field_name, prompt_cloudbees_org, prompt_github_org
 
 app = typer.Typer(
     name="mimic",
@@ -360,47 +361,56 @@ def run(
                 console.print("[bold]Required Parameters:[/bold]\n")
 
                 for prop_name, prop, is_required in missing_params:
-                    prompt_text = f"{prop_name}"
+                    # Format field name nicely
+                    formatted_name = format_field_name(prop_name)
+
+                    # Build prompt text
                     if prop.description:
-                        prompt_text += f" ({prop.description})"
+                        prompt_text = f"{formatted_name}: {prop.description}"
+                    else:
+                        prompt_text = formatted_name
+
+                    # Add optional indicator
                     if not is_required:
                         prompt_text += " [optional]"
 
-                    # Show pattern hint if available
-                    if prop.pattern:
-                        console.print(f"[dim]  Pattern: {prop.pattern}[/dim]")
-
-                    # Prompt for value
-                    if prop.type == "boolean":
+                    # Special handling for GitHub org parameter
+                    if prop_name == "target_org":
+                        value = prompt_github_org(
+                            description=prompt_text,
+                            required=is_required,
+                        )
+                    # Prompt based on type
+                    elif prop.type == "boolean":
                         value = typer.confirm(
                             prompt_text, default=prop.default or False
                         )
                     elif prop.enum:
-                        # For enum, show options
-                        console.print(f"[dim]  Options: {', '.join(prop.enum)}[/dim]")
-                        value = typer.prompt(prompt_text, default=prop.default or "")
-                        while value and value not in prop.enum:
-                            console.print(
-                                f"[red]  Invalid value. Must be one of: {', '.join(prop.enum)}[/red]"
-                            )
-                            value = typer.prompt(
-                                prompt_text, default=prop.default or ""
-                            )
+                        # For enum, use questionary for better UX
+                        import questionary
+
+                        value = questionary.select(
+                            prompt_text,
+                            choices=prop.enum,
+                            default=prop.default or prop.enum[0],
+                        ).ask()
                     else:
+                        # Regular text prompt
+                        default_val = prop.default or ""
                         value = typer.prompt(
                             prompt_text,
-                            default=prop.default or "",
+                            default=default_val,
                             show_default=bool(prop.default),
                         )
 
                     # Validate required
                     if is_required and not value:
-                        console.print(f"[red]Error:[/red] {prop_name} is required")
+                        console.print(f"[red]Error:[/red] {formatted_name} is required")
                         raise typer.Exit(1)
 
                     if (
                         value or not is_required
-                    ):  # Add value (or None for optional params)
+                    ):  # Add value (or empty string for optional params)
                         parameters[prop_name] = value
 
                 console.print()
@@ -448,12 +458,24 @@ def run(
         # Prompt for organization ID if not provided
         console.print("[bold]Execution Details:[/bold]\n")
         if not org_id:
-            organization_id = typer.prompt("CloudBees Organization ID")
+            organization_id = prompt_cloudbees_org(
+                env_url=env_url,
+                cloudbees_pat=cloudbees_pat,
+                env_name=current_env,
+                description="CloudBees Organization",
+            )
         else:
             organization_id = org_id
-            console.print(
-                f"Organization ID: [yellow]{organization_id}[/yellow] (from --org-id flag)"
-            )
+            # Try to show cached org name if available
+            cached_name = config_manager.get_cached_org_name(org_id, current_env)
+            if cached_name:
+                console.print(
+                    f"Organization: [yellow]{cached_name}[/yellow] ({org_id[:8]}...) [dim](from --org-id flag)[/dim]"
+                )
+            else:
+                console.print(
+                    f"Organization ID: [yellow]{organization_id}[/yellow] [dim](from --org-id flag)[/dim]"
+                )
         console.print()
 
         # Validate credentials before starting scenario execution

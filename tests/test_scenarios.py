@@ -222,6 +222,128 @@ class TestScenarioTemplateResolution:
             scenario.validate_input(invalid_params)
 
 
+class TestPatternValidation:
+    """Tests for parameter pattern validation with optional fields."""
+
+    def test_empty_optional_field_passes_pattern_validation(self):
+        """Test that empty optional fields don't fail pattern validation."""
+        schema = ParameterSchema(
+            properties={
+                "required_field": ParameterProperty(
+                    type="string",
+                    pattern="^[a-z]+$",
+                ),
+                "optional_field": ParameterProperty(
+                    type="string",
+                    pattern="^[a-z]+$",
+                ),
+            },
+            required=["required_field"],
+        )
+
+        scenario = Scenario(
+            id="test",
+            name="Test",
+            summary="Test",
+            repositories=[],
+            parameter_schema=schema,
+        )
+
+        # Empty optional field should pass
+        result = scenario.validate_input(
+            {"required_field": "test", "optional_field": ""}
+        )
+        assert result["required_field"] == "test"
+        assert result["optional_field"] == ""
+
+    def test_optional_field_with_valid_pattern_passes(self):
+        """Test that optional field with valid pattern passes."""
+        schema = ParameterSchema(
+            properties={
+                "required_field": ParameterProperty(type="string", pattern="^[a-z]+$"),
+                "optional_field": ParameterProperty(type="string", pattern="^[a-z]+$"),
+            },
+            required=["required_field"],
+        )
+
+        scenario = Scenario(
+            id="test",
+            name="Test",
+            summary="Test",
+            repositories=[],
+            parameter_schema=schema,
+        )
+
+        result = scenario.validate_input(
+            {"required_field": "test", "optional_field": "abc"}
+        )
+        assert result["optional_field"] == "abc"
+
+    def test_optional_field_with_invalid_pattern_fails(self):
+        """Test that optional field with invalid pattern fails."""
+        schema = ParameterSchema(
+            properties={
+                "required_field": ParameterProperty(type="string", pattern="^[a-z]+$"),
+                "optional_field": ParameterProperty(type="string", pattern="^[a-z]+$"),
+            },
+            required=["required_field"],
+        )
+
+        scenario = Scenario(
+            id="test",
+            name="Test",
+            summary="Test",
+            repositories=[],
+            parameter_schema=schema,
+        )
+
+        with pytest.raises(ValidationError):
+            scenario.validate_input(
+                {"required_field": "test", "optional_field": "ABC123"}
+            )
+
+    def test_required_field_with_empty_value_fails_pattern(self):
+        """Test that required field with empty value fails pattern validation."""
+        schema = ParameterSchema(
+            properties={
+                "required_field": ParameterProperty(type="string", pattern="^[a-z]+$"),
+            },
+            required=["required_field"],
+        )
+
+        scenario = Scenario(
+            id="test",
+            name="Test",
+            summary="Test",
+            repositories=[],
+            parameter_schema=schema,
+        )
+
+        with pytest.raises(ValidationError):
+            scenario.validate_input({"required_field": ""})
+
+    def test_optional_field_omitted_passes(self):
+        """Test that omitting optional field entirely passes validation."""
+        schema = ParameterSchema(
+            properties={
+                "required_field": ParameterProperty(type="string"),
+                "optional_field": ParameterProperty(type="string", pattern="^[a-z]+$"),
+            },
+            required=["required_field"],
+        )
+
+        scenario = Scenario(
+            id="test",
+            name="Test",
+            summary="Test",
+            repositories=[],
+            parameter_schema=schema,
+        )
+
+        result = scenario.validate_input({"required_field": "test"})
+        assert "optional_field" not in result
+
+
 class TestRepositoryConfig:
     """Test RepositoryConfig with template strings."""
 

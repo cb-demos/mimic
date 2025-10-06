@@ -408,3 +408,166 @@ class TestFirstRunDetection:
 
         # File exists, so not first run
         assert config_manager.is_first_run() is False
+
+
+class TestRecentValuesManagement:
+    """Test recent values caching functionality."""
+
+    def test_add_recent_value(self, config_manager):
+        """Test adding a recent value to a category."""
+        config_manager.add_recent_value("github_orgs", "acme-corp")
+
+        recent = config_manager.get_recent_values("github_orgs")
+        assert recent == ["acme-corp"]
+
+    def test_add_multiple_recent_values(self, config_manager):
+        """Test adding multiple recent values."""
+        config_manager.add_recent_value("github_orgs", "acme-corp")
+        config_manager.add_recent_value("github_orgs", "example-org")
+        config_manager.add_recent_value("github_orgs", "test-org")
+
+        recent = config_manager.get_recent_values("github_orgs")
+        # Should be in MRU order (most recent first)
+        assert recent == ["test-org", "example-org", "acme-corp"]
+
+    def test_recent_value_mru_order(self, config_manager):
+        """Test that re-adding a value moves it to front (MRU)."""
+        config_manager.add_recent_value("github_orgs", "acme-corp")
+        config_manager.add_recent_value("github_orgs", "example-org")
+        config_manager.add_recent_value("github_orgs", "test-org")
+
+        # Re-add acme-corp, should move to front
+        config_manager.add_recent_value("github_orgs", "acme-corp")
+
+        recent = config_manager.get_recent_values("github_orgs")
+        assert recent == ["acme-corp", "test-org", "example-org"]
+
+    def test_recent_values_max_items(self, config_manager):
+        """Test that recent values are limited to max_items."""
+        # Add 12 items with max of 10
+        for i in range(12):
+            config_manager.add_recent_value("github_orgs", f"org-{i}", max_items=10)
+
+        recent = config_manager.get_recent_values("github_orgs")
+        # Should only keep the 10 most recent
+        assert len(recent) == 10
+        assert recent[0] == "org-11"  # Most recent
+        assert recent[-1] == "org-2"  # 10th most recent
+
+    def test_get_recent_values_empty(self, config_manager):
+        """Test getting recent values from empty category."""
+        recent = config_manager.get_recent_values("nonexistent_category")
+        assert recent == []
+
+    def test_cache_org_name(self, config_manager):
+        """Test caching CloudBees organization name."""
+        # Set up environment first
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+
+        config_manager.cache_org_name("abc-123-def", "Acme Corporation", "prod")
+
+        name = config_manager.get_cached_org_name("abc-123-def", "prod")
+        assert name == "Acme Corporation"
+
+    def test_cache_multiple_org_names(self, config_manager):
+        """Test caching multiple organization names."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+
+        config_manager.cache_org_name("abc-123-def", "Acme Corporation", "prod")
+        config_manager.cache_org_name("xyz-789-ghi", "Example Inc", "prod")
+        config_manager.cache_org_name("def-456-jkl", "Test Ltd", "prod")
+
+        assert (
+            config_manager.get_cached_org_name("abc-123-def", "prod")
+            == "Acme Corporation"
+        )
+        assert (
+            config_manager.get_cached_org_name("xyz-789-ghi", "prod") == "Example Inc"
+        )
+        assert config_manager.get_cached_org_name("def-456-jkl", "prod") == "Test Ltd"
+
+    def test_get_cached_org_name_nonexistent(self, config_manager):
+        """Test getting cached org name that doesn't exist."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+
+        name = config_manager.get_cached_org_name("nonexistent-id", "prod")
+        assert name is None
+
+    def test_cache_org_name_overwrites_existing(self, config_manager):
+        """Test that caching org name overwrites existing entry."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+
+        config_manager.cache_org_name("abc-123-def", "Old Name", "prod")
+        config_manager.cache_org_name("abc-123-def", "New Name", "prod")
+
+        name = config_manager.get_cached_org_name("abc-123-def", "prod")
+        assert name == "New Name"
+
+    def test_cache_org_name_environment_specific(self, config_manager):
+        """Test that cached org names are environment-specific."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+        )
+        config_manager.add_environment(
+            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+        )
+
+        # Same org ID, different names in different environments
+        config_manager.cache_org_name("abc-123", "Prod Org", "prod")
+        config_manager.cache_org_name("abc-123", "Demo Org", "demo")
+
+        # Should get different names for different environments
+        assert config_manager.get_cached_org_name("abc-123", "prod") == "Prod Org"
+        assert config_manager.get_cached_org_name("abc-123", "demo") == "Demo Org"
+
+    def test_get_cached_orgs_for_env(self, config_manager):
+        """Test getting all cached orgs for an environment."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+
+        config_manager.cache_org_name("abc-123", "Acme Corp", "prod")
+        config_manager.cache_org_name("xyz-789", "Example Inc", "prod")
+
+        cached_orgs = config_manager.get_cached_orgs_for_env("prod")
+        assert cached_orgs == {
+            "abc-123": "Acme Corp",
+            "xyz-789": "Example Inc",
+        }
+
+    def test_get_cached_orgs_for_env_empty(self, config_manager):
+        """Test getting cached orgs for environment with no cached orgs."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+
+        cached_orgs = config_manager.get_cached_orgs_for_env("prod")
+        assert cached_orgs == {}
+
+    def test_recent_values_persist(self, config_manager):
+        """Test that recent values persist across config loads."""
+        config_manager.add_environment(
+            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+        )
+        config_manager.add_recent_value("github_orgs", "acme-corp")
+        config_manager.cache_org_name("abc-123", "Acme Corp", "prod")
+
+        # Create new manager pointing to same config
+        manager2 = ConfigManager()
+        manager2.config_dir = config_manager.config_dir
+        manager2.config_file = config_manager.config_file
+        manager2.state_file = config_manager.state_file
+
+        recent = manager2.get_recent_values("github_orgs")
+        assert recent == ["acme-corp"]
+
+        cached_name = manager2.get_cached_org_name("abc-123", "prod")
+        assert cached_name == "Acme Corp"

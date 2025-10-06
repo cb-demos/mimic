@@ -293,14 +293,17 @@ class Scenario(BaseModel):
                     f"Parameter '{key}' must be a boolean", key, value
                 )
 
-            # Validate pattern if specified
+            # Validate pattern if specified (skip for empty optional parameters)
             if prop.pattern and isinstance(value, str):
-                if not re.match(prop.pattern, value):
-                    raise ValidationError(
-                        f"Parameter '{key}' doesn't match pattern '{prop.pattern}'",
-                        key,
-                        value,
-                    )
+                # Only validate pattern if value is non-empty or parameter is required
+                is_required = key in self.parameter_schema.required
+                if value or is_required:
+                    if not re.match(prop.pattern, value):
+                        raise ValidationError(
+                            f"Parameter '{key}' doesn't match pattern '{prop.pattern}'",
+                            key,
+                            value,
+                        )
 
             # Validate enum if specified
             if prop.enum and value not in prop.enum:

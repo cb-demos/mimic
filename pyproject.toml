@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.11.7",
     "pygithub>=2.7.0",
     "pyyaml>=6.0.2",
+    "questionary>=2.1.1",
     "rich>=14.1.0",
     "textual>=6.2.1",
     "typer>=0.19.2",

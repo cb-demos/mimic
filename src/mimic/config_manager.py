@@ -72,6 +72,10 @@ class ConfigManager:
             "github": {"default_username": None},
             "settings": {"default_expiration_days": 7, "auto_cleanup_prompt": True},
             "scenario_packs": {},
+            "recent_values": {
+                "github_orgs": [],
+                "cloudbees_orgs": {},  # env_name -> {org_id -> org_name} mapping
+            },
         }
 
     # Environment management
@@ -362,3 +366,123 @@ class ConfigManager:
 
         config["scenario_packs"][name]["enabled"] = enabled
         self.save_config(config)
+
+    # Recent values management
+    def add_recent_value(self, category: str, value: str, max_items: int = 10) -> None:
+        """Add a recently used value to a category.
+
+        Args:
+            category: Category name (e.g., 'github_orgs').
+            value: Value to add.
+            max_items: Maximum number of recent items to keep (default: 10).
+        """
+        config = self.load_config()
+
+        if "recent_values" not in config:
+            config["recent_values"] = {}
+
+        if category not in config["recent_values"]:
+            config["recent_values"][category] = []
+
+        # Remove existing occurrence if present
+        if value in config["recent_values"][category]:
+            config["recent_values"][category].remove(value)
+
+        # Add to front
+        config["recent_values"][category].insert(0, value)
+
+        # Trim to max items
+        config["recent_values"][category] = config["recent_values"][category][
+            :max_items
+        ]
+
+        self.save_config(config)
+
+    def get_recent_values(self, category: str) -> list[str]:
+        """Get recently used values from a category.
+
+        Args:
+            category: Category name (e.g., 'github_orgs').
+
+        Returns:
+            List of recent values (most recent first).
+        """
+        config = self.load_config()
+        return config.get("recent_values", {}).get(category, [])
+
+    def cache_org_name(
+        self, org_id: str, org_name: str, env_name: str | None = None
+    ) -> None:
+        """Cache a CloudBees organization name by ID for a specific environment.
+
+        Args:
+            org_id: Organization UUID.
+            org_name: Organization name.
+            env_name: Environment name. If None, uses current environment.
+        """
+        if env_name is None:
+            env_name = self.get_current_environment()
+
+        if not env_name:
+            # No environment set, can't cache
+            return
+
+        config = self.load_config()
+
+        if "recent_values" not in config:
+            config["recent_values"] = {}
+
+        if "cloudbees_orgs" not in config["recent_values"]:
+            config["recent_values"]["cloudbees_orgs"] = {}
+
+        if env_name not in config["recent_values"]["cloudbees_orgs"]:
+            config["recent_values"]["cloudbees_orgs"][env_name] = {}
+
+        config["recent_values"]["cloudbees_orgs"][env_name][org_id] = org_name
+        self.save_config(config)
+
+    def get_cached_org_name(
+        self, org_id: str, env_name: str | None = None
+    ) -> str | None:
+        """Get cached CloudBees organization name by ID for a specific environment.
+
+        Args:
+            org_id: Organization UUID.
+            env_name: Environment name. If None, uses current environment.
+
+        Returns:
+            Organization name if cached, None otherwise.
+        """
+        if env_name is None:
+            env_name = self.get_current_environment()
+
+        if not env_name:
+            return None
+
+        config = self.load_config()
+        return (
+            config.get("recent_values", {})
+            .get("cloudbees_orgs", {})
+            .get(env_name, {})
+            .get(org_id)
+        )
+
+    def get_cached_orgs_for_env(self, env_name: str | None = None) -> dict[str, str]:
+        """Get all cached CloudBees organizations for a specific environment.
+
+        Args:
+            env_name: Environment name. If None, uses current environment.
+
+        Returns:
+            Dictionary mapping org_id -> org_name for the environment.
+        """
+        if env_name is None:
+            env_name = self.get_current_environment()
+
+        if not env_name:
+            return {}
+
+        config = self.load_config()
+        return (
+            config.get("recent_values", {}).get("cloudbees_orgs", {}).get(env_name, {})
+        )
