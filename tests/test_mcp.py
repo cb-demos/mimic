@@ -71,6 +71,8 @@ class TestMCPServer:
         self, tmp_path, monkeypatch
     ):
         """Test instantiate_scenario raises error when credentials are missing."""
+        import keyring
+
         from mimic.config_manager import ConfigManager
 
         # Create temporary config directory
@@ -82,6 +84,9 @@ class TestMCPServer:
         monkeypatch.setattr(ConfigManager, "CONFIG_DIR", config_dir)
         monkeypatch.setattr(ConfigManager, "CONFIG_FILE", config_dir / "config.yaml")
         monkeypatch.setattr(ConfigManager, "STATE_FILE", config_dir / "state.json")
+
+        # Mock keyring to return None (no credentials stored)
+        monkeypatch.setattr(keyring, "get_password", lambda service, username: None)
 
         # Create a config with an environment but no credentials
         config_manager = ConfigManager()
