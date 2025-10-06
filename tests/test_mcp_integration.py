@@ -63,7 +63,7 @@ class TestMCPServerIntegration:
         # This is just checking the command exists
         assert result.returncode in [0, 2]  # 0 for success, 2 for no --help option
 
-    def test_mcp_list_scenarios_implementation(self):
+    def test_mcp_list_scenarios_implementation(self, mock_scenario_manager):
         """Test the list_scenarios implementation directly."""
         from mimic.mcp import _list_scenarios_impl
 
@@ -81,17 +81,14 @@ class TestMCPServerIntegration:
         assert "pack_source" in scenario
         # parameters is optional - not all scenarios have them
 
-        # Should NOT include local test scenarios (only pack scenarios)
-        scenario_ids = [s["id"] for s in scenarios]
-        assert "minimal-demo" not in scenario_ids
-        assert "param-demo" not in scenario_ids
-
-        # Should only include pack scenarios
+        # Should only include pack scenarios (test-pack in our case)
         for scenario in scenarios:
-            assert scenario["pack_source"] != "local"
+            assert scenario["pack_source"] == "test-pack"
 
     @pytest.mark.asyncio
-    async def test_instantiate_scenario_validates_credentials(self):
+    async def test_instantiate_scenario_validates_credentials(
+        self, mock_scenario_manager
+    ):
         """Test that instantiate_scenario validates credentials."""
         from mimic.mcp import _instantiate_scenario_impl
 
@@ -105,12 +102,14 @@ class TestMCPServerIntegration:
 
             with pytest.raises(ValueError, match="CloudBees PAT not found|credentials"):
                 await _instantiate_scenario_impl(
-                    scenario_id="hackers-app",
+                    scenario_id="test-app",
                     organization_id="test-org",
                 )
 
     @pytest.mark.asyncio
-    async def test_instantiate_scenario_validates_scenario_id(self):
+    async def test_instantiate_scenario_validates_scenario_id(
+        self, mock_scenario_manager
+    ):
         """Test that instantiate_scenario validates scenario ID."""
         from mimic.mcp import _instantiate_scenario_impl
 
@@ -170,7 +169,7 @@ class TestMCPServerConfiguration:
 
         assert mcp.name == "Mimic Demo Orchestrator"
 
-    def test_scenario_manager_initialized(self):
+    def test_scenario_manager_initialized(self, mock_scenario_manager):
         """Test that scenario_manager is initialized."""
         from mimic.mcp import scenario_manager
 

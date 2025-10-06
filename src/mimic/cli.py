@@ -118,7 +118,9 @@ app.command("ls")(list_scenarios)
 
 @app.command()
 def run(
-    scenario_id: str = typer.Argument(None, help="Scenario ID to run (interactive selection if omitted)"),
+    scenario_id: str = typer.Argument(
+        None, help="Scenario ID to run (interactive selection if omitted)"
+    ),
     expires_in_days: int = typer.Option(
         None,
         "--expires-in",
@@ -330,10 +332,10 @@ def run(
             scenario_map = {}
             for s in scenarios:
                 display = f"{s['name']} ({s['id']})"
-                if s.get('summary'):
+                if s.get("summary"):
                     display += f" - {s['summary']}"
                 choices.append(display)
-                scenario_map[display] = s['id']
+                scenario_map[display] = s["id"]
 
             console.print()
             selection = questionary.select(

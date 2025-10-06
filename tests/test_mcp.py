@@ -18,7 +18,7 @@ class TestMCPServer:
         assert mcp is not None
         assert mcp.name == "Mimic Demo Orchestrator"
 
-    async def test_list_scenarios_returns_data(self):
+    async def test_list_scenarios_returns_data(self, mock_scenario_manager):
         """Test list_scenarios tool returns scenario data."""
         scenarios = _list_scenarios_impl()
 
@@ -33,7 +33,7 @@ class TestMCPServer:
         assert "pack_source" in scenario
         # parameters is optional - not all scenarios have them
 
-    async def test_list_scenarios_structure(self):
+    async def test_list_scenarios_structure(self, mock_scenario_manager):
         """Test list_scenarios returns properly structured data."""
         scenarios = _list_scenarios_impl()
 
@@ -48,7 +48,9 @@ class TestMCPServer:
             if "parameters" in scenario:
                 assert isinstance(scenario["parameters"], dict)
 
-    async def test_instantiate_scenario_missing_environment(self, monkeypatch):
+    async def test_instantiate_scenario_missing_environment(
+        self, mock_scenario_manager, monkeypatch
+    ):
         """Test instantiate_scenario raises error when no environment is set."""
         from mimic.config_manager import ConfigManager
 
@@ -58,10 +60,10 @@ class TestMCPServer:
 
         monkeypatch.setattr(ConfigManager, "get_current_environment", mock_get_current)
 
-        # Use a scenario that actually exists (hackers-app is loaded by default)
+        # Use a scenario that actually exists (test-app from our test pack)
         with pytest.raises(ValueError) as exc_info:
             await _instantiate_scenario_impl(
-                scenario_id="hackers-app",
+                scenario_id="test-app",
                 organization_id="org-123",
             )
 
@@ -111,7 +113,9 @@ class TestMCPServer:
 
         assert "CloudBees PAT not found" in str(exc_info.value)
 
-    async def test_instantiate_scenario_invalid_scenario(self, monkeypatch):
+    async def test_instantiate_scenario_invalid_scenario(
+        self, mock_scenario_manager, monkeypatch
+    ):
         """Test instantiate_scenario raises error for invalid scenario."""
         # Mock environment variables for credentials
         monkeypatch.setenv("MIMIC_CLOUDBEES_PAT", "fake-pat")
