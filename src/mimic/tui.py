@@ -761,6 +761,9 @@ class ScenarioExecutionScreen(Screen):
             log.mount(Static(f"Environment: {current_env}"))
             log.mount(Static(f"Expires in: {expiration_days} days\n"))
 
+            # Get default GitHub username for repo invitations
+            invitee_username = self.config_manager.get_github_username()
+
             # Create pipeline
             pipeline = CreationPipeline(
                 organization_id=org_id,
@@ -769,6 +772,7 @@ class ScenarioExecutionScreen(Screen):
                 unify_base_url=env_url,
                 session_id=session_id,
                 github_pat=github_pat,
+                invitee_username=invitee_username,
             )
 
             # Execute scenario

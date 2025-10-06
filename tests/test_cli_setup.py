@@ -111,6 +111,7 @@ class TestSetupCommand:
             "test-org-id",  # Organization ID
             "y",  # Configure GitHub now?
             "test-github-pat",  # GitHub PAT
+            "test-user",  # GitHub username
         ]
 
         result = runner.invoke(app, ["setup"], input="\n".join(inputs))

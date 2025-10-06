@@ -624,6 +624,9 @@ def run(
         console.print(f"[dim]Environment: {current_env}[/dim]")
         console.print()
 
+        # Get default GitHub username for repo invitations
+        invitee_username = config_manager.get_github_username()
+
         pipeline = CreationPipeline(
             organization_id=organization_id,
             endpoint_id=endpoint_id,
@@ -631,6 +634,7 @@ def run(
             unify_base_url=env_url,
             session_id=session_id,
             github_pat=github_pat,
+            invitee_username=invitee_username,
         )
 
         # Execute scenario
@@ -1048,6 +1052,20 @@ def setup(
         if github_configured:
             config_manager.set_github_pat(github_pat)
             console.print("[green]✓[/green] GitHub token saved\n")
+
+            # Prompt for GitHub username
+            console.print("[bold]GitHub Username (optional):[/bold]")
+            console.print("[dim]Username to invite as collaborator on created repositories[/dim]")
+            github_username = typer.prompt(
+                "GitHub username",
+                default="",
+                show_default=False
+            )
+            if github_username.strip():
+                config_manager.set_github_username(github_username.strip())
+                console.print(f"[green]✓[/green] Default GitHub username set to '{github_username.strip()}'\n")
+            else:
+                console.print("[dim]Skipped. Configure later with: mimic config set github_username <username>[/dim]\n")
     else:
         console.print(
             "[dim]Skipping GitHub setup. Configure later with: mimic config github-token[/dim]\n"
@@ -1341,7 +1359,7 @@ def config_show():
 
     # GitHub settings
     console.print("[cyan]GitHub:[/cyan]")
-    github_username = config.get("github", {}).get("default_username")
+    github_username = config_manager.get_github_username()
     has_github_token = config_manager.get_github_pat() is not None
     console.print(
         f"  Default username: [yellow]{github_username or 'Not set'}[/yellow]"
@@ -1413,11 +1431,7 @@ def config_set(
 
     # Special handling for github_username
     if key == "github_username":
-        config = config_manager.load_config()
-        if "github" not in config:
-            config["github"] = {}
-        config["github"]["default_username"] = parsed_value
-        config_manager.save_config(config)
+        config_manager.set_github_username(parsed_value)
     else:
         # General settings
         config_manager.set_setting(key, parsed_value)

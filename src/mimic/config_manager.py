@@ -258,6 +258,27 @@ class ConfigManager:
         except Exception:
             pass  # Already deleted or never existed
 
+    def set_github_username(self, username: str) -> None:
+        """Store GitHub default username in config.
+
+        Args:
+            username: GitHub username.
+        """
+        config = self.load_config()
+        if "github" not in config:
+            config["github"] = {}
+        config["github"]["default_username"] = username
+        self.save_config(config)
+
+    def get_github_username(self) -> str | None:
+        """Retrieve GitHub default username from config.
+
+        Returns:
+            GitHub username, or None if not set.
+        """
+        config = self.load_config()
+        return config.get("github", {}).get("default_username")
+
     # Settings
     def get_setting(self, key: str, default: Any = None) -> Any:
         """Get a setting value.
