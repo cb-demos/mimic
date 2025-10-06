@@ -455,19 +455,21 @@ class ScenarioParametersScreen(Screen):
             ]
 
             org_id_select = Select(
-                options=org_options,
-                prompt="Select from recent",
-                id="select-org-id"
+                options=org_options, prompt="Select from recent", id="select-org-id"
             )
             scroll.mount(org_id_select)
             scroll.mount(Label("[dim]Or enter custom:[/dim]"))
-            org_id_input = Input(placeholder="Enter new organization ID", id="input-org-id")
+            org_id_input = Input(
+                placeholder="Enter new organization ID", id="input-org-id"
+            )
             scroll.mount(org_id_input)
             # Store both widgets - Input takes precedence in handle_run
             self.parameter_inputs["_org_id_select"] = org_id_select
             self.parameter_inputs["_org_id"] = org_id_input
         else:
-            org_id_input = Input(placeholder="CloudBees Organization ID", id="input-org-id")
+            org_id_input = Input(
+                placeholder="CloudBees Organization ID", id="input-org-id"
+            )
             scroll.mount(org_id_input)
             self.parameter_inputs["_org_id"] = org_id_input
 
@@ -475,7 +477,9 @@ class ScenarioParametersScreen(Screen):
 
         # Get default expiration from config or recent values
         recent_expirations = self.config_manager.get_recent_values("expiration_days")
-        default_expiration = str(self.config_manager.get_setting("default_expiration_days", 7))
+        default_expiration = str(
+            self.config_manager.get_setting("default_expiration_days", 7)
+        )
 
         if recent_expirations:
             # Build select options from recent values
@@ -484,14 +488,14 @@ class ScenarioParametersScreen(Screen):
             expiration_select = Select(
                 options=exp_options,
                 prompt="Select from recent",
-                id="select-expiration-days"
+                id="select-expiration-days",
             )
             scroll.mount(expiration_select)
             scroll.mount(Label("[dim]Or enter custom:[/dim]"))
             expiration_input = Input(
                 placeholder="Enter custom days",
                 value=default_expiration,
-                id="input-expiration-days"
+                id="input-expiration-days",
             )
             scroll.mount(expiration_input)
             # Store both widgets - Input takes precedence
@@ -501,7 +505,7 @@ class ScenarioParametersScreen(Screen):
             expiration_input = Input(
                 placeholder=default_expiration,
                 value=default_expiration,
-                id="input-expiration-days"
+                id="input-expiration-days",
             )
             scroll.mount(expiration_input)
             self.parameter_inputs["_expiration_days"] = expiration_input
@@ -524,7 +528,12 @@ class ScenarioParametersScreen(Screen):
                     default_bool = prop.default if prop.default is not None else False
                     # Convert string defaults to boolean if needed
                     if isinstance(default_bool, str):
-                        default_bool = default_bool.lower() in ("true", "yes", "1", "on")
+                        default_bool = default_bool.lower() in (
+                            "true",
+                            "yes",
+                            "1",
+                            "on",
+                        )
 
                     checkbox_label = f"{prop_name}"
                     if prop.description:
@@ -535,7 +544,7 @@ class ScenarioParametersScreen(Screen):
                     param_checkbox = Checkbox(
                         checkbox_label,
                         value=default_bool,
-                        id=f"checkbox-param-{prop_name}"
+                        id=f"checkbox-param-{prop_name}",
                     )
                     scroll.mount(param_checkbox)
                     self.parameter_inputs[prop_name] = param_checkbox
@@ -560,7 +569,9 @@ class ScenarioParametersScreen(Screen):
                     recent_values = self.config_manager.get_recent_values("github_orgs")
                 elif prop_name in cache_whitelist:
                     # Other whitelisted parameters
-                    recent_values = self.config_manager.get_recent_values(f"param_{prop_name}")
+                    recent_values = self.config_manager.get_recent_values(
+                        f"param_{prop_name}"
+                    )
                 else:
                     # Don't show recent values for non-whitelisted parameters
                     recent_values = []
@@ -579,7 +590,7 @@ class ScenarioParametersScreen(Screen):
                     param_select = Select(
                         options=param_options,
                         prompt="Select from recent",
-                        id=f"select-param-{prop_name}"
+                        id=f"select-param-{prop_name}",
                     )
                     scroll.mount(param_select)
                     scroll.mount(Label("[dim]Or enter custom:[/dim]"))
@@ -588,7 +599,7 @@ class ScenarioParametersScreen(Screen):
                     param_input = Input(
                         placeholder=f"Enter new {prop_name}",
                         value=default_value,
-                        id=f"input-param-{prop_name}"
+                        id=f"input-param-{prop_name}",
                     )
                     scroll.mount(param_input)
                     # Store both widgets - Input takes precedence
@@ -599,7 +610,7 @@ class ScenarioParametersScreen(Screen):
                     param_input = Input(
                         placeholder=str(placeholder),
                         value=default_value,
-                        id=f"input-param-{prop_name}"
+                        id=f"input-param-{prop_name}",
                     )
                     scroll.mount(param_input)
                     self.parameter_inputs[prop_name] = param_input
@@ -627,7 +638,10 @@ class ScenarioParametersScreen(Screen):
                     select_key = f"{param_name}_select"
                     if select_key in self.parameter_inputs:
                         select_widget = self.parameter_inputs[select_key]
-                        if isinstance(select_widget, Select) and select_widget.value != Select.BLANK:
+                        if (
+                            isinstance(select_widget, Select)
+                            and select_widget.value != Select.BLANK
+                        ):
                             # Use Select value as fallback
                             parameters[param_name] = select_widget.value
             elif isinstance(widget, Select):
@@ -642,7 +656,7 @@ class ScenarioParametersScreen(Screen):
                 if prop_name not in parameters:
                     self.app.notify(
                         f"Please provide a value for required field: {prop_name}",
-                        severity="error"
+                        severity="error",
                     )
                     return
                 # For non-boolean fields, also check for empty values
@@ -651,7 +665,7 @@ class ScenarioParametersScreen(Screen):
                     if not parameters[prop_name]:
                         self.app.notify(
                             f"Please provide a value for required field: {prop_name}",
-                            severity="error"
+                            severity="error",
                         )
                         return
 
@@ -666,7 +680,9 @@ class ScenarioParametersScreen(Screen):
         # Cache the parameter values for future use
         # Cache expiration days
         if "_expiration_days" in parameters:
-            self.config_manager.add_recent_value("expiration_days", parameters["_expiration_days"])
+            self.config_manager.add_recent_value(
+                "expiration_days", parameters["_expiration_days"]
+            )
 
         # Cache org_id (will be handled in execution screen with name fetching)
         # Note: Org name fetching happens in ScenarioExecutionScreen after validation
@@ -686,9 +702,13 @@ class ScenarioParametersScreen(Screen):
                         continue
                     # Special handling for target_org (GitHub org)
                     if prop_name == "target_org":
-                        self.config_manager.add_recent_value("github_orgs", parameters[prop_name])
+                        self.config_manager.add_recent_value(
+                            "github_orgs", parameters[prop_name]
+                        )
                     else:
-                        self.config_manager.add_recent_value(f"param_{prop_name}", parameters[prop_name])
+                        self.config_manager.add_recent_value(
+                            f"param_{prop_name}", parameters[prop_name]
+                        )
 
         # Go back and trigger execution
         self.app.pop_screen()
@@ -950,16 +970,22 @@ class ScenarioExecutionScreen(Screen):
                 return
 
             # Fetch and cache org name if not already cached
-            cached_org_name = self.config_manager.get_cached_org_name(org_id, current_env)
+            cached_org_name = self.config_manager.get_cached_org_name(
+                org_id, current_env
+            )
             if not cached_org_name:
                 try:
                     from .unify import UnifyAPIClient
 
-                    with UnifyAPIClient(base_url=env_url, api_key=cloudbees_pat) as client:
+                    with UnifyAPIClient(
+                        base_url=env_url, api_key=cloudbees_pat
+                    ) as client:
                         org_data = client.get_organization(org_id)
                         org_info = org_data.get("organization", {})
                         org_name = org_info.get("displayName", "Unknown")
-                        self.config_manager.cache_org_name(org_id, org_name, current_env)
+                        self.config_manager.cache_org_name(
+                            org_id, org_name, current_env
+                        )
                 except Exception:
                     # Failed to fetch name, continue anyway
                     pass

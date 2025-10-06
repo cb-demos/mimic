@@ -531,7 +531,9 @@ def run(
             # Interactive expiration selection
             import questionary
 
-            default_expiration = config_manager.get_setting("default_expiration_days", 7)
+            default_expiration = config_manager.get_setting(
+                "default_expiration_days", 7
+            )
             recent_expirations = config_manager.get_recent_values("expiration_days")
 
             # Build expiration options
@@ -684,9 +686,7 @@ def run(
         if not yes:
             from .creation_pipeline import CreationPipeline
 
-            console.print(
-                "[bold cyan]Preview - Resources to be created[/bold cyan]\n"
-            )
+            console.print("[bold cyan]Preview - Resources to be created[/bold cyan]\n")
 
             # Validate and resolve scenario parameters
             processed_parameters = scenario.validate_input(parameters)
@@ -702,9 +702,7 @@ def run(
 
             # Prompt for confirmation
             console.print()
-            proceed = typer.confirm(
-                "Proceed with creation?", default=True
-            )
+            proceed = typer.confirm("Proceed with creation?", default=True)
 
             if not proceed:
                 console.print("[yellow]Cancelled by user[/yellow]")
@@ -837,28 +835,36 @@ def _display_success_summary(
             repo_name = repo.get("name", "Unknown")
             repo_url = repo.get("html_url", "")
             if repo_url:
-                lines.append(f"  • [link={repo_url}]{repo_name}[/link] [dim]({repo_url})[/dim]")
+                lines.append(
+                    f"  • [link={repo_url}]{repo_name}[/link] [dim]({repo_url})[/dim]"
+                )
             else:
                 lines.append(f"  • {repo_name}")
         lines.append("")
 
     # Display components
     if pipeline.created_components:
-        lines.append(f"[bold]CloudBees Components ({len(pipeline.created_components)}):[/bold]")
+        lines.append(
+            f"[bold]CloudBees Components ({len(pipeline.created_components)}):[/bold]"
+        )
         for comp_name in pipeline.created_components.keys():
             lines.append(f"  • {comp_name}")
         lines.append("")
 
     # Display environments
     if pipeline.created_environments:
-        lines.append(f"[bold]CloudBees Environments ({len(pipeline.created_environments)}):[/bold]")
+        lines.append(
+            f"[bold]CloudBees Environments ({len(pipeline.created_environments)}):[/bold]"
+        )
         for env_name in pipeline.created_environments.keys():
             lines.append(f"  • {env_name}")
         lines.append("")
 
     # Display applications
     if pipeline.created_applications:
-        lines.append(f"[bold]CloudBees Applications ({len(pipeline.created_applications)}):[/bold]")
+        lines.append(
+            f"[bold]CloudBees Applications ({len(pipeline.created_applications)}):[/bold]"
+        )
         for app_name in pipeline.created_applications.keys():
             lines.append(f"  • {app_name}")
         lines.append("")
@@ -1238,17 +1244,21 @@ def setup(
 
             # Prompt for GitHub username
             console.print("[bold]GitHub Username (optional):[/bold]")
-            console.print("[dim]Username to invite as collaborator on created repositories[/dim]")
+            console.print(
+                "[dim]Username to invite as collaborator on created repositories[/dim]"
+            )
             github_username = typer.prompt(
-                "GitHub username",
-                default="",
-                show_default=False
+                "GitHub username", default="", show_default=False
             )
             if github_username.strip():
                 config_manager.set_github_username(github_username.strip())
-                console.print(f"[green]✓[/green] Default GitHub username set to '{github_username.strip()}'\n")
+                console.print(
+                    f"[green]✓[/green] Default GitHub username set to '{github_username.strip()}'\n"
+                )
             else:
-                console.print("[dim]Skipped. Configure later with: mimic config set github_username <username>[/dim]\n")
+                console.print(
+                    "[dim]Skipped. Configure later with: mimic config set github_username <username>[/dim]\n"
+                )
     else:
         console.print(
             "[dim]Skipping GitHub setup. Configure later with: mimic config github-token[/dim]\n"
@@ -1614,6 +1624,8 @@ def config_set(
 
     # Special handling for github_username
     if key == "github_username":
+        # github_username is always a string based on valid_settings
+        assert isinstance(parsed_value, str)
         config_manager.set_github_username(parsed_value)
     else:
         # General settings
