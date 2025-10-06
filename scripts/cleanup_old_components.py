@@ -19,6 +19,7 @@ DELETE MODE (--delete-from):
 import argparse
 import asyncio
 import csv
+import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -28,9 +29,8 @@ from typing import Any
 # Add parent directory to path for imports
 sys.path.insert(0, ".")
 
-from src.config import settings
-from src.gh import GitHubClient
-from src.unify import UnifyAPIClient
+from src.mimic.gh import GitHubClient
+from src.mimic.unify import UnifyAPIClient
 
 
 def parse_iso_date(date_str: str | None) -> datetime | None:
@@ -436,12 +436,12 @@ Examples:
     # Credentials
     parser.add_argument(
         "--unify-api-key",
-        default=settings.UNIFY_API_KEY,
+        default=os.getenv("UNIFY_API_KEY"),
         help="CloudBees API key (defaults to UNIFY_API_KEY env var)",
     )
     parser.add_argument(
         "--github-token",
-        default=settings.GITHUB_TOKEN,
+        default=os.getenv("GITHUB_TOKEN"),
         help="GitHub token (defaults to GITHUB_TOKEN env var)",
     )
 

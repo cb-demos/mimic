@@ -1,11 +1,11 @@
 {
   "mcpServers": {
     "mimic": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i", "-e", "MODE=mcp", "-e", "GITHUB_TOKEN", "-e", "UNIFY_API_KEY", "cloudbeesdemo/mimic:latest"],
+      "command": "uvx",
+      "args": ["mimic", "mcp"],
       "env": {
-        "GITHUB_TOKEN": "your_github_token_here",
-        "UNIFY_API_KEY": "your_unify_api_key_here"
+        "MIMIC_GITHUB_PAT": "your_github_token_here",
+        "MIMIC_CLOUDBEES_PAT": "your_cloudbees_pat_here"
       }
     }
   }

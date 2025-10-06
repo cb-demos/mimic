@@ -1,23 +1,24 @@
 [project]
 name = "mimic"
-version = "0.4.0"
-description = "A simple internal FastAPI service"
+version = "2.0.0"
+description = "CloudBees Platform scenario instantiation CLI/TUI tool"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 dependencies = [
-    "aiosqlite>=0.21.0",
-    "apscheduler>=3.11.0",
-    "cryptography>=45.0.6",
-    "fastapi>=0.116.1",
-    "fastmcp>=2.11.3",
+    "fastmcp>=0.3.1",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
+    "keyring>=25.6.0",
     "pydantic>=2.11.7",
-    "pydantic-settings>=2.10.1",
     "pygithub>=2.7.0",
-    "pynacl>=1.5.0",
-    "uvicorn[standard]>=0.35.0",
+    "pyyaml>=6.0.2",
+    "rich>=14.1.0",
+    "textual>=6.2.1",
+    "typer>=0.19.2",
 ]
+
+[project.scripts]
+mimic = "mimic.cli:app"
 
 [dependency-groups]
 dev = [
@@ -37,7 +38,7 @@ python_classes = "Test*"
 python_functions = "test_*"
 
 [tool.ruff]
-target-version = "py313"
+target-version = "py311"
 line-length = 88
 fix = true
 exclude = ["unify_client"]
@@ -75,3 +76,6 @@ omit = ["*/tests/*", "*/__init__.py"]
 precision = 2
 show_missing = true
 skip_covered = false
+
+[tool.uv]
+package = true

@@ -1,0 +1,17 @@
+id: minimal-demo
+name: Minimal Demo
+summary: A minimal scenario for testing (single repo, no parameters)
+details: |
+  This is a test scenario with minimal configuration.
+  It creates a single repository from a template without any parameters.
+  Useful for testing the basic scenario functionality.
+
+repositories:
+  - source: cb-demos/nodejs-template
+    target_org: cb-demos
+    repo_name_template: mimic-test-minimal
+    create_component: true
+    replacements:
+      PLACEHOLDER: "Mimic Test"
+    files_to_modify:
+      - README.md

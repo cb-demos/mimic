@@ -1,4 +1,4 @@
-.PHONY: help dev run test lint typecheck format build clean install
+.PHONY: help test lint typecheck format build clean install
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -8,12 +8,6 @@ help: ## Show this help message
 
 install: ## Install dependencies
 	uv sync
-
-dev: ## Run development server with auto-reload
-	uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
-
-run: ## Run production server
-	uv run uvicorn src.main:app --host 0.0.0.0 --port 8000
 
 test: ## Run tests
 	uv run pytest tests/ -v
@@ -27,7 +21,7 @@ typecheck: ## Run type checking with pyright
 format: ## Format code
 	uv run ruff format src/ tests/
 
-build: ## Build Docker image for multiple architectures
+build: ## Build and push CLI Docker image for multiple architectures
 	@VERSION=$$(python scripts/get-version.py); \
 	echo "Building mimic:$$VERSION for multiple architectures"; \
 	docker buildx create --use --name multiarch-builder --driver docker-container --bootstrap 2>/dev/null || docker buildx use multiarch-builder; \

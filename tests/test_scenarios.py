@@ -1,7 +1,7 @@
 import pytest
 
-from src.exceptions import ValidationError
-from src.scenarios import (
+from mimic.exceptions import ValidationError
+from mimic.scenarios import (
     ComputedVariable,
     EnvironmentConfig,
     EnvironmentVariable,
@@ -264,75 +264,68 @@ class TestParameterPlaceholders:
 
     def test_scenario_with_placeholders_in_list(self):
         """Test that scenario listing includes placeholder information."""
-        from src.scenarios import initialize_scenarios
+        from mimic.scenarios import initialize_scenarios
 
         manager = initialize_scenarios("scenarios")
         scenarios = manager.list_scenarios()
 
-        # Find hackers-organized scenario
-        hackers_organized = next(
-            (s for s in scenarios if s["id"] == "hackers-organized"), None
-        )
-        assert hackers_organized is not None
+        # Find param-demo scenario (has parameters)
+        param_demo = next((s for s in scenarios if s["id"] == "param-demo"), None)
+        assert param_demo is not None
 
         # Check that parameters include placeholders
-        params = hackers_organized["parameters"]
+        params = param_demo["parameters"]
 
         # project_name should have a placeholder
         project_name_param = params.get("project_name")
         assert project_name_param is not None
         assert project_name_param.get("placeholder") is not None
-        assert project_name_param["placeholder"] == "e.g., hackers-organized-sept"
-        assert (
-            project_name_param["description"]
-            == "The name of the project (lowercase, alphanumeric with hyphens)"
-        )
+        assert project_name_param["placeholder"] == "my-project"
+        assert project_name_param["description"] == "Project name"
 
-        # custom_environment should have a placeholder
-        custom_env_param = params.get("custom_environment")
-        assert custom_env_param is not None
-        assert custom_env_param.get("placeholder") is not None
-        assert custom_env_param["placeholder"] == "e.g., hackers-organized-sept-prod"
-
-        # target_org should not have a placeholder (not defined in YAML)
+        # target_org should have a placeholder
         target_org_param = params.get("target_org")
         assert target_org_param is not None
-        assert target_org_param.get("placeholder") is None
+        assert target_org_param.get("placeholder") is not None
+        assert target_org_param["placeholder"] == "cb-demos"
 
     def test_form_data_preprocessing(self):
         """Test that form data preprocessing handles checkbox values correctly."""
-        from src.scenarios import initialize_scenarios
+        from mimic.scenarios import initialize_scenarios
 
         manager = initialize_scenarios("scenarios")
-        scenario = manager.get_scenario("hackers-organized")
+        scenario = manager.get_scenario("param-demo")
         assert scenario is not None
 
         # Test checkbox form data - "on" should become True
         form_data_checked = {
             "project_name": "test-project",
             "target_org": "test-org",
-            "create_component": "on",  # Form checkbox sends "on" when checked
+            "environment": "dev",
+            "enable_feature_x": "on",  # Form checkbox sends "on" when checked
         }
         processed = scenario.validate_input(form_data_checked)
-        assert processed["create_component"] is True
+        assert processed["enable_feature_x"] is True
 
         # Test checkbox form data - missing should become False
         form_data_unchecked = {
             "project_name": "test-project",
             "target_org": "test-org",
-            # create_component is missing (unchecked checkbox)
+            "environment": "dev",
+            # enable_feature_x is missing (unchecked checkbox)
         }
         processed = scenario.validate_input(form_data_unchecked)
-        assert processed["create_component"] is False
+        assert processed["enable_feature_x"] is False
 
         # Test that actual boolean values pass through unchanged
         api_data = {
             "project_name": "test-project",
             "target_org": "test-org",
-            "create_component": True,
+            "environment": "dev",
+            "enable_feature_x": True,
         }
         processed = scenario.validate_input(api_data)
-        assert processed["create_component"] is True
+        assert processed["enable_feature_x"] is True
 
 
 class TestConditionalFileOperations:
@@ -340,7 +333,7 @@ class TestConditionalFileOperations:
 
     def test_conditional_file_operation_creation(self):
         """Test creating a ConditionalFileOperation."""
-        from src.scenarios import ConditionalFileOperation
+        from mimic.scenarios import ConditionalFileOperation
 
         operation = ConditionalFileOperation(
             condition_parameter="auto_setup_workflow",
@@ -353,12 +346,12 @@ class TestConditionalFileOperations:
         }
         assert operation.when_false == {}
 
-    def test_hackers_organized_conditional_operations(self):
-        """Test that hackers-organized scenario includes conditional file operations."""
-        from src.scenarios import initialize_scenarios
+    def test_param_demo_conditional_operations(self):
+        """Test that param-demo scenario includes conditional file operations."""
+        from mimic.scenarios import initialize_scenarios
 
         manager = initialize_scenarios("scenarios")
-        scenario = manager.get_scenario("hackers-organized")
+        scenario = manager.get_scenario("param-demo")
         assert scenario is not None
 
         # Should have one repository
@@ -369,26 +362,26 @@ class TestConditionalFileOperations:
         assert len(repo.conditional_file_operations) == 1
         operation = repo.conditional_file_operations[0]
 
-        assert operation.condition_parameter == "auto_setup_workflow"
+        assert operation.condition_parameter == "enable_feature_x"
         assert operation.when_true == {
-            "workflow.yaml": ".cloudbees/workflows/workflow.yaml"
+            "feature-x.yaml": ".cloudbees/workflows/feature-x.yaml"
         }
-        assert operation.when_false == {}
+        assert operation.when_false == {"feature-x.yaml": "unused/feature-x.yaml"}
 
     def test_template_resolution_with_conditional_operations(self):
         """Test that template resolution works with conditional file operations."""
-        from src.scenarios import initialize_scenarios
+        from mimic.scenarios import initialize_scenarios
 
         manager = initialize_scenarios("scenarios")
-        scenario = manager.get_scenario("hackers-organized")
+        scenario = manager.get_scenario("param-demo")
         assert scenario is not None
 
-        # Test with auto_setup_workflow = true
+        # Test with enable_feature_x = true
         params_auto = {
             "project_name": "test-project",
             "target_org": "test-org",
-            "create_component": False,
-            "auto_setup_workflow": True,
+            "environment": "dev",
+            "enable_feature_x": True,
         }
 
         resolved_auto = scenario.resolve_template_variables(params_auto)
@@ -396,16 +389,17 @@ class TestConditionalFileOperations:
         operation_auto = repo_auto.conditional_file_operations[0]
 
         # Conditional operations should be preserved after resolution
-        assert operation_auto.condition_parameter == "auto_setup_workflow"
+        assert operation_auto.condition_parameter == "enable_feature_x"
         assert operation_auto.when_true == {
-            "workflow.yaml": ".cloudbees/workflows/workflow.yaml"
+            "feature-x.yaml": ".cloudbees/workflows/feature-x.yaml"
         }
 
-        # Test with auto_setup_workflow = false (default)
+        # Test with enable_feature_x = false (default)
         params_manual = {
             "project_name": "test-project",
             "target_org": "test-org",
-            "create_component": False,
+            "environment": "dev",
+            "enable_feature_x": False,
         }
 
         resolved_manual = scenario.resolve_template_variables(params_manual)
@@ -413,95 +407,7 @@ class TestConditionalFileOperations:
         operation_manual = repo_manual.conditional_file_operations[0]
 
         # Should still have the same structure
-        assert operation_manual.condition_parameter == "auto_setup_workflow"
-        assert operation_manual.when_false == {}
-
-
-class TestResourceTracking:
-    """Test resource tracking integration in CreationPipeline."""
-
-    @pytest.mark.asyncio
-    async def test_creation_pipeline_resource_registration(self):
-        """Test that CreationPipeline registers resources properly."""
-        from unittest.mock import AsyncMock, MagicMock
-
-        from src.creation_pipeline import CreationPipeline
-        from src.database import Database
-
-        # Mock database
-        mock_db = MagicMock(spec=Database)
-        mock_db.register_resource = AsyncMock()
-
-        # Mock GitHub client
-        mock_github = MagicMock()
-        mock_github.repo_exists = AsyncMock(return_value=True)
-
-        # Create pipeline with mocked dependencies
-        pipeline = CreationPipeline(
-            organization_id="org-123",
-            endpoint_id="endpoint-123",
-            unify_pat="test-pat",
-            session_id="session-123",
-            email="test@example.com",
-            github_pat="github-pat",
-        )
-
-        # Replace the database and github client with mocks
-        pipeline.db = mock_db
-        pipeline.github = mock_github
-
-        # Test resource registration
-        await pipeline._register_resource_safe(
-            resource_id="resource-123",
-            resource_type="github_repo",
-            resource_name="test-repo",
-            platform="github",
-            resource_ref="org/repo",
-            metadata={"test": "data"},
-        )
-
-        # Verify database registration was called
-        mock_db.register_resource.assert_called_once_with(
-            resource_id="resource-123",
-            session_id="session-123",
-            resource_type="github_repo",
-            resource_name="test-repo",
-            platform="github",
-            resource_ref="org/repo",
-            metadata={"test": "data"},
-        )
-
-    @pytest.mark.asyncio
-    async def test_resource_registration_error_handling(self):
-        """Test that resource registration errors don't break the pipeline."""
-        from unittest.mock import AsyncMock, MagicMock
-
-        from src.creation_pipeline import CreationPipeline
-        from src.database import Database
-
-        # Mock database that raises an error
-        mock_db = MagicMock(spec=Database)
-        mock_db.register_resource = AsyncMock(side_effect=Exception("DB error"))
-
-        # Create pipeline
-        pipeline = CreationPipeline(
-            organization_id="org-123",
-            endpoint_id="endpoint-123",
-            unify_pat="test-pat",
-            session_id="session-123",
-            email="test@example.com",
-            github_pat="github-pat",
-        )
-        pipeline.db = mock_db
-
-        # Test that registration failure doesn't raise an exception
-        await pipeline._register_resource_safe(
-            resource_id="resource-123",
-            resource_type="github_repo",
-            resource_name="test-repo",
-            platform="github",
-            resource_ref="org/repo",
-        )
-
-        # Verify it was attempted multiple times
-        assert mock_db.register_resource.call_count == 3
+        assert operation_manual.condition_parameter == "enable_feature_x"
+        assert operation_manual.when_false == {
+            "feature-x.yaml": "unused/feature-x.yaml"
+        }

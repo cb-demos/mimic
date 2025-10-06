@@ -1,6 +1,0 @@
-project_id    = "core-flow-research"
-domain        = "mimic.cb-demos.io"
-dns_zone_name = "cbdemos"
-region        = "us-central1"
-zone          = "us-central1-c"
-admin_email   = "se-demo-admins@cloudbees.com"

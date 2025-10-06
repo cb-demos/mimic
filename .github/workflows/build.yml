@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: CI/CD
 
 on:
   push:
@@ -9,33 +9,81 @@ on:
 
 env:
   DOCKERHUB_USERNAME: cloudbeesdemo
-  
+
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run linting
+      run: uv run ruff check src/ tests/
+
+    - name: Run type checking
+      run: uv run pyright src/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run tests
+      run: uv run pytest tests/ -v
+
+    - name: Build validation
+      run: uv build
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      
+
     - name: Login to Docker Hub
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v3
       with:
         username: ${{ env.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
-        
+
     - name: Get version
       id: version
       run: echo "VERSION=$(python scripts/get-version.py)" >> $GITHUB_OUTPUT
-      
-    - name: Replace commit SHA placeholder
-      run: |
-        sed -i 's/COMMIT_SHA_PLACEHOLDER/${{ github.sha }}/g' templates/base.html
-      
+
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:

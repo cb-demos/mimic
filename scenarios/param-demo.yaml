@@ -1,0 +1,83 @@
+id: param-demo
+name: Parameter Demo
+summary: Demonstrates parameter schema features (string, boolean, enum, patterns)
+details: |
+  This scenario showcases all parameter schema features:
+  - Required and optional parameters
+  - String parameters with patterns
+  - Boolean parameters
+  - Enum parameters
+  - Computed variables with fallback templates
+  - Conditional file operations
+
+parameter_schema:
+  properties:
+    project_name:
+      type: string
+      description: Project name
+      placeholder: my-project
+      pattern: "^[a-z0-9-]+$"
+    target_org:
+      type: string
+      description: GitHub organization for repositories
+      placeholder: cb-demos
+      pattern: "^[a-zA-Z0-9-]+$"
+    environment:
+      type: string
+      description: Deployment environment
+      enum: ["dev", "staging", "prod"]
+      default: dev
+    enable_feature_x:
+      type: boolean
+      description: Enable experimental feature X
+      default: false
+    custom_suffix:
+      type: string
+      description: Optional custom suffix for repo name
+      placeholder: ""
+  required:
+    - project_name
+    - target_org
+    - environment
+
+computed_variables:
+  repo_name:
+    default_from: custom_suffix
+    fallback_template: "${project_name}-${environment}"
+
+repositories:
+  - source: cb-demos/nodejs-template
+    target_org: "${target_org}"
+    repo_name_template: "${repo_name}"
+    create_component: "${enable_feature_x}"
+    replacements:
+      PLACEHOLDER: "${project_name}"
+      ENVIRONMENT: "${environment}"
+    files_to_modify:
+      - README.md
+    conditional_file_operations:
+      - condition_parameter: enable_feature_x
+        operation: move
+        when_true:
+          "feature-x.yaml": ".cloudbees/workflows/feature-x.yaml"
+        when_false:
+          "feature-x.yaml": "unused/feature-x.yaml"
+
+applications:
+  - name: "${project_name}-app"
+    components:
+      - "${repo_name}"
+    environments:
+      - "${environment}"
+
+environments:
+  - name: "${environment}"
+    env:
+      - name: ENV_TYPE
+        value: "${environment}"
+    flags:
+      - feature_x_enabled
+
+flags:
+  - name: feature_x_enabled
+    type: boolean
