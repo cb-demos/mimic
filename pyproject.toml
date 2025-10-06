@@ -1,7 +1,7 @@
 [project]
 name = "mimic"
 version = "2.1.0"
-description = "CloudBees Platform scenario instantiation CLI/TUI tool"
+description = "CloudBees Unify scenario instantiation CLI/TUI tool"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

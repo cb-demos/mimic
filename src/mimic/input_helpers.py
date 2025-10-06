@@ -131,7 +131,7 @@ def prompt_cloudbees_org(
     for better UX (shows "Acme Corp (uuid)" instead of just UUID).
 
     Args:
-        env_url: CloudBees Platform API URL
+        env_url: CloudBees Unify API URL
         cloudbees_pat: CloudBees PAT for API access
         env_name: Environment name (for environment-specific caching)
         description: Description text for the prompt

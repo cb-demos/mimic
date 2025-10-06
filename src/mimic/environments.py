@@ -1,17 +1,17 @@
-"""Pre-defined CloudBees Platform environment configurations."""
+"""Pre-defined CloudBees Unify environment configurations."""
 
 from typing import NamedTuple
 
 
 class EnvironmentConfig(NamedTuple):
-    """CloudBees Platform environment configuration."""
+    """CloudBees Unify environment configuration."""
 
     url: str
     endpoint_id: str
     description: str
 
 
-# Pre-defined CloudBees Platform environments
+# Pre-defined CloudBees Unify environments
 PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
     "prod": EnvironmentConfig(
         url="https://api.cloudbees.io",

@@ -13,7 +13,7 @@ from .input_helpers import format_field_name, prompt_cloudbees_org, prompt_githu
 
 app = typer.Typer(
     name="mimic",
-    help="CloudBees Platform scenario instantiation CLI/TUI tool",
+    help="CloudBees Unify scenario instantiation CLI/TUI tool",
     no_args_is_help=True,
 )
 
@@ -21,7 +21,7 @@ console = Console()
 config_manager = ConfigManager()
 
 # Environment management commands
-env_app = typer.Typer(help="Manage CloudBees Platform environments")
+env_app = typer.Typer(help="Manage CloudBees Unify environments")
 app.add_typer(env_app, name="env")
 
 # Config management commands
@@ -1056,7 +1056,7 @@ def setup(
     console.print(
         Panel(
             "[bold cyan]Welcome to Mimic![/bold cyan]\n\n"
-            "Mimic is a CloudBees Platform scenario orchestration tool.\n"
+            "Mimic is a CloudBees Unify scenario orchestration tool.\n"
             "It helps you quickly create demo environments with:\n"
             "  • GitHub repositories from templates\n"
             "  • CloudBees components and environments\n"
@@ -1112,7 +1112,7 @@ def setup(
 
     # Step 1: CloudBees Environment Setup
     console.print("[bold cyan]Step 2: CloudBees Environment[/bold cyan]\n")
-    console.print("Choose a CloudBees Platform environment to connect to:\n")
+    console.print("Choose a CloudBees Unify environment to connect to:\n")
 
     # Show preset environments
     from .environments import list_preset_environments
@@ -1158,8 +1158,8 @@ def setup(
         console.print()
 
     # Prompt for credentials
-    console.print("[bold]CloudBees Platform Credentials:[/bold]")
-    pat = typer.prompt("CloudBees Platform PAT", hide_input=True)
+    console.print("[bold]CloudBees Unify Credentials:[/bold]")
+    pat = typer.prompt("CloudBees Unify PAT", hide_input=True)
     org_id = typer.prompt("Organization ID (for validation)")
     console.print()
 
@@ -1294,7 +1294,7 @@ def env_add(
     url: str = typer.Option(
         None,
         "--url",
-        help="CloudBees Platform API URL (required for custom environments)",
+        help="CloudBees Unify API URL (required for custom environments)",
     ),
     endpoint_id: str = typer.Option(
         None,
@@ -1302,7 +1302,7 @@ def env_add(
         help="CloudBees endpoint ID (required for custom environments)",
     ),
 ):
-    """Add a new CloudBees Platform environment.
+    """Add a new CloudBees Unify environment.
 
     Use preset environments (prod, preprod, demo) by just specifying the name,
     or add a custom environment by providing --url and --endpoint-id.
@@ -1359,7 +1359,7 @@ def env_add(
 
     # Prompt for PAT securely
     pat = typer.prompt(
-        "CloudBees Platform PAT",
+        "CloudBees Unify PAT",
         hide_input=True,
         confirmation_prompt=False,
     )

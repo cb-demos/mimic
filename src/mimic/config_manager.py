@@ -84,7 +84,7 @@ class ConfigManager:
 
         Args:
             name: Environment name (e.g., 'prod', 'preprod', 'demo').
-            url: CloudBees Platform API URL.
+            url: CloudBees Unify API URL.
             pat: Personal Access Token (stored securely in keyring).
             endpoint_id: CloudBees endpoint ID for the environment.
         """

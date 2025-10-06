@@ -1,5 +1,5 @@
 """
-Minimal CloudBees Platform API client
+Minimal CloudBees Unify API client
 Built from api-platform.json spec but only implementing what we need
 """
 
@@ -12,7 +12,7 @@ from mimic.exceptions import UnifyAPIError
 
 
 class UnifyAPIClient:
-    """Simple API client for CloudBees Platform API"""
+    """Simple API client for CloudBees Unify API"""
 
     def __init__(self, base_url: str | None = None, api_key: str | None = None):
         # For CLI/TUI, base_url should be provided from environment config

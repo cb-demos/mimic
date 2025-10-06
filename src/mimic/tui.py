@@ -50,7 +50,7 @@ class WelcomeScreen(Screen):
         yield Header()
         yield Container(
             Static(
-                "[bold cyan]Mimic - CloudBees Platform Scenario Tool[/bold cyan]\n\n"
+                "[bold cyan]Mimic - CloudBees Unify Scenario Tool[/bold cyan]\n\n"
                 "Welcome to the Mimic TUI! Use the keybindings shown at the bottom to navigate.\n",
                 id="welcome-text",
             ),
