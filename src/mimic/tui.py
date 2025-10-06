@@ -17,6 +17,7 @@ from textual.widgets import (
     Header,
     Input,
     Label,
+    Select,
     Static,
 )
 
@@ -392,12 +393,15 @@ class ScenarioBrowserScreen(Screen):
             # Check if preview mode is enabled
             preview_mode = parameters.get("_preview_mode", False)
 
+            # Remove TUI-only parameters before passing to execution
+            exec_params = {k: v for k, v in parameters.items() if k != "_preview_mode"}
+
             if preview_mode:
-                # Push preview screen
-                self.app.push_screen(ScenarioPreviewScreen(scenario, parameters))
+                # Push preview screen (preview screen will also need clean params)
+                self.app.push_screen(ScenarioPreviewScreen(scenario, exec_params))
             else:
                 # Push execution screen directly
-                self.app.push_screen(ScenarioExecutionScreen(scenario, parameters))
+                self.app.push_screen(ScenarioExecutionScreen(scenario, exec_params))
 
 
 class ScenarioParametersScreen(Screen):
@@ -410,7 +414,8 @@ class ScenarioParametersScreen(Screen):
     def __init__(self, scenario: Any, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.scenario = scenario
-        self.parameter_inputs: dict[str, Input | Checkbox] = {}
+        self.parameter_inputs: dict[str, Input | Checkbox | Select] = {}
+        self.config_manager = ConfigManager()
 
     def compose(self) -> ComposeResult:
         """Create child widgets."""
@@ -434,16 +439,72 @@ class ScenarioParametersScreen(Screen):
         """Called when screen is mounted."""
         scroll = self.query_one("#param-inputs", VerticalScroll)
 
-        # Add common inputs
+        # Get current environment for org caching
+        current_env = self.config_manager.get_current_environment()
+
+        # Add common inputs - Organization ID
         scroll.mount(Label("Organization ID:"))
-        org_id_input = Input(placeholder="CloudBees Organization ID", id="input-org-id")
-        scroll.mount(org_id_input)
-        self.parameter_inputs["_org_id"] = org_id_input
+
+        # Show cached orgs as Select with custom input option
+        cached_orgs = self.config_manager.get_cached_orgs_for_env(current_env)
+        if cached_orgs:
+            # Build select options with org names
+            org_options = [
+                (f"{name} ({org_id[:8]}...)", org_id)
+                for org_id, name in cached_orgs.items()
+            ]
+
+            org_id_select = Select(
+                options=org_options,
+                prompt="Select from recent",
+                id="select-org-id"
+            )
+            scroll.mount(org_id_select)
+            scroll.mount(Label("[dim]Or enter custom:[/dim]"))
+            org_id_input = Input(placeholder="Enter new organization ID", id="input-org-id")
+            scroll.mount(org_id_input)
+            # Store both widgets - Input takes precedence in handle_run
+            self.parameter_inputs["_org_id_select"] = org_id_select
+            self.parameter_inputs["_org_id"] = org_id_input
+        else:
+            org_id_input = Input(placeholder="CloudBees Organization ID", id="input-org-id")
+            scroll.mount(org_id_input)
+            self.parameter_inputs["_org_id"] = org_id_input
 
         scroll.mount(Label("Expiration Days:"))
-        expiration_input = Input(placeholder="7", value="7", id="input-expiration-days")
-        scroll.mount(expiration_input)
-        self.parameter_inputs["_expiration_days"] = expiration_input
+
+        # Get default expiration from config or recent values
+        recent_expirations = self.config_manager.get_recent_values("expiration_days")
+        default_expiration = str(self.config_manager.get_setting("default_expiration_days", 7))
+
+        if recent_expirations:
+            # Build select options from recent values
+            exp_options = [(days, days) for days in recent_expirations[:5]]
+
+            expiration_select = Select(
+                options=exp_options,
+                prompt="Select from recent",
+                id="select-expiration-days"
+            )
+            scroll.mount(expiration_select)
+            scroll.mount(Label("[dim]Or enter custom:[/dim]"))
+            expiration_input = Input(
+                placeholder="Enter custom days",
+                value=default_expiration,
+                id="input-expiration-days"
+            )
+            scroll.mount(expiration_input)
+            # Store both widgets - Input takes precedence
+            self.parameter_inputs["_expiration_days_select"] = expiration_select
+            self.parameter_inputs["_expiration_days"] = expiration_input
+        else:
+            expiration_input = Input(
+                placeholder=default_expiration,
+                value=default_expiration,
+                id="input-expiration-days"
+            )
+            scroll.mount(expiration_input)
+            self.parameter_inputs["_expiration_days"] = expiration_input
 
         scroll.mount(Label(""))  # Spacer
         preview_checkbox = Checkbox("Preview before running", id="checkbox-preview")
@@ -456,6 +517,31 @@ class ScenarioParametersScreen(Screen):
 
             for prop_name, prop in self.scenario.parameter_schema.properties.items():
                 is_required = prop_name in self.scenario.parameter_schema.required
+
+                # Special handling for boolean parameters
+                if prop.type == "boolean":
+                    # Use Checkbox for boolean parameters
+                    default_bool = prop.default if prop.default is not None else False
+                    # Convert string defaults to boolean if needed
+                    if isinstance(default_bool, str):
+                        default_bool = default_bool.lower() in ("true", "yes", "1", "on")
+
+                    checkbox_label = f"{prop_name}"
+                    if prop.description:
+                        checkbox_label += f" ({prop.description})"
+                    if is_required:
+                        checkbox_label += " *"
+
+                    param_checkbox = Checkbox(
+                        checkbox_label,
+                        value=default_bool,
+                        id=f"checkbox-param-{prop_name}"
+                    )
+                    scroll.mount(param_checkbox)
+                    self.parameter_inputs[prop_name] = param_checkbox
+                    continue
+
+                # For non-boolean parameters, show a label
                 label_text = f"{prop_name}"
                 if prop.description:
                     label_text += f" ({prop.description})"
@@ -464,27 +550,145 @@ class ScenarioParametersScreen(Screen):
 
                 scroll.mount(Label(label_text))
 
-                placeholder = prop.placeholder or prop.default or ""
-                param_input = Input(
-                    placeholder=str(placeholder), id=f"input-param-{prop_name}"
-                )
-                if prop.default:
-                    param_input.value = str(prop.default)
+                # Only cache specific parameters that are reusable across runs
+                # Most parameters are unique per run (project names, repo names, etc.)
+                cache_whitelist = {"target_org"}  # Add more here as needed
 
-                scroll.mount(param_input)
-                self.parameter_inputs[prop_name] = param_input
+                # Check for recent values for whitelisted parameters only
+                if prop_name == "target_org":
+                    # Special handling for target_org (GitHub org)
+                    recent_values = self.config_manager.get_recent_values("github_orgs")
+                elif prop_name in cache_whitelist:
+                    # Other whitelisted parameters
+                    recent_values = self.config_manager.get_recent_values(f"param_{prop_name}")
+                else:
+                    # Don't show recent values for non-whitelisted parameters
+                    recent_values = []
+
+                # Determine default value for Input
+                if prop.default:
+                    default_value = str(prop.default)
+                else:
+                    default_value = ""
+
+                # Show Select with custom Input if we have recent values
+                if recent_values:
+                    # Build select options from recent values
+                    param_options = [(val, val) for val in recent_values[:5]]
+
+                    param_select = Select(
+                        options=param_options,
+                        prompt="Select from recent",
+                        id=f"select-param-{prop_name}"
+                    )
+                    scroll.mount(param_select)
+                    scroll.mount(Label("[dim]Or enter custom:[/dim]"))
+
+                    placeholder = prop.placeholder or prop.default or ""
+                    param_input = Input(
+                        placeholder=f"Enter new {prop_name}",
+                        value=default_value,
+                        id=f"input-param-{prop_name}"
+                    )
+                    scroll.mount(param_input)
+                    # Store both widgets - Input takes precedence
+                    self.parameter_inputs[f"{prop_name}_select"] = param_select
+                    self.parameter_inputs[prop_name] = param_input
+                else:
+                    placeholder = prop.placeholder or prop.default or ""
+                    param_input = Input(
+                        placeholder=str(placeholder),
+                        value=default_value,
+                        id=f"input-param-{prop_name}"
+                    )
+                    scroll.mount(param_input)
+                    self.parameter_inputs[prop_name] = param_input
 
     @on(Button.Pressed, "#btn-run")
     def handle_run(self) -> None:
         """Handle run button press."""
         # Collect all parameter values
         parameters = {}
-        for param_name, input_widget in self.parameter_inputs.items():
-            # Handle checkboxes differently from text inputs
-            if isinstance(input_widget, Checkbox):
-                parameters[param_name] = input_widget.value
-            elif input_widget.value:
-                parameters[param_name] = input_widget.value
+
+        # First pass: collect all non-select widget values
+        for param_name, widget in self.parameter_inputs.items():
+            # Skip _select widgets, we'll handle them separately
+            if param_name.endswith("_select"):
+                continue
+
+            if isinstance(widget, Checkbox):
+                parameters[param_name] = widget.value
+            elif isinstance(widget, Input):
+                if widget.value:
+                    # Input value provided, use it
+                    parameters[param_name] = widget.value
+                else:
+                    # No input value, check if there's a corresponding Select
+                    select_key = f"{param_name}_select"
+                    if select_key in self.parameter_inputs:
+                        select_widget = self.parameter_inputs[select_key]
+                        if isinstance(select_widget, Select) and select_widget.value != Select.BLANK:
+                            # Use Select value as fallback
+                            parameters[param_name] = select_widget.value
+            elif isinstance(widget, Select):
+                # Standalone Select (no corresponding Input)
+                if widget.value != Select.BLANK:
+                    parameters[param_name] = widget.value
+
+        # Validate required fields
+        if self.scenario.parameter_schema:
+            for prop_name in self.scenario.parameter_schema.required:
+                # Check if parameter exists - for booleans, False is a valid value
+                if prop_name not in parameters:
+                    self.app.notify(
+                        f"Please provide a value for required field: {prop_name}",
+                        severity="error"
+                    )
+                    return
+                # For non-boolean fields, also check for empty values
+                prop = self.scenario.parameter_schema.properties.get(prop_name)
+                if prop and prop.type != "boolean":
+                    if not parameters[prop_name]:
+                        self.app.notify(
+                            f"Please provide a value for required field: {prop_name}",
+                            severity="error"
+                        )
+                        return
+
+        # Check for required common fields
+        if "_org_id" not in parameters or not parameters["_org_id"]:
+            self.app.notify("Please provide Organization ID", severity="error")
+            return
+        if "_expiration_days" not in parameters or not parameters["_expiration_days"]:
+            self.app.notify("Please provide Expiration Days", severity="error")
+            return
+
+        # Cache the parameter values for future use
+        # Cache expiration days
+        if "_expiration_days" in parameters:
+            self.config_manager.add_recent_value("expiration_days", parameters["_expiration_days"])
+
+        # Cache org_id (will be handled in execution screen with name fetching)
+        # Note: Org name fetching happens in ScenarioExecutionScreen after validation
+
+        # Cache scenario-specific parameters (whitelist approach)
+        # Only cache parameters that are reusable across runs
+        cache_whitelist = {"target_org"}  # Add more here as needed
+
+        if self.scenario.parameter_schema:
+            for prop_name, prop in self.scenario.parameter_schema.properties.items():
+                if prop_name in parameters:
+                    # Skip boolean parameters - they don't need caching
+                    if prop.type == "boolean":
+                        continue
+                    # Only cache whitelisted parameters
+                    if prop_name not in cache_whitelist:
+                        continue
+                    # Special handling for target_org (GitHub org)
+                    if prop_name == "target_org":
+                        self.config_manager.add_recent_value("github_orgs", parameters[prop_name])
+                    else:
+                        self.config_manager.add_recent_value(f"param_{prop_name}", parameters[prop_name])
 
         # Go back and trigger execution
         self.app.pop_screen()
@@ -744,6 +948,21 @@ class ScenarioExecutionScreen(Screen):
                 )
                 self._execution_running = False
                 return
+
+            # Fetch and cache org name if not already cached
+            cached_org_name = self.config_manager.get_cached_org_name(org_id, current_env)
+            if not cached_org_name:
+                try:
+                    from .unify import UnifyAPIClient
+
+                    with UnifyAPIClient(base_url=env_url, api_key=cloudbees_pat) as client:
+                        org_data = client.get_organization(org_id)
+                        org_info = org_data.get("organization", {})
+                        org_name = org_info.get("displayName", "Unknown")
+                        self.config_manager.cache_org_name(org_id, org_name, current_env)
+                except Exception:
+                    # Failed to fetch name, continue anyway
+                    pass
 
             # Create session
             self.state_tracker.create_session(
