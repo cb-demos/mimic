@@ -1,6 +1,6 @@
 # Mimic
 
-Internal CloudBees tool for orchestrating demo scenarios on CloudBees Platform with CLI/TUI/MCP interfaces.
+Tool for orchestrating demo scenarios on CloudBees Unify with CLI/TUI/MCP interfaces.
 
 ## Quick Start
 
@@ -22,7 +22,7 @@ mimic setup
 
 This will:
 1. Add the official CloudBees scenario pack
-2. Configure your CloudBees Platform environment (prod/preprod/demo)
+2. Configure your CloudBees Unify environment (prod/preprod/demo)
 3. Set up your GitHub credentials
 
 Or configure manually:
