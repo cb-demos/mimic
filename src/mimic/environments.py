@@ -25,7 +25,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
     ),
     "demo": EnvironmentConfig(
         url="https://api.demo1.cloudbees.io",
-        endpoint_id="1f58a757-6e0d-4715-accc-1e3b035fa0c3",
+        endpoint_id="f6e2a9c4-cc4a-4cbd-b1fc-102fa4572d2c",
         description="CloudBees Unify Demo",
     ),
 }
