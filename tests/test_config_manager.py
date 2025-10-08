@@ -571,3 +571,171 @@ class TestRecentValuesManagement:
 
         cached_name = manager2.get_cached_org_name("abc-123", "prod")
         assert cached_name == "Acme Corp"
+
+
+class TestEnvironmentPropertiesManagement:
+    """Test environment properties functionality."""
+
+    @pytest.fixture
+    def env_config_manager(self, temp_config_dir, mock_keyring, monkeypatch):
+        """Create ConfigManager with temporary directory and mocked keyring."""
+        monkeypatch.setenv("MIMIC_CONFIG_DIR", str(temp_config_dir))
+
+        ConfigManager.CONFIG_DIR = temp_config_dir
+        ConfigManager.CONFIG_FILE = temp_config_dir / "config.yaml"
+        ConfigManager.STATE_FILE = temp_config_dir / "state.json"
+
+        return ConfigManager()
+
+    def test_add_environment_with_properties(self, env_config_manager):
+        """Test adding environment with custom properties."""
+        properties = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
+
+        env_config_manager.add_environment(
+            "demo",
+            "https://api.demo1.cloudbees.io",
+            "test-pat",
+            "endpoint-123",
+            properties,
+        )
+
+        # Verify properties were saved
+        config = env_config_manager.load_config()
+        assert "properties" in config["environments"]["demo"]
+        assert config["environments"]["demo"]["properties"] == properties
+
+    def test_get_environment_properties_built_in(self, env_config_manager):
+        """Test that built-in properties are automatically exposed."""
+        env_config_manager.add_environment(
+            "demo",
+            "https://api.demo1.cloudbees.io",
+            "test-pat",
+            "endpoint-123",
+        )
+
+        props = env_config_manager.get_environment_properties("demo")
+
+        # Built-in properties should be present
+        assert "UNIFY_API" in props
+        assert props["UNIFY_API"] == "https://api.demo1.cloudbees.io"
+        assert "ENDPOINT_ID" in props
+        assert props["ENDPOINT_ID"] == "endpoint-123"
+
+    def test_get_environment_properties_custom(self, env_config_manager):
+        """Test getting custom environment properties."""
+        custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
+
+        env_config_manager.add_environment(
+            "demo",
+            "https://api.demo1.cloudbees.io",
+            "test-pat",
+            "endpoint-123",
+            custom_props,
+        )
+
+        props = env_config_manager.get_environment_properties("demo")
+
+        # Should have both built-in and custom properties
+        assert props["UNIFY_API"] == "https://api.demo1.cloudbees.io"
+        assert props["ENDPOINT_ID"] == "endpoint-123"
+        assert props["USE_VPC"] == "true"
+        assert props["FM_INSTANCE"] == "demo1.cloudbees.io"
+
+    def test_set_environment_property(self, env_config_manager):
+        """Test setting a property on an existing environment."""
+        env_config_manager.add_environment(
+            "demo", "https://api.demo1.cloudbees.io", "test-pat", "endpoint-123"
+        )
+
+        env_config_manager.set_environment_property(
+            "demo", "CUSTOM_KEY", "custom_value"
+        )
+
+        props = env_config_manager.get_environment_properties("demo")
+        assert props["CUSTOM_KEY"] == "custom_value"
+
+    def test_set_environment_property_on_nonexistent_environment(
+        self, env_config_manager
+    ):
+        """Test that setting property on nonexistent environment raises error."""
+        with pytest.raises(ValueError, match="Environment 'nonexistent' not found"):
+            env_config_manager.set_environment_property("nonexistent", "KEY", "value")
+
+    def test_unset_environment_property(self, env_config_manager):
+        """Test removing a property from an environment."""
+        custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
+
+        env_config_manager.add_environment(
+            "demo",
+            "https://api.demo1.cloudbees.io",
+            "test-pat",
+            "endpoint-123",
+            custom_props,
+        )
+
+        # Verify property exists
+        props = env_config_manager.get_environment_properties("demo")
+        assert "USE_VPC" in props
+
+        # Remove it
+        env_config_manager.unset_environment_property("demo", "USE_VPC")
+
+        # Verify it's gone
+        props = env_config_manager.get_environment_properties("demo")
+        assert "USE_VPC" not in props
+        # But other properties remain
+        assert "FM_INSTANCE" in props
+
+    def test_unset_environment_property_on_nonexistent_environment(
+        self, env_config_manager
+    ):
+        """Test that unsetting property on nonexistent environment raises error."""
+        with pytest.raises(ValueError, match="Environment 'nonexistent' not found"):
+            env_config_manager.unset_environment_property("nonexistent", "KEY")
+
+    def test_get_environment_properties_empty_when_no_environment(
+        self, env_config_manager
+    ):
+        """Test that getting properties for nonexistent env returns empty dict."""
+        props = env_config_manager.get_environment_properties("nonexistent")
+        assert props == {}
+
+    def test_get_environment_properties_current_environment(self, env_config_manager):
+        """Test getting properties for current environment (None parameter)."""
+        custom_props = {"USE_VPC": "true"}
+
+        env_config_manager.add_environment(
+            "demo",
+            "https://api.demo1.cloudbees.io",
+            "test-pat",
+            "endpoint-123",
+            custom_props,
+        )
+        env_config_manager.set_current_environment("demo")
+
+        # Get properties without specifying environment name
+        props = env_config_manager.get_environment_properties()
+        assert props["USE_VPC"] == "true"
+        assert props["UNIFY_API"] == "https://api.demo1.cloudbees.io"
+
+    def test_environment_properties_persist_across_loads(self, env_config_manager):
+        """Test that properties persist when config is reloaded."""
+        custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
+
+        env_config_manager.add_environment(
+            "demo",
+            "https://api.demo1.cloudbees.io",
+            "test-pat",
+            "endpoint-123",
+            custom_props,
+        )
+
+        # Create new manager instance pointing to same config
+        manager2 = ConfigManager()
+        manager2.CONFIG_DIR = env_config_manager.CONFIG_DIR
+        manager2.CONFIG_FILE = env_config_manager.CONFIG_FILE
+
+        # Properties should still be there
+        props = manager2.get_environment_properties("demo")
+        assert props["USE_VPC"] == "true"
+        assert props["FM_INSTANCE"] == "demo1.cloudbees.io"

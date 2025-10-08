@@ -533,3 +533,221 @@ class TestConditionalFileOperations:
         assert operation_manual.when_false == {
             "feature-x.yaml": "unused/feature-x.yaml"
         }
+
+
+class TestEnvironmentProperties:
+    """Test environment properties in template resolution."""
+
+    def test_environment_properties_basic(self):
+        """Test basic environment property resolution."""
+        scenario = Scenario(
+            id="test-env-props",
+            name="Test Environment Properties",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    replacements={
+                        "USE_VPC": "${env.USE_VPC}",
+                        "FM_INSTANCE": "${env.FM_INSTANCE}",
+                    },
+                    files_to_modify=["config.yaml"],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        # User parameters
+        params = {"project_name": "my-project", "target_org": "my-org"}
+
+        # Environment properties
+        env_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
+
+        # Resolve with environment properties
+        resolved = scenario.resolve_template_variables(params, env_props)
+
+        # Check that environment properties were substituted
+        repo = resolved.repositories[0]
+        assert repo.replacements["USE_VPC"] == "true"
+        assert repo.replacements["FM_INSTANCE"] == "demo1.cloudbees.io"
+        # Check user parameters also worked
+        assert repo.target_org == "my-org"
+        assert repo.repo_name_template == "my-project"
+
+    def test_environment_properties_built_in(self):
+        """Test built-in environment properties (UNIFY_API, ENDPOINT_ID)."""
+        scenario = Scenario(
+            id="test-built-in",
+            name="Test Built-in Properties",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    replacements={
+                        "API_URL": "${env.UNIFY_API}",
+                        "ENDPOINT": "${env.ENDPOINT_ID}",
+                    },
+                    files_to_modify=["config.yaml"],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        params = {"project_name": "my-project", "target_org": "my-org"}
+        env_props = {
+            "UNIFY_API": "https://api.cloudbees.io",
+            "ENDPOINT_ID": "abc-123-def",
+        }
+
+        resolved = scenario.resolve_template_variables(params, env_props)
+        repo = resolved.repositories[0]
+
+        assert repo.replacements["API_URL"] == "https://api.cloudbees.io"
+        assert repo.replacements["ENDPOINT"] == "abc-123-def"
+
+    def test_environment_properties_missing_raises_error(self):
+        """Test that missing environment property raises helpful error."""
+        scenario = Scenario(
+            id="test-missing",
+            name="Test Missing Property",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    replacements={"MISSING": "${env.MISSING_PROP}"},
+                    files_to_modify=["config.yaml"],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        params = {"project_name": "my-project", "target_org": "my-org"}
+        env_props = {"USE_VPC": "true"}  # MISSING_PROP not included
+
+        with pytest.raises(ValueError) as exc_info:
+            scenario.resolve_template_variables(params, env_props)
+
+        error_msg = str(exc_info.value)
+        assert "MISSING_PROP" in error_msg
+        assert "not available" in error_msg
+        assert "USE_VPC" in error_msg  # Should show available properties
+
+    def test_environment_properties_no_conflict_with_user_params(self):
+        """Test that env properties and user params are in separate namespaces."""
+        scenario = Scenario(
+            id="test-namespaces",
+            name="Test Namespaces",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    replacements={
+                        "USER_PARAM": "${project_name}",  # User parameter
+                        "ENV_PROP": "${env.project_name}",  # Environment property
+                    },
+                    files_to_modify=["config.yaml"],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        params = {"project_name": "user-value", "target_org": "my-org"}
+        env_props = {"project_name": "env-value"}  # Same key, different namespace
+
+        resolved = scenario.resolve_template_variables(params, env_props)
+        repo = resolved.repositories[0]
+
+        # User parameter and env property should not conflict
+        assert repo.replacements["USER_PARAM"] == "user-value"
+        assert repo.replacements["ENV_PROP"] == "env-value"
+
+    def test_environment_properties_empty_dict(self):
+        """Test that passing empty env properties works (backward compatibility)."""
+        scenario = Scenario(
+            id="test-empty",
+            name="Test Empty Props",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    files_to_modify=[],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        params = {"project_name": "my-project", "target_org": "my-org"}
+        env_props = {}  # Empty
+
+        # Should work fine with no env properties referenced
+        resolved = scenario.resolve_template_variables(params, env_props)
+        assert resolved.repositories[0].repo_name_template == "my-project"
+
+    def test_environment_properties_none(self):
+        """Test that passing None env properties works (backward compatibility)."""
+        scenario = Scenario(
+            id="test-none",
+            name="Test None Props",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    files_to_modify=[],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        params = {"project_name": "my-project", "target_org": "my-org"}
+
+        # Should work fine with None (defaults to empty dict)
+        resolved = scenario.resolve_template_variables(params, None)
+        assert resolved.repositories[0].repo_name_template == "my-project"

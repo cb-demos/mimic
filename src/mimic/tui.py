@@ -781,8 +781,10 @@ class ScenarioPreviewScreen(Screen):
                 k: v for k, v in self.parameters.items() if not k.startswith("_")
             }
             processed_parameters = self.scenario.validate_input(scenario_params)
+            # Get environment properties for template resolution
+            env_properties = self.config_manager.get_environment_properties(current_env)
             resolved_scenario = self.scenario.resolve_template_variables(
-                processed_parameters
+                processed_parameters, env_properties
             )
 
             # Generate preview

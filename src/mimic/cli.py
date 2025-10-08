@@ -668,8 +668,10 @@ def run(
 
             # Validate and resolve scenario parameters
             processed_parameters = scenario.validate_input(parameters)
+            # Get environment properties for template resolution
+            env_properties = config_manager.get_environment_properties(current_env)
             resolved_scenario = scenario.resolve_template_variables(
-                processed_parameters
+                processed_parameters, env_properties
             )
 
             # Generate preview
@@ -690,8 +692,10 @@ def run(
 
             # Validate and resolve scenario parameters
             processed_parameters = scenario.validate_input(parameters)
+            # Get environment properties for template resolution
+            env_properties = config_manager.get_environment_properties(current_env)
             resolved_scenario = scenario.resolve_template_variables(
-                processed_parameters
+                processed_parameters, env_properties
             )
 
             # Generate preview
@@ -1321,7 +1325,9 @@ def setup(
 
     # Save environment
     try:
-        config_manager.add_environment(env_name, env_url, pat, endpoint_id, env_properties)
+        config_manager.add_environment(
+            env_name, env_url, pat, endpoint_id, env_properties
+        )
         console.print(f"[green]✓[/green] Environment '[cyan]{env_name}[/cyan]' saved\n")
     except Exception as e:
         console.print(f"[red]Error saving environment:[/red] {e}")
