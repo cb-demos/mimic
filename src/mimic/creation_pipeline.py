@@ -877,10 +877,10 @@ class CreationPipeline:
     def _generate_summary(self) -> dict[str, Any]:
         """Generate a summary of what was created."""
         return {
-            "components": list(self.created_components.keys()),
-            "environments": list(self.created_environments.keys()),
-            "flags": list(self.created_flags.keys()),
-            "applications": list(self.created_applications.keys()),
+            "components": list(self.created_components.values()),
+            "environments": list(self.created_environments.values()),
+            "flags": list(self.created_flags.values()),
+            "applications": list(self.created_applications.values()),
             "repositories": list(self.created_repositories.values()),
             "success": True,
         }
