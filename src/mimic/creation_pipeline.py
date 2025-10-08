@@ -48,7 +48,8 @@ class CreationPipeline:
         self.invitee_username = invitee_username
         self.created_components = {}  # name -> component_data
         self.created_environments = {}  # name -> env_data
-        self.created_flags = {}  # name -> flag_data
+        self.flag_definitions = {}  # name -> FlagConfig (definitions)
+        self.created_flags = {}  # name -> flag_data (actual created API data)
         self.created_applications = {}  # name -> app_data
         self.created_repositories = {}  # name -> repo_data
         self.current_step = "initialization"
@@ -147,7 +148,7 @@ class CreationPipeline:
                     progress.update(
                         main_task,
                         completed=completed_steps,
-                        description=f"[green]✓[/green] Defined {len(self.created_flags)} flags",
+                        description=f"[green]✓[/green] Defined {len(self.flag_definitions)} flags",
                     )
 
                 # Step 4: Create environments
@@ -377,8 +378,8 @@ class CreationPipeline:
             flag_type = flag_config.type
 
             print(f"   Planning flag: {flag_name} ({flag_type})")
-            # Store for later creation after applications exist
-            self.created_flags[flag_name] = flag_config
+            # Store definitions for later creation after applications exist
+            self.flag_definitions[flag_name] = flag_config
 
     async def _create_environments(self, environments):
         """Step 4: Create CloudBees environments."""
@@ -537,7 +538,7 @@ class CreationPipeline:
                 existing_flags_response = client.list_flags(app_id)
                 existing_flags = existing_flags_response.get("flags", [])
 
-                for flag_name, _flag_config in self.created_flags.items():
+                for flag_name, _flag_config in self.flag_definitions.items():
                     # Check if flag already exists
                     existing_flag = self._find_by_name(existing_flags, flag_name)
                     if existing_flag:
