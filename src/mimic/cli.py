@@ -1262,6 +1262,7 @@ def setup(
     console.print()
 
     # Get environment details
+    env_properties = None
     if choice_num <= len(presets):
         # Preset environment
         preset_name = list(presets.keys())[choice_num - 1]
@@ -1269,10 +1270,14 @@ def setup(
         env_name = preset_name
         env_url = preset_config.url
         endpoint_id = preset_config.endpoint_id
+        env_properties = preset_config.properties.copy()
 
         console.print(f"[bold]Selected:[/bold] {preset_name}")
         console.print(f"[dim]API URL: {env_url}[/dim]")
-        console.print(f"[dim]Endpoint ID: {endpoint_id}[/dim]\n")
+        console.print(f"[dim]Endpoint ID: {endpoint_id}[/dim]")
+        if env_properties:
+            console.print(f"[dim]Properties: {len(env_properties)} configured[/dim]")
+        console.print()
     else:
         # Custom environment
         env_name = typer.prompt("Environment name")
@@ -1316,7 +1321,7 @@ def setup(
 
     # Save environment
     try:
-        config_manager.add_environment(env_name, env_url, pat, endpoint_id)
+        config_manager.add_environment(env_name, env_url, pat, endpoint_id, env_properties)
         console.print(f"[green]✓[/green] Environment '[cyan]{env_name}[/cyan]' saved\n")
     except Exception as e:
         console.print(f"[red]Error saving environment:[/red] {e}")
