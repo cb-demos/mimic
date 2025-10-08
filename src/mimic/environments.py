@@ -9,6 +9,7 @@ class EnvironmentConfig(NamedTuple):
     url: str
     endpoint_id: str
     description: str
+    properties: dict[str, str] = {}
 
 
 # Pre-defined CloudBees Unify environments
@@ -17,16 +18,28 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         url="https://api.cloudbees.io",
         endpoint_id="9a3942be-0e86-415e-94c5-52512be1138d",
         description="CloudBees Unify Production",
+        properties={
+            "USE_VPC": "false",
+            "FM_INSTANCE": "cloudbees.io",
+        },
     ),
     "preprod": EnvironmentConfig(
         url="https://api.saas-preprod.beescloud.com",
         endpoint_id="8509888e-d27f-44fa-46a9-29bc76f5e790",
         description="CloudBees Unify Pre-Production",
+        properties={
+            "USE_VPC": "true",
+            "FM_INSTANCE": "saas-preprod.beescloud.com",
+        },
     ),
     "demo": EnvironmentConfig(
         url="https://api.demo1.cloudbees.io",
         endpoint_id="f6e2a9c4-cc4a-4cbd-b1fc-102fa4572d2c",
         description="CloudBees Unify Demo",
+        properties={
+            "USE_VPC": "true",
+            "FM_INSTANCE": "demo1.cloudbees.io",
+        },
     ),
 }
 

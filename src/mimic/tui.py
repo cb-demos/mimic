@@ -1009,6 +1009,9 @@ class ScenarioExecutionScreen(Screen):
             # Get default GitHub username for repo invitations
             invitee_username = self.config_manager.get_github_username()
 
+            # Get environment properties
+            env_properties = self.config_manager.get_environment_properties(current_env)
+
             # Create pipeline
             pipeline = CreationPipeline(
                 organization_id=org_id,
@@ -1018,6 +1021,7 @@ class ScenarioExecutionScreen(Screen):
                 session_id=session_id,
                 github_pat=github_pat,
                 invitee_username=invitee_username,
+                env_properties=env_properties,
             )
 
             # Execute scenario

@@ -16,6 +16,41 @@ wip: true                         # Optional: Mark as work-in-progress
 Use `${variable_name}` syntax for dynamic substitution throughout any YAML value:
 - Parameters from `parameter_schema`
 - Computed variables from `computed_variables`
+- Environment properties via `${env.property_name}`
+
+### Environment Properties
+
+Environment properties allow scenarios to access configuration specific to the CloudBees environment being used (prod, preprod, demo, or custom). These are automatically available in all scenarios using the `${env.property_name}` syntax.
+
+**Built-in Properties** (always available):
+- `${env.UNIFY_API}` - The CloudBees Unify API URL
+- `${env.ENDPOINT_ID}` - The CloudBees endpoint ID
+
+**Preset Environment Properties:**
+
+| Environment | USE_VPC | FM_INSTANCE |
+|------------|---------|-------------|
+| `prod` | `false` | `cloudbees.io` |
+| `preprod` | `true` | `saas-preprod.beescloud.com` |
+| `demo` | `true` | `demo1.cloudbees.io` |
+
+**Custom Properties** can be set per-environment:
+```bash
+# Set a property for an environment
+mimic env set-property demo CUSTOM_PROP value
+
+# Add environment with properties
+mimic env add custom --url ... --endpoint-id ... --property USE_VPC=false
+```
+
+**Usage in Scenarios:**
+```yaml
+replacements:
+  "API_URL": "${env.UNIFY_API}"          # Built-in property
+  "USE_VPC": "${env.USE_VPC}"            # Custom property
+  "FM_INSTANCE": "${env.FM_INSTANCE}"    # Custom property
+  "PROJECT_NAME": "${project_name}"       # User parameter
+```
 
 ## Repository Configuration
 
@@ -118,8 +153,14 @@ computed_variables:
 
 1. User-provided parameters (from `parameter_schema`)
 2. Computed variables (processed in definition order)
-3. Template substitution using `${variable_name}` syntax
-4. Type conversion (string booleans → actual booleans)
+3. Environment properties (from current environment configuration)
+4. Template substitution using `${variable_name}` and `${env.property}` syntax
+5. Type conversion (string booleans → actual booleans)
+
+**Variable Precedence:**
+- User parameters: `${parameter_name}` - from user input
+- Environment properties: `${env.property_name}` - from environment config
+- If a property exists in both namespaces, they remain separate (no conflicts)
 
 ## File Operations
 

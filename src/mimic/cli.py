@@ -736,6 +736,9 @@ def run(
         # Get default GitHub username for repo invitations
         invitee_username = config_manager.get_github_username()
 
+        # Get environment properties
+        env_properties = config_manager.get_environment_properties(current_env)
+
         pipeline = CreationPipeline(
             organization_id=organization_id,
             endpoint_id=endpoint_id,
@@ -744,6 +747,7 @@ def run(
             session_id=session_id,
             github_pat=github_pat,
             invitee_username=invitee_username,
+            env_properties=env_properties,
         )
 
         # Execute scenario
@@ -1420,6 +1424,12 @@ def env_add(
         "--endpoint-id",
         help="CloudBees endpoint ID (required for custom environments)",
     ),
+    property_list: list[str] = typer.Option(
+        None,
+        "--property",
+        "-p",
+        help="Custom property (KEY=VALUE, can be repeated)",
+    ),
 ):
     """Add a new CloudBees Unify environment.
 
@@ -1429,6 +1439,7 @@ def env_add(
     Examples:
       mimic env add prod                                    # Add preset prod environment
       mimic env add custom --url https://api.example.com --endpoint-id abc-123
+      mimic env add custom --url ... --endpoint-id ... --property USE_VPC=true --property FM_INSTANCE=custom.io
     """
     # Check if environment already exists
     environments = config_manager.list_environments()
@@ -1436,6 +1447,18 @@ def env_add(
         console.print(f"[red]Error:[/red] Environment '{name}' already exists")
         console.print(f"Use 'mimic env remove {name}' first to replace it")
         raise typer.Exit(1)
+
+    # Parse custom properties from command line
+    custom_properties = {}
+    if property_list:
+        for prop in property_list:
+            if "=" not in prop:
+                console.print(
+                    f"[red]Error:[/red] Invalid property format '{prop}'. Use KEY=VALUE"
+                )
+                raise typer.Exit(1)
+            key, value = prop.split("=", 1)
+            custom_properties[key.strip()] = value.strip()
 
     # Check if this is a preset environment
     preset = get_preset_environment(name)
@@ -1450,10 +1473,18 @@ def env_add(
         url = preset.url
         endpoint_id = preset.endpoint_id
 
+        # Merge preset properties with custom properties (custom overrides preset)
+        properties = preset.properties.copy()
+        properties.update(custom_properties)
+
         console.print(f"\n[bold]Adding preset environment:[/bold] {name}")
         console.print(f"[dim]Description:[/dim] {preset.description}")
         console.print(f"[dim]API URL:[/dim] {url}")
         console.print(f"[dim]Endpoint ID:[/dim] {endpoint_id}")
+        if properties:
+            console.print("[dim]Properties:[/dim]")
+            for key, value in properties.items():
+                console.print(f"  • {key}: {value}")
     else:
         # Custom environment - require url and endpoint_id
         if not url or not endpoint_id:
@@ -1470,9 +1501,15 @@ def env_add(
             )
             raise typer.Exit(1)
 
+        properties = custom_properties
+
         console.print(f"\n[bold]Adding custom environment:[/bold] {name}")
         console.print(f"[dim]API URL:[/dim] {url}")
         console.print(f"[dim]Endpoint ID:[/dim] {endpoint_id}")
+        if properties:
+            console.print("[dim]Properties:[/dim]")
+            for key, value in properties.items():
+                console.print(f"  • {key}: {value}")
 
     console.print()
 
@@ -1524,15 +1561,23 @@ def env_add(
 
     # Add environment
     try:
-        config_manager.add_environment(name, url, pat, endpoint_id)
+        config_manager.add_environment(name, url, pat, endpoint_id, properties)
         console.print()
+
+        # Build success message
+        success_msg = (
+            f"[green]✓[/green] Environment '{name}' added successfully\n\n"
+            f"[dim]• API URL: {url}\n"
+            f"• Endpoint ID: {endpoint_id}\n"
+            f"• PAT stored securely in OS keyring\n"
+        )
+        if properties:
+            success_msg += f"• Properties: {len(properties)} configured\n"
+        success_msg += f"• Set as current environment: {config_manager.get_current_environment() == name}[/dim]"
+
         console.print(
             Panel(
-                f"[green]✓[/green] Environment '{name}' added successfully\n\n"
-                f"[dim]• API URL: {url}\n"
-                f"• Endpoint ID: {endpoint_id}\n"
-                f"• PAT stored securely in OS keyring\n"
-                f"• Set as current environment: {config_manager.get_current_environment() == name}[/dim]",
+                success_msg,
                 title="Success",
                 border_style="green",
             )
@@ -1567,14 +1612,21 @@ def env_list():
     table.add_column("Name", style="cyan")
     table.add_column("API URL", style="white", no_wrap=False)
     table.add_column("Endpoint ID", style="dim", overflow="fold")
+    table.add_column("Properties", style="yellow")
     table.add_column("Current", justify="center")
 
     for name, env_config in environments.items():
         is_current = "✓" if name == current_env else ""
+
+        # Get custom properties (not built-in)
+        properties = env_config.get("properties", {})
+        prop_display = f"{len(properties)} set" if properties else "-"
+
         table.add_row(
             name,
             env_config.get("url", ""),
             env_config.get("endpoint_id", ""),
+            prop_display,
             f"[green]{is_current}[/green]" if is_current else "",
         )
 
@@ -1612,6 +1664,77 @@ def env_select(
             border_style="green",
         )
     )
+
+
+@env_app.command("set-property")
+def env_set_property(
+    name: str = typer.Argument(..., help="Environment name"),
+    key: str = typer.Argument(..., help="Property key"),
+    value: str = typer.Argument(..., help="Property value"),
+):
+    """Set a custom property for an environment.
+
+    Example:
+      mimic env set-property demo USE_VPC true
+    """
+    environments = config_manager.list_environments()
+
+    if name not in environments:
+        console.print(f"[red]Error:[/red] Environment '{name}' not found")
+        console.print("\nAvailable environments:")
+        for env_name in environments.keys():
+            console.print(f"  • {env_name}")
+        raise typer.Exit(1)
+
+    try:
+        config_manager.set_environment_property(name, key, value)
+        console.print(
+            Panel(
+                f"[green]✓[/green] Property set successfully\n\n"
+                f"[dim]Environment: {name}\n"
+                f"Property: {key} = {value}[/dim]",
+                title="Property Updated",
+                border_style="green",
+            )
+        )
+    except Exception as e:
+        console.print(f"[red]Error setting property:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@env_app.command("unset-property")
+def env_unset_property(
+    name: str = typer.Argument(..., help="Environment name"),
+    key: str = typer.Argument(..., help="Property key"),
+):
+    """Remove a custom property from an environment.
+
+    Example:
+      mimic env unset-property demo USE_VPC
+    """
+    environments = config_manager.list_environments()
+
+    if name not in environments:
+        console.print(f"[red]Error:[/red] Environment '{name}' not found")
+        console.print("\nAvailable environments:")
+        for env_name in environments.keys():
+            console.print(f"  • {env_name}")
+        raise typer.Exit(1)
+
+    try:
+        config_manager.unset_environment_property(name, key)
+        console.print(
+            Panel(
+                f"[green]✓[/green] Property removed successfully\n\n"
+                f"[dim]Environment: {name}\n"
+                f"Property: {key}[/dim]",
+                title="Property Removed",
+                border_style="green",
+            )
+        )
+    except Exception as e:
+        console.print(f"[red]Error removing property:[/red] {e}")
+        raise typer.Exit(1) from e
 
 
 @env_app.command("remove")

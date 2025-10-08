@@ -129,6 +129,9 @@ async def _instantiate_scenario_impl(
 
         session_id = f"{scenario_id}-{uuid.uuid4().hex[:8]}"
 
+        # Get environment properties
+        env_properties = config_manager.get_environment_properties(env_name)
+
         # Execute pipeline
         pipeline = CreationPipeline(
             organization_id=organization_id,
@@ -138,6 +141,7 @@ async def _instantiate_scenario_impl(
             session_id=session_id,
             github_pat=github_pat,
             invitee_username=invitee_username,
+            env_properties=env_properties,
         )
 
         summary = await pipeline.execute_scenario(scenario, parameters or {})

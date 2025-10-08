@@ -121,12 +121,15 @@ class Scenario(BaseModel):
     wip: bool = False
     pack_source: str | None = None  # Track which pack this scenario came from
 
-    def resolve_template_variables(self, values: dict[str, Any]) -> "Scenario":
+    def resolve_template_variables(
+        self, values: dict[str, Any], env_properties: dict[str, str] | None = None
+    ) -> "Scenario":
         """
-        Resolve ${variable} patterns in the scenario configuration.
+        Resolve ${variable} and ${env.property} patterns in the scenario configuration.
 
         Args:
             values: Dictionary of parameter values
+            env_properties: Optional dictionary of environment properties (accessible via ${env.X})
 
         Returns:
             A copy of the scenario with all template variables resolved
@@ -135,6 +138,7 @@ class Scenario(BaseModel):
 
         # Create a copy of values and add computed variables
         resolved_values = values.copy()
+        env_props = env_properties or {}
 
         # Process computed variables
         for var_name, computed_var in self.computed_variables.items():
@@ -165,20 +169,32 @@ class Scenario(BaseModel):
         # Convert scenario to dict for easier manipulation
         scenario_dict = json.loads(self.model_dump_json())
 
-        # Pattern to match ${variable_name}
+        # Pattern to match ${variable_name} or ${env.property_name}
         pattern = re.compile(r"\$\{([^}]+)\}")
 
         def replace_in_value(value: Any) -> Any:
             """Recursively replace template variables in any value."""
             if isinstance(value, str):
-                # Replace all ${var} patterns with actual values
+                # Replace all ${var} and ${env.prop} patterns with actual values
                 def replacer(match):
                     var_name = match.group(1)
-                    if var_name not in resolved_values:
-                        raise ValueError(
-                            f"Variable '{var_name}' not provided in values"
-                        )
-                    return str(resolved_values[var_name])
+
+                    # Check if this is an environment property reference (env.PROPERTY)
+                    if var_name.startswith("env."):
+                        prop_name = var_name[4:]  # Remove "env." prefix
+                        if prop_name not in env_props:
+                            raise ValueError(
+                                f"Environment property '{prop_name}' not available. "
+                                f"Available properties: {list(env_props.keys())}"
+                            )
+                        return str(env_props[prop_name])
+                    else:
+                        # Regular user parameter
+                        if var_name not in resolved_values:
+                            raise ValueError(
+                                f"Variable '{var_name}' not provided in values"
+                            )
+                        return str(resolved_values[var_name])
 
                 return pattern.sub(replacer, value)
             elif isinstance(value, dict):

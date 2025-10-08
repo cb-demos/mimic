@@ -38,6 +38,7 @@ class CreationPipeline:
         session_id: str,
         github_pat: str,
         invitee_username: str | None = None,
+        env_properties: dict[str, str] | None = None,
     ):
         self.organization_id = organization_id
         self.endpoint_id = endpoint_id
@@ -46,6 +47,7 @@ class CreationPipeline:
         self.session_id = session_id
         self.github_pat = github_pat
         self.invitee_username = invitee_username
+        self.env_properties = env_properties or {}
         self.created_components = {}  # name -> component_data
         self.created_environments = {}  # name -> env_data
         self.flag_definitions = {}  # name -> FlagConfig (definitions)
@@ -76,7 +78,9 @@ class CreationPipeline:
 
         # Validate and resolve template variables
         processed_parameters = scenario.validate_input(parameters)
-        resolved_scenario = scenario.resolve_template_variables(processed_parameters)
+        resolved_scenario = scenario.resolve_template_variables(
+            processed_parameters, self.env_properties
+        )
 
         # Create progress bar
         with Progress(

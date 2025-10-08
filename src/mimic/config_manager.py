@@ -79,7 +79,14 @@ class ConfigManager:
         }
 
     # Environment management
-    def add_environment(self, name: str, url: str, pat: str, endpoint_id: str) -> None:
+    def add_environment(
+        self,
+        name: str,
+        url: str,
+        pat: str,
+        endpoint_id: str,
+        properties: dict[str, str] | None = None,
+    ) -> None:
         """Add a new environment.
 
         Args:
@@ -87,6 +94,7 @@ class ConfigManager:
             url: CloudBees Unify API URL.
             pat: Personal Access Token (stored securely in keyring).
             endpoint_id: CloudBees endpoint ID for the environment.
+            properties: Optional custom properties for this environment.
         """
         config = self.load_config()
 
@@ -94,7 +102,11 @@ class ConfigManager:
         if "environments" not in config:
             config["environments"] = {}
 
-        config["environments"][name] = {"url": url, "endpoint_id": endpoint_id}
+        env_config: dict[str, Any] = {"url": url, "endpoint_id": endpoint_id}
+        if properties:
+            env_config["properties"] = properties
+
+        config["environments"][name] = env_config
 
         # Set as current if no environment is selected
         if not config.get("current_environment"):
@@ -196,6 +208,80 @@ class ConfigManager:
         config = self.load_config()
         env = config.get("environments", {}).get(name)
         return env.get("endpoint_id") if env else None
+
+    def get_environment_properties(self, name: str | None = None) -> dict[str, str]:
+        """Get all properties for an environment (built-in + custom).
+
+        Built-in properties are automatically exposed:
+        - UNIFY_API: The API URL for the environment
+        - ENDPOINT_ID: The endpoint ID for the environment
+
+        Args:
+            name: Environment name. If None, uses current environment.
+
+        Returns:
+            Dictionary of property name to value. Returns empty dict if environment not found.
+        """
+        if name is None:
+            name = self.get_current_environment()
+
+        if not name:
+            return {}
+
+        config = self.load_config()
+        env = config.get("environments", {}).get(name)
+
+        if not env:
+            return {}
+
+        # Start with built-in properties
+        properties = {
+            "UNIFY_API": env.get("url", ""),
+            "ENDPOINT_ID": env.get("endpoint_id", ""),
+        }
+
+        # Merge in custom properties (they can override built-ins if needed)
+        custom_properties = env.get("properties", {})
+        properties.update(custom_properties)
+
+        return properties
+
+    def set_environment_property(self, name: str, key: str, value: str) -> None:
+        """Set a custom property for an environment.
+
+        Args:
+            name: Environment name.
+            key: Property key.
+            value: Property value.
+        """
+        config = self.load_config()
+
+        if "environments" not in config or name not in config["environments"]:
+            raise ValueError(f"Environment '{name}' not found")
+
+        # Ensure properties dict exists
+        if "properties" not in config["environments"][name]:
+            config["environments"][name]["properties"] = {}
+
+        config["environments"][name]["properties"][key] = value
+        self.save_config(config)
+
+    def unset_environment_property(self, name: str, key: str) -> None:
+        """Remove a custom property from an environment.
+
+        Args:
+            name: Environment name.
+            key: Property key to remove.
+        """
+        config = self.load_config()
+
+        if "environments" not in config or name not in config["environments"]:
+            raise ValueError(f"Environment '{name}' not found")
+
+        properties = config["environments"][name].get("properties", {})
+        if key in properties:
+            del properties[key]
+            self.save_config(config)
 
     # Credential management (keyring)
     def set_cloudbees_pat(self, env_name: str, pat: str) -> None:
