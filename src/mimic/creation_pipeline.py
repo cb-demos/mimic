@@ -545,6 +545,8 @@ class CreationPipeline:
                             f"     ⏭️  Flag {flag_name} already exists, using existing"
                         )
                         flag_id = existing_flag["id"]
+                        # Store the existing flag data
+                        self.created_flags[flag_name] = existing_flag
                     else:
                         print(f"     Creating flag: {flag_name}")
 
@@ -555,6 +557,9 @@ class CreationPipeline:
                             description=f"Flag {flag_name} for {app_name}",
                         )
                         flag_id = flag_result.get("flag", {}).get("id")
+                        # Store the created flag data
+                        created_flag_data = flag_result.get("flag", {})
+                        self.created_flags[flag_name] = created_flag_data
 
                     # Configure flag in each environment mentioned in the scenario
                     # (Always do this to refresh configuration, even if flag existed)
