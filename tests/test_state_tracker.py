@@ -44,7 +44,7 @@ class TestStateTrackerInitialization:
     def test_loads_existing_state_file(self, state_tracker, temp_state_file):
         """Test that existing state file is loaded correctly."""
         # Create a session
-        state_tracker.create_session("test-123", "hackers-app", "prod")
+        state_tracker.create_session("test-123", "hackers-app", "test-run", "prod")
 
         # Create new tracker pointing to same file
         tracker2 = StateTracker(state_file=temp_state_file)
@@ -63,6 +63,7 @@ class TestSessionCreation:
         session = state_tracker.create_session(
             session_id="test-session-1",
             scenario_id="hackers-app",
+            run_name="test-run-1",
             environment="prod",
         )
 
@@ -77,7 +78,9 @@ class TestSessionCreation:
     def test_session_expiration_default(self, state_tracker):
         """Test that sessions have default 7-day expiration."""
         before = datetime.now()
-        session = state_tracker.create_session("test-123", "scenario-1", "prod")
+        session = state_tracker.create_session(
+            "test-123", "scenario-1", "test-run", "prod"
+        )
         after = datetime.now()
 
         # Expiration should be ~7 days from now
@@ -90,7 +93,7 @@ class TestSessionCreation:
         """Test creating session with custom expiration."""
         before = datetime.now()
         session = state_tracker.create_session(
-            "test-123", "scenario-1", "prod", expiration_days=14
+            "test-123", "scenario-1", "test-run", "prod", expiration_days=14
         )
         after = datetime.now()
 
@@ -103,7 +106,7 @@ class TestSessionCreation:
     def test_session_never_expires(self, state_tracker):
         """Test creating session with no expiration (None)."""
         session = state_tracker.create_session(
-            "test-123", "scenario-1", "prod", expiration_days=None
+            "test-123", "scenario-1", "test-run", "prod", expiration_days=None
         )
 
         # Should have no expiration
@@ -118,14 +121,14 @@ class TestSessionCreation:
         }
 
         session = state_tracker.create_session(
-            "test-123", "scenario-1", "prod", metadata=metadata
+            "test-123", "scenario-1", "test-run", "prod", metadata=metadata
         )
 
         assert session.metadata == metadata
 
     def test_session_persists_to_file(self, state_tracker, temp_state_file):
         """Test that created session is saved to state file."""
-        state_tracker.create_session("test-123", "scenario-1", "prod")
+        state_tracker.create_session("test-123", "scenario-1", "test-run", "prod")
 
         # Read file directly
         import json
@@ -143,7 +146,7 @@ class TestResourceTracking:
 
     def test_add_resource_to_session(self, state_tracker):
         """Test adding a resource to a session."""
-        state_tracker.create_session("session-1", "hackers-app", "prod")
+        state_tracker.create_session("session-1", "hackers-app", "test-run", "prod")
 
         state_tracker.add_resource(
             session_id="session-1",
@@ -160,7 +163,7 @@ class TestResourceTracking:
 
     def test_add_multiple_resources(self, state_tracker):
         """Test adding multiple resources to a session."""
-        state_tracker.create_session("session-1", "hackers-app", "prod")
+        state_tracker.create_session("session-1", "hackers-app", "test-run", "prod")
 
         state_tracker.add_resource("session-1", "github_repo", "org/repo-1", "repo-1")
         state_tracker.add_resource(
@@ -189,7 +192,7 @@ class TestResourceTracking:
 
     def test_add_resource_with_metadata(self, state_tracker):
         """Test adding resource with custom metadata."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
 
         metadata = {
             "visibility": "public",
@@ -209,7 +212,7 @@ class TestResourceTracking:
 
     def test_add_resource_with_org_id(self, state_tracker):
         """Test adding CloudBees resource with organization ID."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
 
         state_tracker.add_resource(
             "session-1",
@@ -238,8 +241,8 @@ class TestSessionRetrieval:
 
     def test_get_session_by_id(self, state_tracker):
         """Test retrieving a session by ID."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
-        state_tracker.create_session("session-2", "scenario-2", "demo")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
+        state_tracker.create_session("session-2", "scenario-2", "test-run-2", "demo")
 
         session = state_tracker.get_session("session-1")
         assert session.session_id == "session-1"
@@ -257,9 +260,9 @@ class TestSessionRetrieval:
 
     def test_list_sessions(self, state_tracker):
         """Test listing all sessions."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
-        state_tracker.create_session("session-2", "scenario-2", "demo")
-        state_tracker.create_session("session-3", "scenario-3", "preprod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
+        state_tracker.create_session("session-2", "scenario-2", "test-run-2", "demo")
+        state_tracker.create_session("session-3", "scenario-3", "test-run-3", "preprod")
 
         sessions = state_tracker.list_sessions()
         assert len(sessions) == 3
@@ -274,11 +277,11 @@ class TestSessionRetrieval:
         import time
 
         # Create sessions with slight delay
-        state_tracker.create_session("session-1", "scenario-1", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
         time.sleep(0.01)
-        state_tracker.create_session("session-2", "scenario-2", "prod")
+        state_tracker.create_session("session-2", "scenario-2", "test-run-2", "prod")
         time.sleep(0.01)
-        state_tracker.create_session("session-3", "scenario-3", "prod")
+        state_tracker.create_session("session-3", "scenario-3", "test-run-3", "prod")
 
         sessions = state_tracker.list_sessions()
 
@@ -290,15 +293,23 @@ class TestSessionRetrieval:
     def test_list_sessions_exclude_expired(self, state_tracker):
         """Test listing sessions excluding expired ones."""
         # Create active session (7 days)
-        state_tracker.create_session("active", "scenario-1", "prod", expiration_days=7)
+        state_tracker.create_session(
+            "active", "scenario-1", "test-run-active", "prod", expiration_days=7
+        )
 
         # Create session that never expires
         state_tracker.create_session(
-            "never-expires", "scenario-3", "prod", expiration_days=None
+            "never-expires",
+            "scenario-3",
+            "test-run-never",
+            "prod",
+            expiration_days=None,
         )
 
         # Create expired session (0 days - expires immediately)
-        state_tracker.create_session("expired", "scenario-2", "prod", expiration_days=0)
+        state_tracker.create_session(
+            "expired", "scenario-2", "test-run-expired", "prod", expiration_days=0
+        )
 
         # Give it a moment to actually be expired
         import time
@@ -320,20 +331,26 @@ class TestSessionRetrieval:
         import time
 
         # Create active session
-        state_tracker.create_session("active", "scenario-1", "prod", expiration_days=7)
+        state_tracker.create_session(
+            "active", "scenario-1", "test-run-active", "prod", expiration_days=7
+        )
 
         # Create session that never expires
         state_tracker.create_session(
-            "never-expires", "scenario-4", "prod", expiration_days=None
+            "never-expires",
+            "scenario-4",
+            "test-run-never2",
+            "prod",
+            expiration_days=None,
         )
 
         # Create expired session
         state_tracker.create_session(
-            "expired-1", "scenario-2", "prod", expiration_days=0
+            "expired-1", "scenario-2", "test-run-exp1", "prod", expiration_days=0
         )
         time.sleep(0.01)
         state_tracker.create_session(
-            "expired-2", "scenario-3", "prod", expiration_days=0
+            "expired-2", "scenario-3", "test-run-exp2", "prod", expiration_days=0
         )
         time.sleep(0.01)
 
@@ -354,8 +371,8 @@ class TestSessionDeletion:
 
     def test_delete_session(self, state_tracker):
         """Test deleting a session."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
-        state_tracker.create_session("session-2", "scenario-2", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
+        state_tracker.create_session("session-2", "scenario-2", "test-run-2", "prod")
 
         # Verify both exist
         assert state_tracker.get_session("session-1") is not None
@@ -370,7 +387,7 @@ class TestSessionDeletion:
 
     def test_delete_session_with_resources(self, state_tracker):
         """Test deleting a session that has resources."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
         state_tracker.add_resource("session-1", "github_repo", "org/repo", "repo")
 
         state_tracker.delete_session("session-1")
@@ -384,7 +401,7 @@ class TestSessionDeletion:
 
     def test_delete_persists_to_file(self, state_tracker, temp_state_file):
         """Test that session deletion is persisted to file."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
         state_tracker.delete_session("session-1")
 
         # Create new tracker pointing to same file
@@ -399,7 +416,7 @@ class TestSessionMetadata:
 
     def test_update_session_metadata(self, state_tracker):
         """Test updating session metadata."""
-        state_tracker.create_session("session-1", "scenario-1", "prod")
+        state_tracker.create_session("session-1", "scenario-1", "test-run-1", "prod")
 
         metadata = {
             "status": "completed",
@@ -416,7 +433,7 @@ class TestSessionMetadata:
         """Test that updating metadata merges with existing metadata."""
         initial_metadata = {"user": "testuser", "version": "1.0"}
         state_tracker.create_session(
-            "session-1", "scenario-1", "prod", metadata=initial_metadata
+            "session-1", "scenario-1", "test-run-1", "prod", metadata=initial_metadata
         )
 
         # Update with additional metadata
@@ -479,6 +496,7 @@ class TestSessionModel:
         session = Session(
             session_id="test-123",
             scenario_id="hackers-app",
+            run_name="test-run",
             environment="prod",
             created_at=now,
             expires_at=expires,
@@ -510,6 +528,7 @@ class TestSessionModel:
         session = Session(
             session_id="test-123",
             scenario_id="hackers-app",
+            run_name="test-run",
             environment="prod",
             created_at=now,
             expires_at=expires,

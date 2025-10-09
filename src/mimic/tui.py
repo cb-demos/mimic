@@ -25,6 +25,7 @@ from .cleanup_manager import CleanupManager
 from .config_manager import ConfigManager
 from .scenarios import initialize_scenarios_from_config
 from .state_tracker import StateTracker
+from .utils import resolve_run_name
 
 
 class WelcomeScreen(Screen):
@@ -948,6 +949,9 @@ class ScenarioExecutionScreen(Screen):
 
             session_id = str(uuid.uuid4())[:8]
 
+            # Resolve run name from scenario name_template
+            run_name = resolve_run_name(self.scenario, self.parameters, session_id)
+
             # Get credentials
             current_env = self.config_manager.get_current_environment()
             if not current_env:
@@ -996,6 +1000,7 @@ class ScenarioExecutionScreen(Screen):
             self.state_tracker.create_session(
                 session_id=session_id,
                 scenario_id=self.scenario.id,
+                run_name=run_name,
                 environment=current_env,
                 expiration_days=expiration_days,
                 metadata={

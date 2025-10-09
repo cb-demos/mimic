@@ -11,6 +11,7 @@ from .config_manager import ConfigManager
 from .creation_pipeline import CreationPipeline
 from .exceptions import PipelineError, ValidationError
 from .scenarios import initialize_scenarios_from_config
+from .utils import resolve_run_name
 
 logger = logging.getLogger(__name__)
 
@@ -151,10 +152,14 @@ async def _instantiate_scenario_impl(
 
         state_tracker = StateTracker()
 
+        # Resolve run name from scenario name_template
+        run_name = resolve_run_name(scenario, parameters or {}, session_id)
+
         # Add session (None = never expires)
         state_tracker.create_session(
             session_id=session_id,
             scenario_id=scenario_id,
+            run_name=run_name,
             environment=env_name,
             expiration_days=expires_in_days,
         )

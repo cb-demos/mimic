@@ -118,6 +118,9 @@ class Scenario(BaseModel):
     flags: list[FlagConfig] = Field(default_factory=list)
     parameter_schema: ParameterSchema | None = None
     computed_variables: dict[str, ComputedVariable] = Field(default_factory=dict)
+    name_template: str | None = (
+        None  # Template for human-readable run name (e.g., "${project_name}-app")
+    )
     wip: bool = False
     pack_source: str | None = None  # Track which pack this scenario came from
 

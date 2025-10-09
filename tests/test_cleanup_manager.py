@@ -62,6 +62,7 @@ def test_get_cleanup_stats_with_sessions(cleanup_manager, state_tracker):
     state_tracker.create_session(
         session_id="active-1",
         scenario_id="test-scenario",
+        run_name="test-run-active",
         environment="prod",
         expiration_days=7,
     )
@@ -72,6 +73,7 @@ def test_get_cleanup_stats_with_sessions(cleanup_manager, state_tracker):
     expired_session = Session(
         session_id="expired-1",
         scenario_id="test-scenario",
+        run_name="test-run-expired",
         environment="prod",
         created_at=past_time,
         expires_at=past_time,  # Already expired
@@ -97,6 +99,7 @@ def test_check_expired_sessions(cleanup_manager, state_tracker):
     expired_session = Session(
         session_id="expired-1",
         scenario_id="test-scenario",
+        run_name="test-run-expired",
         environment="prod",
         created_at=past_time,
         expires_at=past_time,
@@ -120,6 +123,7 @@ async def test_cleanup_session_github_repo(cleanup_manager, state_tracker):
     _session = state_tracker.create_session(
         session_id="test-session",
         scenario_id="test-scenario",
+        run_name="test-run",
         environment="prod",
         expiration_days=7,
     )
@@ -157,6 +161,7 @@ async def test_cleanup_session_cloudbees_component(cleanup_manager, state_tracke
     _session = state_tracker.create_session(
         session_id="test-session",
         scenario_id="test-scenario",
+        run_name="test-run",
         environment="prod",
         expiration_days=7,
     )
@@ -195,6 +200,7 @@ async def test_cleanup_session_dry_run(cleanup_manager, state_tracker):
     _session = state_tracker.create_session(
         session_id="test-session",
         scenario_id="test-scenario",
+        run_name="test-run",
         environment="prod",
         expiration_days=7,
     )
@@ -233,6 +239,7 @@ async def test_cleanup_session_with_errors(cleanup_manager, state_tracker):
     _session = state_tracker.create_session(
         session_id="test-session",
         scenario_id="test-scenario",
+        run_name="test-run",
         environment="prod",
         expiration_days=7,
     )
@@ -270,6 +277,7 @@ async def test_cleanup_expired_sessions(cleanup_manager, state_tracker):
         expired_session = Session(
             session_id=f"expired-{i}",
             scenario_id="test-scenario",
+            run_name=f"test-run-{i}",
             environment="prod",
             created_at=past_time,
             expires_at=past_time,
@@ -320,6 +328,7 @@ async def test_cleanup_multiple_resource_types(cleanup_manager, state_tracker):
     _session = state_tracker.create_session(
         session_id="test-session",
         scenario_id="test-scenario",
+        run_name="test-run",
         environment="prod",
         expiration_days=7,
     )

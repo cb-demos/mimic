@@ -24,6 +24,9 @@ class Session(BaseModel):
 
     session_id: str
     scenario_id: str
+    run_name: str | None = (
+        None  # Human-readable name for this run (resolved from scenario name_template), defaults to session_id for backwards compatibility
+    )
     environment: str  # Which CloudBees environment was used
     created_at: datetime
     expires_at: datetime | None  # None means never expires
@@ -72,6 +75,7 @@ class StateTracker:
         session_id: str,
         scenario_id: str,
         environment: str,
+        run_name: str | None = None,
         expiration_days: int | None = 7,
         metadata: dict[str, Any] | None = None,
     ) -> Session:
@@ -81,6 +85,7 @@ class StateTracker:
         Args:
             session_id: Unique session identifier
             scenario_id: The scenario that was executed
+            run_name: Human-readable name for this run (defaults to session_id if not provided)
             environment: CloudBees environment name
             expiration_days: Days until session expires (None = never expires)
             metadata: Additional session metadata
@@ -95,9 +100,14 @@ class StateTracker:
             else None
         )
 
+        # Use session_id as fallback if run_name not provided
+        if not run_name:
+            run_name = session_id
+
         session = Session(
             session_id=session_id,
             scenario_id=scenario_id,
+            run_name=run_name,
             environment=environment,
             created_at=now,
             expires_at=expires_at,
@@ -158,6 +168,29 @@ class StateTracker:
             return None
 
         return Session(**session_data)
+
+    def get_session_by_identifier(self, identifier: str) -> Session | None:
+        """
+        Get a session by either session ID or run name.
+
+        Args:
+            identifier: Session ID or run name
+
+        Returns:
+            Session object if found, None otherwise
+        """
+        # First try to get by session_id (exact match)
+        session = self.get_session(identifier)
+        if session:
+            return session
+
+        # If not found, search by run_name
+        state = self._load_state()
+        for _session_id, session_data in state["sessions"].items():
+            if session_data.get("run_name") == identifier:
+                return Session(**session_data)
+
+        return None
 
     def list_sessions(self, include_expired: bool = True) -> list[Session]:
         """

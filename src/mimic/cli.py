@@ -10,6 +10,7 @@ from rich.table import Table
 from .config_manager import ConfigManager
 from .environments import get_preset_environment, list_preset_environments
 from .input_helpers import format_field_name, prompt_cloudbees_org, prompt_github_org
+from .utils import resolve_run_name
 
 app = typer.Typer(
     name="mimic",
@@ -29,9 +30,25 @@ config_app = typer.Typer(help="Manage configuration settings")
 app.add_typer(config_app, name="config")
 
 # Cleanup commands
-cleanup_app = typer.Typer(help="Manage and cleanup scenario resources")
+cleanup_app = typer.Typer(
+    help="Manage and cleanup scenario resources",
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
 app.add_typer(cleanup_app, name="cleanup")
 app.add_typer(cleanup_app, name="clean")  # Alias for cleanup
+
+
+@cleanup_app.callback()
+def cleanup_callback(ctx: typer.Context):
+    """Default to interactive cleanup when no subcommand is provided."""
+    # If a subcommand was invoked, don't run the default behavior
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # Otherwise, run the interactive cleanup
+    cleanup_run(session_id=None, dry_run=False, force=False)
+
 
 # Scenario pack commands
 scenario_pack_app = typer.Typer(help="Manage scenario packs from git repositories")
@@ -275,7 +292,8 @@ def run(
 
                 # Show brief list
                 for session in expired_sessions[:3]:  # Show max 3
-                    console.print(f"  • {session.session_id} - {session.scenario_id}")
+                    run_name = getattr(session, "run_name", session.session_id)
+                    console.print(f"  • {run_name} - {session.scenario_id}")
 
                 if len(expired_sessions) > 3:
                     console.print(f"  • ... and {len(expired_sessions) - 3} more")
@@ -717,12 +735,16 @@ def run(
         # Generate session ID
         session_id = str(uuid.uuid4())[:8]
 
+        # Resolve run name from scenario name_template
+        run_name = resolve_run_name(scenario, parameters, session_id)
+
         # Create state tracker and session
         # (expiration_days and expiration_label already determined above)
         state_tracker = StateTracker()
         state_tracker.create_session(
             session_id=session_id,
             scenario_id=scenario_id,
+            run_name=run_name,
             environment=current_env,
             expiration_days=expiration_days,
             metadata={
@@ -733,6 +755,7 @@ def run(
 
         # Create and run pipeline
         console.print("[bold green]Starting scenario execution...[/bold green]")
+        console.print(f"[dim]Run Name: {run_name}[/dim]")
         console.print(f"[dim]Session ID: {session_id}[/dim]")
         console.print(f"[dim]Environment: {current_env}[/dim]")
         console.print()
@@ -805,6 +828,7 @@ def run(
         console.print()
         _display_success_summary(
             session_id=session_id,
+            run_name=run_name,
             environment=current_env,
             expiration_label=expiration_label,
             summary=summary,
@@ -940,6 +964,7 @@ def upgrade():
 
 def _display_success_summary(
     session_id: str,
+    run_name: str,
     environment: str,
     expiration_label: str,
     summary: dict,
@@ -950,7 +975,8 @@ def _display_success_summary(
     # Build success message content
     lines = []
     lines.append("[bold green]✓ Scenario completed successfully![/bold green]\n")
-    lines.append(f"Session ID: [cyan]{session_id}[/cyan]")
+    lines.append(f"Run Name: [bold cyan]{run_name}[/bold cyan]")
+    lines.append(f"Session ID: [dim]{session_id}[/dim]")
     lines.append(f"Environment: [cyan]{environment}[/cyan]")
     lines.append(f"Expires: [yellow]{expiration_label}[/yellow]\n")
 
@@ -1959,7 +1985,8 @@ def cleanup_list(
             show_header=True,
             expand=True,
         )
-        table.add_column("Session ID", style="cyan", no_wrap=True)
+        table.add_column("Run Name", style="bold cyan", no_wrap=True)
+        table.add_column("Session ID", style="dim", no_wrap=True)
         table.add_column("Scenario", style="white")
         table.add_column("Environment", style="dim")
         table.add_column("Created", style="dim")
@@ -1990,7 +2017,11 @@ def cleanup_list(
                 else session.expires_at.strftime("%Y-%m-%d %H:%M")
             )
 
+            # Get run_name with fallback for backward compatibility
+            run_name = getattr(session, "run_name", session.session_id)
+
             table.add_row(
+                run_name,
                 session.session_id,
                 session.scenario_id,
                 session.environment,
@@ -2033,21 +2064,93 @@ cleanup_app.command("ls")(cleanup_list)
 
 @cleanup_app.command("run")
 def cleanup_run(
-    session_id: str = typer.Argument(..., help="Session ID to clean up"),
+    session_id: str | None = typer.Argument(
+        None,
+        help="Session ID or run name to clean up (interactive selection if omitted)",
+    ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would be cleaned without doing it"
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
-    """Clean up resources for a specific session."""
+    """Clean up resources for a specific session.
+
+    You can specify a session by its ID or run name. If omitted, an interactive
+    selector will allow you to choose from available sessions.
+
+    Examples:
+        mimic cleanup run                       # Interactive session selection
+        mimic cleanup run my-app-abc123         # Clean up by run name
+        mimic cleanup run a1b2c3d4               # Clean up by session ID
+        mimic cleanup run --dry-run             # Preview cleanup interactively
+        mimic cleanup run my-app --dry-run      # Preview specific session cleanup
+    """
     import asyncio
+    from datetime import datetime
 
     from .cleanup_manager import CleanupManager
     from .state_tracker import StateTracker
 
     try:
         state_tracker = StateTracker()
-        session = state_tracker.get_session(session_id)
+
+        # Interactive session selection if not provided
+        if not session_id:
+            import questionary
+
+            sessions = state_tracker.list_sessions(include_expired=True)
+            if not sessions:
+                console.print(
+                    Panel(
+                        "[yellow]No sessions found[/yellow]\n\n"
+                        "Sessions are created when you run scenarios.\n"
+                        "Create a session with: [dim]mimic run <scenario-id>[/dim]",
+                        title="Sessions",
+                        border_style="yellow",
+                    )
+                )
+                raise typer.Exit(0)
+
+            # Build choices with session details
+            choices = []
+            session_map = {}
+            now = datetime.now()
+
+            for s in sessions:
+                run_name = getattr(s, "run_name", s.session_id)
+                is_expired = s.expires_at is not None and s.expires_at <= now
+                status = (
+                    "EXPIRED"
+                    if is_expired
+                    else ("ACTIVE" if s.expires_at else "NEVER EXPIRES")
+                )
+                resource_count = len(s.resources)
+
+                display = f"{run_name} ({s.session_id[:8]}) - {s.scenario_id} | {resource_count} resources | {status}"
+                choices.append(display)
+                session_map[display] = s.session_id
+
+            console.print()
+            selection = questionary.select(
+                "Select a session to clean up:",
+                choices=choices,
+                use_shortcuts=True,
+                use_arrow_keys=True,
+            ).ask()
+
+            if not selection:
+                # User cancelled
+                raise typer.Exit(0)
+
+            session_id = session_map[selection]
+            console.print()
+
+        # Type guard: session_id is guaranteed to be a string here
+        # (either provided as argument or selected interactively)
+        assert session_id is not None
+
+        # Get session by ID or run name
+        session = state_tracker.get_session_by_identifier(session_id)
 
         if not session:
             console.print(f"[red]Error:[/red] Session '{session_id}' not found")
