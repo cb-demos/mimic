@@ -58,9 +58,9 @@ def setup_config_manager(temp_config_dir, mock_keyring, monkeypatch):
     # Reload cli module to pick up new config manager
     import importlib
 
-    import mimic.cli
+    import mimic.cli.main
 
-    importlib.reload(mimic.cli)
+    importlib.reload(mimic.cli.main)
 
     return ConfigManager()
 
