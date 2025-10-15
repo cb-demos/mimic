@@ -764,7 +764,7 @@ class ScenarioPreviewScreen(Screen):
 
     def display_preview(self) -> None:
         """Generate and display the scenario preview."""
-        from .creation_pipeline import CreationPipeline
+        from .pipeline import CreationPipeline
 
         content = self.query_one("#preview-content", VerticalScroll)
 
@@ -928,7 +928,7 @@ class ScenarioExecutionScreen(Screen):
     @work(exclusive=True)
     async def run_scenario(self) -> None:
         """Execute the scenario."""
-        from .creation_pipeline import CreationPipeline
+        from .pipeline import CreationPipeline
 
         self._execution_running = True
         log = self.query_one("#exec-log", VerticalScroll)

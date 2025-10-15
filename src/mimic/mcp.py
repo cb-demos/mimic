@@ -8,8 +8,8 @@ from fastmcp import FastMCP
 
 from .cleanup_manager import CleanupManager
 from .config_manager import ConfigManager
-from .creation_pipeline import CreationPipeline
 from .exceptions import PipelineError, ValidationError
+from .pipeline import CreationPipeline
 from .scenarios import initialize_scenarios_from_config
 from .utils import resolve_run_name
 

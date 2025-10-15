@@ -194,7 +194,7 @@ def run(
     import uuid
     from pathlib import Path
 
-    from .creation_pipeline import CreationPipeline
+    from .pipeline import CreationPipeline
     from .scenarios import initialize_scenarios_from_config
     from .state_tracker import StateTracker
 
@@ -678,7 +678,7 @@ def run(
 
         # Handle dry-run mode
         if dry_run:
-            from .creation_pipeline import CreationPipeline
+            from .pipeline import CreationPipeline
 
             console.print(
                 "[bold cyan]Dry run mode - no resources will be created[/bold cyan]\n"
@@ -704,7 +704,7 @@ def run(
 
         # Preview + confirmation (unless --yes flag is used)
         if not yes:
-            from .creation_pipeline import CreationPipeline
+            from .pipeline import CreationPipeline
 
             console.print("[bold cyan]Preview - Resources to be created[/bold cyan]\n")
 
