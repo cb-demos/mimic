@@ -81,8 +81,9 @@ def prepare_environment_config(
 
 @env_app.command("add")
 def env_add(
-    name: str = typer.Argument(
-        ..., help="Environment name (preset: prod/preprod/demo or custom name)"
+    name: str | None = typer.Argument(
+        None,
+        help="Environment name (preset: prod/preprod/demo or custom name, interactive selection if omitted)",
     ),
     url: str = typer.Option(
         None,
@@ -107,12 +108,81 @@ def env_add(
     or add a custom environment by providing --url and --endpoint-id.
 
     Examples:
+      mimic env add                                         # Interactive selection
       mimic env add prod                                    # Add preset prod environment
       mimic env add custom --url https://api.example.com --endpoint-id abc-123
       mimic env add custom --url ... --endpoint-id ... --property USE_VPC=true --property FM_INSTANCE=custom.io
     """
-    # Check if environment already exists
     environments = config_manager.list_environments()
+
+    # Interactive environment selection if not provided
+    if not name:
+        import questionary
+
+        # Get available preset environments that aren't already configured
+        all_presets = list_preset_environments()
+        available_presets = {
+            name: config for name, config in all_presets.items() if name not in environments
+        }
+
+        if not available_presets:
+            console.print(
+                Panel(
+                    "[yellow]All preset environments are already configured[/yellow]\n\n"
+                    "You can add a custom environment by providing a name:\n"
+                    "[dim]mimic env add <name> --url <url> --endpoint-id <id>[/dim]\n\n"
+                    "Or list configured environments:\n"
+                    "[dim]mimic env list[/dim]",
+                    title="Environments",
+                    border_style="yellow",
+                )
+            )
+            raise typer.Exit(0)
+
+        # Build choices with preset details + custom option
+        choices = []
+        preset_map = {}
+
+        for preset_name, preset_config in available_presets.items():
+            display = f"{preset_name} - {preset_config.description}"
+            choices.append(display)
+            preset_map[display] = preset_name
+
+        # Add custom option
+        custom_option = "Custom environment..."
+        choices.append(custom_option)
+
+        console.print()
+        selection = questionary.select(
+            "Select an environment to add:",
+            choices=choices,
+            use_shortcuts=True,
+            use_arrow_keys=True,
+        ).ask()
+
+        if not selection:
+            # User cancelled
+            raise typer.Exit(0)
+
+        if selection == custom_option:
+            # Custom environment - prompt for details
+            console.print()
+            name = typer.prompt("Environment name")
+            if not url:
+                url = typer.prompt("API URL")
+            if not endpoint_id:
+                endpoint_id = typer.prompt("Endpoint ID")
+        else:
+            # Preset environment selected
+            name = preset_map[selection]
+
+        console.print()
+
+    # Type guard: name is guaranteed to be a string here
+    # (either provided as argument or selected interactively)
+    assert name is not None
+
+    # Check if environment already exists
     if name in environments:
         console.print(f"[red]Error:[/red] Environment '{name}' already exists")
         console.print(f"Use 'mimic env remove {name}' first to replace it")
@@ -280,10 +350,63 @@ def env_list():
 
 @env_app.command("select")
 def env_select(
-    name: str = typer.Argument(..., help="Environment name to select"),
+    name: str | None = typer.Argument(
+        None, help="Environment name to select (interactive selection if omitted)"
+    ),
 ):
-    """Select the current environment."""
+    """Select the current environment.
+
+    Examples:
+        mimic env select            # Interactive selection
+        mimic env select prod       # Select prod environment directly
+    """
     environments = config_manager.list_environments()
+
+    if not environments:
+        console.print(
+            Panel(
+                "[yellow]No environments configured[/yellow]\n\n"
+                "Add an environment first:\n"
+                "[dim]mimic env add (prod|preprod|demo)[/dim]",
+                title="Environments",
+                border_style="yellow",
+            )
+        )
+        raise typer.Exit(1)
+
+    # Interactive environment selection if not provided
+    if not name:
+        import questionary
+
+        current_env = config_manager.get_current_environment()
+
+        # Build choices with environment details
+        choices = []
+        env_map = {}
+
+        for env_name, env_config in environments.items():
+            env_url = env_config.get("url", "")
+            is_current = env_name == current_env
+            current_indicator = " [CURRENT]" if is_current else ""
+
+            display = f"{env_name}{current_indicator} - {env_url}"
+            choices.append(display)
+            env_map[display] = env_name
+
+        console.print()
+        selection = questionary.select(
+            "Select an environment:",
+            choices=choices,
+            use_shortcuts=True,
+            use_arrow_keys=True,
+        ).ask()
+
+        if not selection:
+            # User cancelled
+            raise typer.Exit(0)
+
+        name = env_map[selection]
+        console.print()
 
     if name not in environments:
         console.print(f"[red]Error:[/red] Environment '{name}' not found")
