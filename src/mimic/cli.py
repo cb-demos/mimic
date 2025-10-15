@@ -21,6 +21,71 @@ app = typer.Typer(
 console = Console()
 config_manager = ConfigManager()
 
+
+# Helper functions
+def prepare_environment_config(
+    name: str,
+    url: str | None = None,
+    endpoint_id: str | None = None,
+    custom_properties: dict[str, str] | None = None,
+) -> tuple[str, str, str, dict[str, str]]:
+    """Prepare environment configuration by resolving preset or custom settings.
+
+    Args:
+        name: Environment name (preset or custom).
+        url: API URL (required for custom environments, optional for presets).
+        endpoint_id: Endpoint ID (required for custom environments, optional for presets).
+        custom_properties: Custom properties to merge with defaults.
+
+    Returns:
+        Tuple of (name, url, endpoint_id, properties).
+
+    Raises:
+        typer.Exit: If configuration is invalid.
+    """
+    custom_properties = custom_properties or {}
+
+    # Check if this is a preset environment
+    preset = get_preset_environment(name)
+
+    if preset:
+        # Using preset environment
+        if url or endpoint_id:
+            console.print(
+                f"[yellow]Note:[/yellow] Using preset configuration for '{name}'. Ignoring --url and --endpoint-id options."
+            )
+
+        url = preset.url
+        endpoint_id = preset.endpoint_id
+
+        # Merge preset properties with custom properties (custom overrides preset)
+        properties = preset.properties.copy()
+        properties.update(custom_properties)
+    else:
+        # Custom environment - require url and endpoint_id
+        if not url or not endpoint_id:
+            console.print(
+                f"[red]Error:[/red] Custom environment '{name}' requires --url and --endpoint-id"
+            )
+            console.print("\n[bold]Available preset environments:[/bold]")
+            for preset_name, preset_config in list_preset_environments().items():
+                console.print(
+                    f"  • [cyan]{preset_name}[/cyan] - {preset_config.description}"
+                )
+            console.print(
+                "\n[dim]Or add custom environment with: mimic env add <name> --url <url> --endpoint-id <id>[/dim]"
+            )
+            raise typer.Exit(1)
+
+        # Start with default properties from prod preset
+        prod_preset = get_preset_environment("prod")
+        properties = prod_preset.properties.copy() if prod_preset else {}
+        # Allow custom properties to override defaults
+        properties.update(custom_properties)
+
+    return name, url, endpoint_id, properties
+
+
 # Environment management commands
 env_app = typer.Typer(help="Manage CloudBees Unify environments")
 app.add_typer(env_app, name="env")
@@ -1268,28 +1333,30 @@ def setup(
     console.print()
 
     # Get environment details
-    env_properties = None
     if choice_num <= len(presets):
         # Preset environment
         preset_name = list(presets.keys())[choice_num - 1]
-        preset_config = presets[preset_name]
         env_name = preset_name
-        env_url = preset_config.url
-        endpoint_id = preset_config.endpoint_id
-        env_properties = preset_config.properties.copy()
+        env_url = None
+        endpoint_id = None
 
         console.print(f"[bold]Selected:[/bold] {preset_name}")
-        console.print(f"[dim]API URL: {env_url}[/dim]")
-        console.print(f"[dim]Endpoint ID: {endpoint_id}[/dim]")
-        if env_properties:
-            console.print(f"[dim]Properties: {len(env_properties)} configured[/dim]")
-        console.print()
     else:
         # Custom environment
         env_name = typer.prompt("Environment name")
         env_url = typer.prompt("API URL")
         endpoint_id = typer.prompt("Endpoint ID")
-        console.print()
+
+    # Prepare environment configuration (validates and sets defaults)
+    env_name, env_url, endpoint_id, env_properties = prepare_environment_config(
+        env_name, env_url, endpoint_id
+    )
+
+    console.print(f"[dim]API URL: {env_url}[/dim]")
+    console.print(f"[dim]Endpoint ID: {endpoint_id}[/dim]")
+    if env_properties:
+        console.print(f"[dim]Properties: {len(env_properties)} configured[/dim]")
+    console.print()
 
     # Prompt for credentials
     console.print("[bold]CloudBees Unify Credentials:[/bold]")
@@ -1472,56 +1539,25 @@ def env_add(
             key, value = prop.split("=", 1)
             custom_properties[key.strip()] = value.strip()
 
-    # Check if this is a preset environment
+    # Prepare environment configuration
+    name, url, endpoint_id, properties = prepare_environment_config(
+        name, url, endpoint_id, custom_properties
+    )
+
+    # Display environment details
     preset = get_preset_environment(name)
-
     if preset:
-        # Using preset environment
-        if url or endpoint_id:
-            console.print(
-                "[yellow]Note:[/yellow] Using preset configuration for '{name}'. Ignoring --url and --endpoint-id options."
-            )
-
-        url = preset.url
-        endpoint_id = preset.endpoint_id
-
-        # Merge preset properties with custom properties (custom overrides preset)
-        properties = preset.properties.copy()
-        properties.update(custom_properties)
-
         console.print(f"\n[bold]Adding preset environment:[/bold] {name}")
         console.print(f"[dim]Description:[/dim] {preset.description}")
-        console.print(f"[dim]API URL:[/dim] {url}")
-        console.print(f"[dim]Endpoint ID:[/dim] {endpoint_id}")
-        if properties:
-            console.print("[dim]Properties:[/dim]")
-            for key, value in properties.items():
-                console.print(f"  • {key}: {value}")
     else:
-        # Custom environment - require url and endpoint_id
-        if not url or not endpoint_id:
-            console.print(
-                f"[red]Error:[/red] Custom environment '{name}' requires --url and --endpoint-id"
-            )
-            console.print("\n[bold]Available preset environments:[/bold]")
-            for preset_name, preset_config in list_preset_environments().items():
-                console.print(
-                    f"  • [cyan]{preset_name}[/cyan] - {preset_config.description}"
-                )
-            console.print(
-                "\n[dim]Or add custom environment with: mimic env add <name> --url <url> --endpoint-id <id>[/dim]"
-            )
-            raise typer.Exit(1)
-
-        properties = custom_properties
-
         console.print(f"\n[bold]Adding custom environment:[/bold] {name}")
-        console.print(f"[dim]API URL:[/dim] {url}")
-        console.print(f"[dim]Endpoint ID:[/dim] {endpoint_id}")
-        if properties:
-            console.print("[dim]Properties:[/dim]")
-            for key, value in properties.items():
-                console.print(f"  • {key}: {value}")
+
+    console.print(f"[dim]API URL:[/dim] {url}")
+    console.print(f"[dim]Endpoint ID:[/dim] {endpoint_id}")
+    if properties:
+        console.print("[dim]Properties:[/dim]")
+        for key, value in properties.items():
+            console.print(f"  • {key}: {value}")
 
     console.print()
 
