@@ -1,6 +1,6 @@
 # Mimic
 
-Tool for orchestrating demo scenarios on CloudBees Unify with CLI/TUI/MCP interfaces.
+Tool for orchestrating demo scenarios on CloudBees Unify with CLI/MCP interfaces.
 
 ## Prerequisites
 
@@ -83,13 +83,6 @@ docker run --rm -v ~/.mimic:/home/appuser/.mimic cloudbeesdemo/mimic:latest list
 
 # Run a scenario interactively
 docker run --rm -it -v ~/.mimic:/home/appuser/.mimic cloudbeesdemo/mimic:latest run hackers-app
-```
-
-### TUI Mode
-
-```bash
-# Launch interactive terminal UI
-docker run --rm -it -v ~/.mimic:/home/appuser/.mimic cloudbeesdemo/mimic:latest tui
 ```
 
 ### MCP Server Mode
@@ -194,14 +187,6 @@ mimic cleanup run <session-id>
 
 # Clean up all expired sessions
 mimic cleanup expired
-```
-
-## TUI Usage
-
-Launch the interactive terminal UI:
-
-```bash
-mimic tui
 ```
 
 ## MCP Integration

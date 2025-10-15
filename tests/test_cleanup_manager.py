@@ -1,4 +1,4 @@
-"""Tests for the cleanup manager (CLI/TUI refactor)."""
+"""Tests for the cleanup manager."""
 
 import tempfile
 from datetime import datetime, timedelta

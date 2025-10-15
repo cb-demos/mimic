@@ -1,4 +1,4 @@
-"""Simple settings for Mimic CLI/TUI."""
+"""Simple settings for Mimic CLI."""
 
 from importlib.metadata import PackageNotFoundError, version
 

@@ -14,7 +14,7 @@ from .utils import resolve_run_name
 
 app = typer.Typer(
     name="mimic",
-    help="CloudBees Unify scenario instantiation CLI/TUI tool",
+    help="CloudBees Unify scenario instantiation CLI tool",
     no_args_is_help=True,
 )
 
@@ -1136,30 +1136,6 @@ def _display_scenario_preview(
 
 
 @app.command()
-def tui():
-    """Launch the interactive TUI (Text User Interface)."""
-    from .tui import run_tui
-
-    # Check for first run
-    if config_manager.is_first_run():
-        console.print()
-        console.print(
-            Panel(
-                "[yellow]Welcome to Mimic![/yellow]\n\n"
-                "It looks like this is your first time running Mimic.\n\n"
-                "Run the setup wizard to get started:\n"
-                "[dim]mimic setup[/dim]",
-                title="First Run",
-                border_style="yellow",
-            )
-        )
-        console.print()
-        raise typer.Exit(0)
-
-    run_tui()
-
-
-@app.command()
 def mcp():
     """Start the MCP (Model Context Protocol) stdio server."""
     from .mcp import run_mcp_server
@@ -1434,8 +1410,7 @@ def setup(
             f"  • GitHub: [{'green' if github_configured else 'yellow'}]{'Configured' if github_configured else 'Not configured'}[/]\n\n"
             "[bold]Next Steps:[/bold]\n"
             f"  1. List available scenarios: [dim]mimic list[/dim]\n"
-            f"  2. Run a scenario: [dim]mimic run <scenario-id>[/dim]\n"
-            f"  3. Launch interactive TUI: [dim]mimic tui[/dim]\n\n"
+            f"  2. Run a scenario: [dim]mimic run <scenario-id>[/dim]\n\n"
             "[dim]Configuration stored in ~/.mimic/config.yaml\n"
             "Credentials stored securely in OS keyring[/dim]",
             title="Setup Complete",

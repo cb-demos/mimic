@@ -339,14 +339,6 @@ class TestFirstRunDetection:
         assert "Welcome to Mimic!" in result.stdout
         assert "mimic setup" in result.stdout
 
-    def test_tui_command_shows_first_run_message(self, setup_config_manager):
-        """Test that tui command shows first-run message."""
-        result = runner.invoke(app, ["tui"])
-
-        assert result.exit_code == 0
-        assert "Welcome to Mimic!" in result.stdout
-        assert "mimic setup" in result.stdout
-
     def test_commands_work_after_setup(self, setup_config_manager):
         """Test that commands work normally after setup is complete."""
         # Create config to simulate setup complete

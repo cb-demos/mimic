@@ -15,7 +15,7 @@ class UnifyAPIClient:
     """Simple API client for CloudBees Unify API"""
 
     def __init__(self, base_url: str | None = None, api_key: str | None = None):
-        # For CLI/TUI, base_url should be provided from environment config
+        # For CLI, base_url should be provided from environment config
         # If not provided, raise error (no default URL in refactored architecture)
         if not base_url:
             raise ValueError(
