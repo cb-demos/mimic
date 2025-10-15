@@ -13,6 +13,7 @@ from rich.table import Table
 
 from ..config_manager import ConfigManager
 from ..environments import list_preset_environments
+from ..exceptions import ValidationError
 from ..input_helpers import format_field_name, prompt_cloudbees_org, prompt_github_org
 from ..utils import resolve_run_name
 from .cleanup import cleanup_app
@@ -417,42 +418,62 @@ def run(
                     if not is_required:
                         prompt_text += " [optional]"
 
-                    # Special handling for GitHub org parameter
-                    if prop_name == "target_org":
-                        value = prompt_github_org(
-                            description=prompt_text,
-                            required=is_required,
-                        )
-                    # Prompt based on type
-                    elif prop.type == "boolean":
-                        value = typer.confirm(
-                            prompt_text, default=prop.default or False
-                        )
-                    elif prop.enum:
-                        # For enum, use questionary for better UX
-                        import questionary
+                    # Retry loop for validation
+                    value = None
+                    while True:
+                        try:
+                            # Special handling for GitHub org parameter
+                            if prop_name == "target_org":
+                                value = prompt_github_org(
+                                    description=prompt_text,
+                                    required=is_required,
+                                )
+                            # Prompt based on type
+                            elif prop.type == "boolean":
+                                value = typer.confirm(
+                                    prompt_text, default=prop.default or False
+                                )
+                            elif prop.enum:
+                                # For enum, use questionary for better UX
+                                import questionary
 
-                        value = questionary.select(
-                            prompt_text,
-                            choices=prop.enum,
-                            default=prop.default or prop.enum[0],
-                        ).ask()
-                    else:
-                        # Regular text prompt
-                        default_val = prop.default or ""
-                        value = typer.prompt(
-                            prompt_text,
-                            default=default_val,
-                            show_default=bool(prop.default),
-                        )
+                                value = questionary.select(
+                                    prompt_text,
+                                    choices=prop.enum,
+                                    default=prop.default or prop.enum[0],
+                                ).ask()
+                            else:
+                                # Regular text prompt
+                                default_val = prop.default or ""
+                                value = typer.prompt(
+                                    prompt_text,
+                                    default=default_val,
+                                    show_default=bool(prop.default),
+                                )
 
-                    # Validate required
-                    if is_required and not value:
-                        console.print(f"[red]Error:[/red] {formatted_name} is required")
-                        raise typer.Exit(1)
+                            # Validate the parameter immediately
+                            if value or is_required or value == 0 or value is False:
+                                scenario.validate_single_parameter(prop_name, value)
 
+                            # If we get here, validation passed
+                            break
+
+                        except ValidationError as e:
+                            # Show validation error and re-prompt
+                            console.print(f"[red]✗ {str(e)}[/red]")
+                            if not is_required:
+                                # For optional fields, allow them to skip on error
+                                skip = typer.confirm(
+                                    "Skip this optional parameter?", default=True
+                                )
+                                if skip:
+                                    value = None
+                                    break
+                            # Otherwise, loop and re-prompt
+
+                    # Add the validated value
                     if (
-                        value or not is_required
+                        value or not is_required or value == 0 or value is False
                     ):  # Add value (or empty string for optional params)
                         parameters[prop_name] = value
 

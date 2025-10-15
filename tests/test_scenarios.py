@@ -24,6 +24,126 @@ class TestComputedVariable:
         assert computed_var.fallback_template == "${project_name}-prod"
 
 
+class TestValidateSingleParameter:
+    """Test single parameter validation functionality."""
+
+    def create_test_scenario_with_patterns(self) -> Scenario:
+        """Create a test scenario with pattern validation."""
+        parameter_schema = ParameterSchema(
+            properties={
+                "project_name": ParameterProperty(
+                    type="string",
+                    pattern="^[a-z0-9-]+$",
+                    description="Project name (lowercase alphanumeric with hyphens)",
+                ),
+                "target_org": ParameterProperty(
+                    type="string",
+                    pattern="^[a-zA-Z0-9-]+$",
+                    description="GitHub organization",
+                ),
+                "optional_field": ParameterProperty(
+                    type="string",
+                    pattern="^[A-Z]+$",
+                    description="Optional uppercase letters only",
+                ),
+                "enable_feature": ParameterProperty(
+                    type="boolean", description="Enable feature flag"
+                ),
+                "environment": ParameterProperty(
+                    type="string",
+                    enum=["dev", "staging", "prod"],
+                    description="Deployment environment",
+                ),
+            },
+            required=["project_name", "target_org"],
+        )
+
+        return Scenario(
+            id="test-validation",
+            name="Test Validation",
+            summary="Test scenario for validation",
+            parameter_schema=parameter_schema,
+            repositories=[
+                RepositoryConfig(
+                    source="test/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                )
+            ],
+        )
+
+    def test_validate_single_parameter_valid_pattern(self):
+        """Test validation passes for valid pattern."""
+        scenario = self.create_test_scenario_with_patterns()
+        result = scenario.validate_single_parameter("project_name", "my-project-123")
+        assert result == "my-project-123"
+
+    def test_validate_single_parameter_invalid_pattern(self):
+        """Test validation fails for invalid pattern."""
+        scenario = self.create_test_scenario_with_patterns()
+        with pytest.raises(ValidationError) as exc_info:
+            scenario.validate_single_parameter("project_name", "MyProject_123")
+        assert "doesn't match required pattern" in str(exc_info.value)
+
+    def test_validate_single_parameter_required_empty_fails(self):
+        """Test validation fails for empty required parameter."""
+        scenario = self.create_test_scenario_with_patterns()
+        with pytest.raises(ValidationError) as exc_info:
+            scenario.validate_single_parameter("project_name", "")
+        assert "cannot be empty" in str(exc_info.value)
+
+    def test_validate_single_parameter_optional_empty_passes(self):
+        """Test validation passes for empty optional parameter."""
+        scenario = self.create_test_scenario_with_patterns()
+        result = scenario.validate_single_parameter("optional_field", "")
+        assert result == ""
+
+    def test_validate_single_parameter_boolean_type(self):
+        """Test validation passes for boolean parameter."""
+        scenario = self.create_test_scenario_with_patterns()
+        result = scenario.validate_single_parameter("enable_feature", True)
+        assert result is True
+
+    def test_validate_single_parameter_enum_valid(self):
+        """Test validation passes for valid enum value."""
+        scenario = self.create_test_scenario_with_patterns()
+        result = scenario.validate_single_parameter("environment", "staging")
+        assert result == "staging"
+
+    def test_validate_single_parameter_enum_invalid(self):
+        """Test validation fails for invalid enum value."""
+        scenario = self.create_test_scenario_with_patterns()
+        with pytest.raises(ValidationError) as exc_info:
+            scenario.validate_single_parameter("environment", "production")
+        assert "must be one of" in str(exc_info.value)
+
+    def test_validate_single_parameter_unknown_param(self):
+        """Test validation fails for unknown parameter."""
+        scenario = self.create_test_scenario_with_patterns()
+        with pytest.raises(ValidationError) as exc_info:
+            scenario.validate_single_parameter("unknown_param", "value")
+        assert "Unknown parameter" in str(exc_info.value)
+
+    def test_validate_single_parameter_type_mismatch(self):
+        """Test validation fails for type mismatch."""
+        scenario = self.create_test_scenario_with_patterns()
+        with pytest.raises(ValidationError) as exc_info:
+            scenario.validate_single_parameter("enable_feature", "not_a_boolean")
+        assert "must be a boolean" in str(exc_info.value)
+
+    def test_validate_single_parameter_optional_with_pattern(self):
+        """Test optional parameter validates pattern when provided."""
+        scenario = self.create_test_scenario_with_patterns()
+        # Valid: uppercase only
+        result = scenario.validate_single_parameter("optional_field", "HELLO")
+        assert result == "HELLO"
+
+        # Invalid: contains lowercase
+        with pytest.raises(ValidationError) as exc_info:
+            scenario.validate_single_parameter("optional_field", "Hello")
+        assert "doesn't match required pattern" in str(exc_info.value)
+
+
 class TestScenarioTemplateResolution:
     """Test scenario template resolution with computed variables."""
 

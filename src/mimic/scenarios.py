@@ -267,6 +267,85 @@ class Scenario(BaseModel):
 
         return processed
 
+    def validate_single_parameter(
+        self, param_name: str, value: Any, preprocess: bool = False
+    ) -> Any:
+        """
+        Validate a single parameter value against the schema.
+
+        Args:
+            param_name: Name of the parameter to validate
+            value: Value to validate
+            preprocess: Whether to preprocess the value (e.g., convert boolean strings)
+
+        Returns:
+            The validated (and possibly preprocessed) value
+
+        Raises:
+            ValidationError: If validation fails
+        """
+        if not self.parameter_schema:
+            raise ValidationError("This scenario doesn't accept parameters")
+
+        if param_name not in self.parameter_schema.properties:
+            raise ValidationError(f"Unknown parameter '{param_name}'", param_name)
+
+        prop = self.parameter_schema.properties[param_name]
+        is_required = param_name in self.parameter_schema.required
+
+        # Preprocess if requested (e.g., for form data)
+        if preprocess and prop.type == "boolean":
+            if value == "on" or value == "true" or value is True:
+                value = True
+            elif value == "off" or value == "false" or value == "" or value is False:
+                value = False
+
+        # Check if required parameter is missing/empty
+        if is_required and not value and value != 0 and value is not False:
+            raise ValidationError(
+                f"Required parameter '{param_name}' cannot be empty", param_name, value
+            )
+
+        # Skip validation for empty optional parameters
+        if not is_required and not value and value != 0 and value is not False:
+            return value
+
+        # Validate type
+        if prop.type == "string" and not isinstance(value, str):
+            raise ValidationError(
+                f"Parameter '{param_name}' must be a string", param_name, value
+            )
+        elif prop.type == "number" and not isinstance(value, int | float):
+            raise ValidationError(
+                f"Parameter '{param_name}' must be a number", param_name, value
+            )
+        elif prop.type == "boolean" and not isinstance(value, bool):
+            raise ValidationError(
+                f"Parameter '{param_name}' must be a boolean", param_name, value
+            )
+
+        # Validate pattern if specified
+        if prop.pattern and isinstance(value, str):
+            if value or is_required:  # Only validate if non-empty or required
+                if not re.match(prop.pattern, value):
+                    # Create a more user-friendly error message
+                    error_msg = (
+                        f"Parameter '{param_name}' doesn't match required pattern"
+                    )
+                    if prop.description:
+                        error_msg += f": {prop.description}"
+                    raise ValidationError(error_msg, param_name, value)
+
+        # Validate enum if specified
+        if prop.enum and value not in prop.enum:
+            raise ValidationError(
+                f"Parameter '{param_name}' must be one of {prop.enum}",
+                param_name,
+                value,
+            )
+
+        return value
+
     def validate_input(self, values: dict[str, Any]) -> dict[str, Any]:
         """
         Validate input values against the parameter schema.
@@ -295,40 +374,9 @@ class Scenario(BaseModel):
                     f"Required parameter '{required}' not provided", required
                 )
 
-        # Validate each provided parameter
+        # Validate each provided parameter using the single-parameter validator
         for key, value in processed_values.items():
-            if key not in self.parameter_schema.properties:
-                raise ValidationError(f"Unknown parameter '{key}'", key)
-
-            prop = self.parameter_schema.properties[key]
-
-            # Validate type
-            if prop.type == "string" and not isinstance(value, str):
-                raise ValidationError(f"Parameter '{key}' must be a string", key, value)
-            elif prop.type == "number" and not isinstance(value, int | float):
-                raise ValidationError(f"Parameter '{key}' must be a number", key, value)
-            elif prop.type == "boolean" and not isinstance(value, bool):
-                raise ValidationError(
-                    f"Parameter '{key}' must be a boolean", key, value
-                )
-
-            # Validate pattern if specified (skip for empty optional parameters)
-            if prop.pattern and isinstance(value, str):
-                # Only validate pattern if value is non-empty or parameter is required
-                is_required = key in self.parameter_schema.required
-                if value or is_required:
-                    if not re.match(prop.pattern, value):
-                        raise ValidationError(
-                            f"Parameter '{key}' doesn't match pattern '{prop.pattern}'",
-                            key,
-                            value,
-                        )
-
-            # Validate enum if specified
-            if prop.enum and value not in prop.enum:
-                raise ValidationError(
-                    f"Parameter '{key}' must be one of {prop.enum}", key, value
-                )
+            processed_values[key] = self.validate_single_parameter(key, value)
 
         return processed_values
 
