@@ -13,7 +13,10 @@ console = Console()
 config_manager = ConfigManager()
 
 # Create the scenario pack app
-scenario_pack_app = typer.Typer(help="Manage scenario packs from git repositories")
+scenario_pack_app = typer.Typer(
+    help="Manage scenario packs from git repositories",
+    no_args_is_help=True,
+)
 
 
 @scenario_pack_app.command("add")

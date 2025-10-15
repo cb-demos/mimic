@@ -13,7 +13,10 @@ console = Console()
 config_manager = ConfigManager()
 
 # Create the environment app
-env_app = typer.Typer(help="Manage CloudBees Unify environments")
+env_app = typer.Typer(
+    help="Manage CloudBees Unify environments",
+    no_args_is_help=True,
+)
 
 
 def prepare_environment_config(
@@ -122,7 +125,9 @@ def env_add(
         # Get available preset environments that aren't already configured
         all_presets = list_preset_environments()
         available_presets = {
-            name: config for name, config in all_presets.items() if name not in environments
+            name: config
+            for name, config in all_presets.items()
+            if name not in environments
         }
 
         if not available_presets:

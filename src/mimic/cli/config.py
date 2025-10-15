@@ -11,7 +11,10 @@ console = Console()
 config_manager = ConfigManager()
 
 # Create the config app
-config_app = typer.Typer(help="Manage configuration settings")
+config_app = typer.Typer(
+    help="Manage configuration settings",
+    no_args_is_help=True,
+)
 
 
 @config_app.command("show")
