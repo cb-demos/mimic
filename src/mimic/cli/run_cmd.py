@@ -7,6 +7,7 @@ from rich.panel import Panel
 from ..config_manager import ConfigManager
 from ..input_helpers import prompt_cloudbees_org
 from .run_helpers import (
+    check_required_properties,
     collect_parameters,
     execute_scenario,
     handle_dry_run,
@@ -217,10 +218,7 @@ def run(
 
         console.print()
 
-        # Collect parameters (merge provided parameters with interactive prompts)
-        parameters = collect_parameters(scenario, provided_parameters)
-
-        # Validate credentials before starting scenario execution
+        # Validate credentials early (fail fast before collecting parameters)
         cloudbees_valid, github_valid = validate_credentials(
             env_url, cloudbees_pat, organization_id, github_pat
         )
@@ -239,6 +237,14 @@ def run(
                 )
             )
             raise typer.Exit(1)
+
+        console.print()
+
+        # Pre-flight check for required properties/secrets
+        check_required_properties(scenario, env_url, cloudbees_pat, organization_id)
+
+        # Collect parameters (merge provided parameters with interactive prompts)
+        parameters = collect_parameters(scenario, provided_parameters)
 
         console.print()
 

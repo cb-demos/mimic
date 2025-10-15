@@ -5,9 +5,11 @@ from .execution import execute_scenario
 from .parameter_handler import collect_parameters, parse_parameters
 from .preview import handle_dry_run, show_preview_and_confirm
 from .prompts import handle_expiration_selection, select_scenario_interactive
+from .property_preflight import check_required_properties
 from .validation import validate_credentials
 
 __all__ = [
+    "check_required_properties",
     "collect_parameters",
     "execute_scenario",
     "handle_dry_run",

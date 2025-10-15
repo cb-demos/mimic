@@ -1,6 +1,7 @@
 """Configuration management commands for Mimic CLI."""
 
 import typer
+from prompt_toolkit import prompt as pt_prompt
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -186,7 +187,7 @@ def config_properties():
         # Optionally get org name
         org_name = typer.prompt("Organization name (optional)", default="")
         if org_name:
-            config_manager.cache_org_name(current_env, org_id, org_name)
+            config_manager.cache_org_name(org_id, org_name, current_env)
     else:
         # Use selected org from cache (org_choice is the org name, lookup the ID)
         org_id = org_names_to_ids[org_choice]
@@ -248,9 +249,7 @@ def config_properties():
 
             console.print(table)
             console.print()
-            console.print(
-                f"[dim]Total: {len(properties)} properties/secrets[/dim]"
-            )
+            console.print(f"[dim]Total: {len(properties)} properties/secrets[/dim]")
             console.print()
 
     except ValueError as e:
@@ -306,7 +305,7 @@ def config_add_property():
         # Optionally get resource name for caching
         resource_name = typer.prompt("Resource name (optional)", default="")
         if resource_name:
-            config_manager.cache_org_name(current_env, resource_id, resource_name)
+            config_manager.cache_org_name(resource_id, resource_name, current_env)
     else:
         # Use selected org from cache (org_choice is the org name, lookup the ID)
         resource_id = org_names_to_ids[org_choice]
@@ -319,15 +318,26 @@ def config_add_property():
     property_name = typer.prompt("Property name")
 
     # Ask if it's a secret
-    is_secret = typer.confirm(
-        "Is this a secret? (will be masked in UI)", default=False
-    )
+    is_secret = typer.confirm("Is this a secret? (will be masked in UI)", default=False)
 
     # Prompt for value (hide input if secret)
     if is_secret:
-        property_value = typer.prompt(
-            "Property value", hide_input=True, confirmation_prompt=True
-        )
+        console.print()
+        console.print(f"[bold]Enter value for secret '{property_name}'[/bold]")
+        console.print("[dim]Asterisks (*) will appear as you type[/dim]")
+        property_value = pt_prompt("Value: ", is_password=True)
+
+        # Show preview of characters for confirmation
+        # Show ~20% of the value, with a minimum of 4 and maximum of 50 chars
+        if len(property_value) > 0:
+            preview_length = max(4, min(50, int(len(property_value) * 0.2)))
+            console.print(
+                f"First {preview_length} chars: [dim]{property_value[:preview_length]}...[/dim]"
+            )
+            console.print(f"Total length: [dim]{len(property_value)} characters[/dim]")
+            if not typer.confirm("Is this correct?", default=True):
+                console.print("[yellow]Cancelled.[/yellow]")
+                return
     else:
         property_value = typer.prompt("Property value")
 
@@ -342,12 +352,8 @@ def config_add_property():
     console.print()
     console.print("[bold]Summary:[/bold]")
     console.print(f"  Name: [cyan]{property_name}[/cyan]")
-    console.print(
-        f"  Type: [magenta]{'Secret' if is_secret else 'Property'}[/magenta]"
-    )
-    console.print(
-        f"  Value: [green]{'•••••' if is_secret else property_value}[/green]"
-    )
+    console.print(f"  Type: [magenta]{'Secret' if is_secret else 'Property'}[/magenta]")
+    console.print(f"  Value: [green]{'•••••' if is_secret else property_value}[/green]")
     if description:
         console.print(f"  Description: [dim]{description}[/dim]")
     console.print(f"  Protected: [yellow]{'Yes' if is_protected else 'No'}[/yellow]")

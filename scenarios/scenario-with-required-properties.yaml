@@ -1,0 +1,49 @@
+# Example scenario showing how to define required properties/secrets
+# These properties/secrets must exist at the organization level before the scenario runs
+# If missing, user will be prompted to create them
+
+id: example-with-properties
+name: Example Scenario with Required Properties
+summary: Demonstrates how to define required organization-level properties and secrets
+
+# Simple list of property names that must exist (non-secret)
+required_properties:
+  - hostname
+  - namespace
+  - ENVIRONMENT_NAME
+
+# Simple list of secret names that must exist (will be masked in UI)
+required_secrets:
+  - kubeconfig
+  - JIRA_URL
+  - JIRA_USERNAME
+  - JIRA_TOKEN
+
+# Standard scenario configuration
+repositories:
+  - source: demo-org/template-repo
+    target_org: ${github_org}
+    repo_name_template: ${project_name}
+    create_component: true
+
+environments:
+  - name: production
+
+applications:
+  - name: ${project_name}
+    components:
+      - ${project_name}
+    environments:
+      - production
+
+parameter_schema:
+  properties:
+    project_name:
+      type: string
+      description: Project name
+    github_org:
+      type: string
+      description: GitHub organization
+  required:
+    - project_name
+    - github_org

@@ -52,6 +52,40 @@ replacements:
   "PROJECT_NAME": "${project_name}"       # User parameter
 ```
 
+## Required Properties and Secrets
+
+Define organization-level properties or secrets that must exist before the scenario runs. Mimic will check for these and prompt the user to create any that are missing.
+
+```yaml
+# Simple list of property names (non-secret)
+required_properties:
+  - hostname
+  - namespace
+  - ENVIRONMENT_NAME
+
+# Simple list of secret names (will be masked in UI)
+required_secrets:
+  - kubeconfig
+  - JIRA_URL
+  - JIRA_TOKEN
+```
+
+**Pre-flight Check Behavior:**
+- Before running a scenario, Mimic checks if all required properties/secrets exist in the target organization
+- If any are missing, the user is prompted to create them interactively
+- Secrets are entered with hidden input and confirmation
+- User can optionally skip and set them later
+- All properties/secrets are created at the organization level
+
+**Managing Properties:**
+```bash
+# Browse org properties/secrets
+mimic config properties
+
+# Add a new property/secret interactively
+mimic config add-property
+```
+
 ## Repository Configuration
 
 ```yaml

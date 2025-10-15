@@ -116,6 +116,12 @@ class Scenario(BaseModel):
     applications: list[ApplicationConfig] = Field(default_factory=list)
     environments: list[EnvironmentConfig] = Field(default_factory=list)
     flags: list[FlagConfig] = Field(default_factory=list)
+    required_properties: list[str] = Field(
+        default_factory=list
+    )  # Organization-level properties that must exist
+    required_secrets: list[str] = Field(
+        default_factory=list
+    )  # Organization-level secrets that must exist
     parameter_schema: ParameterSchema | None = None
     computed_variables: dict[str, ComputedVariable] = Field(default_factory=dict)
     name_template: str | None = (

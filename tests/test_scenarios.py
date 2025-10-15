@@ -871,3 +871,89 @@ class TestEnvironmentProperties:
         # Should work fine with None (defaults to empty dict)
         resolved = scenario.resolve_template_variables(params, None)
         assert resolved.repositories[0].repo_name_template == "my-project"
+
+
+class TestRequiredPropertiesAndSecrets:
+    """Test required_properties and required_secrets fields."""
+
+    def test_scenario_with_required_properties(self):
+        """Test that scenarios can define required properties."""
+        scenario = Scenario(
+            id="test-scenario",
+            name="Test Scenario",
+            summary="Test scenario with required properties",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="target",
+                    repo_name_template="test",
+                )
+            ],
+            required_properties=["hostname", "namespace", "ENVIRONMENT_NAME"],
+        )
+
+        assert len(scenario.required_properties) == 3
+        assert "hostname" in scenario.required_properties
+        assert "namespace" in scenario.required_properties
+        assert "ENVIRONMENT_NAME" in scenario.required_properties
+
+    def test_scenario_with_required_secrets(self):
+        """Test that scenarios can define required secrets."""
+        scenario = Scenario(
+            id="test-scenario",
+            name="Test Scenario",
+            summary="Test scenario with required secrets",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="target",
+                    repo_name_template="test",
+                )
+            ],
+            required_secrets=["kubeconfig", "JIRA_TOKEN", "API_KEY"],
+        )
+
+        assert len(scenario.required_secrets) == 3
+        assert "kubeconfig" in scenario.required_secrets
+        assert "JIRA_TOKEN" in scenario.required_secrets
+        assert "API_KEY" in scenario.required_secrets
+
+    def test_scenario_with_both_properties_and_secrets(self):
+        """Test that scenarios can define both properties and secrets."""
+        scenario = Scenario(
+            id="test-scenario",
+            name="Test Scenario",
+            summary="Test scenario with both",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="target",
+                    repo_name_template="test",
+                )
+            ],
+            required_properties=["hostname", "namespace"],
+            required_secrets=["kubeconfig", "API_KEY"],
+        )
+
+        assert len(scenario.required_properties) == 2
+        assert len(scenario.required_secrets) == 2
+        assert "hostname" in scenario.required_properties
+        assert "kubeconfig" in scenario.required_secrets
+
+    def test_scenario_with_empty_requirements(self):
+        """Test that scenarios default to empty lists if not specified."""
+        scenario = Scenario(
+            id="test-scenario",
+            name="Test Scenario",
+            summary="Test scenario with no requirements",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="target",
+                    repo_name_template="test",
+                )
+            ],
+        )
+
+        assert scenario.required_properties == []
+        assert scenario.required_secrets == []
