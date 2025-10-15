@@ -3,8 +3,11 @@
 import typer
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 
 from ..config_manager import ConfigManager
+from ..input_helpers import select_or_new
+from ..unify import create_client_from_config
 
 # Shared instances
 console = Console()
@@ -136,3 +139,251 @@ def config_github_token():
             border_style="green",
         )
     )
+
+
+@config_app.command("properties")
+def config_properties():
+    """Browse properties and secrets for an organization."""
+    console.print()
+    console.print("[bold]Browse CloudBees Properties & Secrets[/bold]")
+    console.print()
+
+    # Get current environment
+    current_env = config_manager.get_current_environment()
+    if not current_env:
+        console.print(
+            "[red]Error:[/red] No environment configured. Run 'mimic setup' first."
+        )
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Current environment: {current_env}[/dim]")
+    console.print()
+
+    # Get list of recently used organizations for this environment
+    # cached_orgs maps org_id -> org_name
+    cached_orgs = config_manager.get_cached_orgs_for_env(current_env)
+
+    # Create reverse mapping: org_name -> org_id for display
+    org_names_to_ids = {name: org_id for org_id, name in cached_orgs.items()}
+
+    # Prepare choices (org names for display)
+    choices = list(org_names_to_ids.keys()) if org_names_to_ids else []
+
+    # Prompt for organization selection
+    org_choice = select_or_new(
+        "Select organization",
+        choices=choices,
+        new_option_label="[Enter new organization ID]",
+        allow_skip=False,  # Don't allow skipping - this is required
+    )
+
+    # org_choice is guaranteed to be a string since allow_skip=False
+    assert org_choice is not None
+
+    # Handle new org input
+    if org_choice == "[Enter new organization ID]":
+        org_id = typer.prompt("Organization ID")
+        # Optionally get org name
+        org_name = typer.prompt("Organization name (optional)", default="")
+        if org_name:
+            config_manager.cache_org_name(current_env, org_id, org_name)
+    else:
+        # Use selected org from cache (org_choice is the org name, lookup the ID)
+        org_id = org_names_to_ids[org_choice]
+
+    console.print()
+    console.print(f"[dim]Fetching properties for organization: {org_id}[/dim]")
+    console.print()
+
+    # Create Unify client and fetch properties
+    try:
+        with create_client_from_config(config_manager, current_env) as client:
+            response = client.list_properties(org_id)
+            properties = response.get("properties", [])
+
+            if not properties:
+                console.print(
+                    "[yellow]No properties or secrets found for this organization.[/yellow]"
+                )
+                return
+
+            # Create table for display
+            table = Table(
+                title=f"Properties & Secrets for {org_choice if org_choice != '[Enter new organization ID]' else org_id}",
+                show_header=True,
+                header_style="bold cyan",
+            )
+            table.add_column("Name", style="white", no_wrap=False)
+            table.add_column("Type", style="magenta", width=8)
+            table.add_column("Value", style="green")
+            table.add_column("Source", style="blue", width=10)
+            table.add_column("Protected", style="yellow", width=9)
+
+            # Add rows
+            for prop_item in properties:
+                prop = prop_item.get("property", {})
+                source = prop_item.get("source", "UNKNOWN")
+
+                name = prop.get("name", "")
+                is_secret = prop.get("isSecret", False)
+                is_protected = prop.get("isProtected", False)
+                value = prop.get("string", "")
+
+                # Mask secret values (they come pre-masked as ***** from API)
+                display_value = value if not is_secret else "[dim]•••••[/dim]"
+
+                # Determine type
+                prop_type = "Secret" if is_secret else "Property"
+
+                # Format protected status
+                protected_text = "Yes" if is_protected else "No"
+
+                table.add_row(
+                    name,
+                    prop_type,
+                    display_value,
+                    source,
+                    protected_text,
+                )
+
+            console.print(table)
+            console.print()
+            console.print(
+                f"[dim]Total: {len(properties)} properties/secrets[/dim]"
+            )
+            console.print()
+
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Error fetching properties:[/red] {e}")
+        raise typer.Exit(1) from e
+
+
+@config_app.command("add-property")
+def config_add_property():
+    """Add a property or secret to an organization or component."""
+    console.print()
+    console.print("[bold]Add CloudBees Property or Secret[/bold]")
+    console.print()
+
+    # Get current environment
+    current_env = config_manager.get_current_environment()
+    if not current_env:
+        console.print(
+            "[red]Error:[/red] No environment configured. Run 'mimic setup' first."
+        )
+        raise typer.Exit(1)
+
+    console.print(f"[dim]Current environment: {current_env}[/dim]")
+    console.print()
+
+    # Get list of recently used organizations for this environment
+    # cached_orgs maps org_id -> org_name
+    cached_orgs = config_manager.get_cached_orgs_for_env(current_env)
+
+    # Create reverse mapping: org_name -> org_id for display
+    org_names_to_ids = {name: org_id for org_id, name in cached_orgs.items()}
+
+    # Prepare choices (org names for display)
+    choices = list(org_names_to_ids.keys()) if org_names_to_ids else []
+
+    # Prompt for organization selection
+    org_choice = select_or_new(
+        "Select organization or component",
+        choices=choices,
+        new_option_label="[Enter new resource ID]",
+        allow_skip=False,  # Don't allow skipping - this is required
+    )
+
+    # org_choice is guaranteed to be a string since allow_skip=False
+    assert org_choice is not None
+
+    # Handle new resource input
+    if org_choice == "[Enter new resource ID]":
+        resource_id = typer.prompt("Resource ID (org/suborg/component UUID)")
+        # Optionally get resource name for caching
+        resource_name = typer.prompt("Resource name (optional)", default="")
+        if resource_name:
+            config_manager.cache_org_name(current_env, resource_id, resource_name)
+    else:
+        # Use selected org from cache (org_choice is the org name, lookup the ID)
+        resource_id = org_names_to_ids[org_choice]
+
+    console.print()
+    console.print(f"[dim]Resource ID: {resource_id}[/dim]")
+    console.print()
+
+    # Prompt for property details
+    property_name = typer.prompt("Property name")
+
+    # Ask if it's a secret
+    is_secret = typer.confirm(
+        "Is this a secret? (will be masked in UI)", default=False
+    )
+
+    # Prompt for value (hide input if secret)
+    if is_secret:
+        property_value = typer.prompt(
+            "Property value", hide_input=True, confirmation_prompt=True
+        )
+    else:
+        property_value = typer.prompt("Property value")
+
+    # Optional description
+    description = typer.prompt("Description (optional)", default="")
+
+    # Ask if protected
+    is_protected = typer.confirm(
+        "Is this protected? (prevents modification)", default=False
+    )
+
+    console.print()
+    console.print("[bold]Summary:[/bold]")
+    console.print(f"  Name: [cyan]{property_name}[/cyan]")
+    console.print(
+        f"  Type: [magenta]{'Secret' if is_secret else 'Property'}[/magenta]"
+    )
+    console.print(
+        f"  Value: [green]{'•••••' if is_secret else property_value}[/green]"
+    )
+    if description:
+        console.print(f"  Description: [dim]{description}[/dim]")
+    console.print(f"  Protected: [yellow]{'Yes' if is_protected else 'No'}[/yellow]")
+    console.print()
+
+    # Confirm before creating
+    confirm = typer.confirm("Create this property?", default=True)
+    if not confirm:
+        console.print("[yellow]Cancelled.[/yellow]")
+        return
+
+    # Create the property
+    try:
+        with create_client_from_config(config_manager, current_env) as client:
+            client.create_property(
+                resource_id=resource_id,
+                name=property_name,
+                value=property_value,
+                is_secret=is_secret,
+                description=description,
+                is_protected=is_protected,
+            )
+
+            console.print()
+            console.print(
+                Panel(
+                    f"[green]✓[/green] {'Secret' if is_secret else 'Property'} '{property_name}' created successfully",
+                    title="Success",
+                    border_style="green",
+                )
+            )
+            console.print()
+
+    except ValueError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1) from e
+    except Exception as e:
+        console.print(f"[red]Error creating property:[/red] {e}")
+        raise typer.Exit(1) from e

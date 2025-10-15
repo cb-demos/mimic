@@ -349,6 +349,100 @@ class UnifyAPIClient:
         """Get organization details by ID"""
         return self._make_request("GET", f"/v1/organizations/{org_id}")
 
+    # Properties API
+    def list_properties(
+        self, resource_id: str, page_length: int = 1000
+    ) -> dict[str, Any]:
+        """List properties for a resource (organization, sub-org, or component).
+
+        Args:
+            resource_id: The resource ID (org ID, sub-org ID, or component ID)
+            page_length: Number of properties to return per page
+
+        Returns:
+            Dictionary containing properties list and pagination info
+        """
+        params = {"pagination.pageLength": page_length}
+        return self._make_request(
+            "GET", f"/v1/resources/{resource_id}/extended-properties", params=params
+        )
+
+    def update_properties(
+        self, resource_id: str, properties: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Create or update properties for a resource (organization, sub-org, or component).
+
+        Args:
+            resource_id: The resource ID (org ID, sub-org ID, or component ID)
+            properties: List of property objects with structure:
+                {
+                    "name": str,
+                    "description": str (optional),
+                    "isSecret": bool,
+                    "isProtected": bool (optional),
+                    "string": str  # or "bool", "int", etc.
+                }
+
+        Returns:
+            Empty dict on success (200 response)
+        """
+        return self._make_request(
+            "PUT",
+            f"/v1/resources/{resource_id}/properties",
+            json={"properties": properties},
+        )
+
+    def create_property(
+        self,
+        resource_id: str,
+        name: str,
+        value: str,
+        is_secret: bool = False,
+        description: str = "",
+        is_protected: bool = False,
+    ) -> dict[str, Any]:
+        """Create or update a single property on a resource.
+
+        Args:
+            resource_id: The resource ID (org ID, sub-org ID, or component ID)
+            name: Property name
+            value: Property value
+            is_secret: Whether this is a secret (masked in UI)
+            description: Optional description
+            is_protected: Whether property is protected from modification
+
+        Returns:
+            Empty dict on success (200 response)
+        """
+        property_data = {
+            "name": name,
+            "description": description,
+            "isSecret": is_secret,
+            "isProtected": is_protected,
+            "string": value,
+        }
+        return self.update_properties(resource_id, [property_data])
+
+    def get_property_by_name(self, resource_id: str, property_name: str) -> dict | None:
+        """Get a specific property by name from a resource.
+
+        Args:
+            resource_id: The resource ID (org ID, sub-org ID, or component ID)
+            property_name: Name of the property to retrieve
+
+        Returns:
+            Property data if found, None otherwise
+        """
+        response = self.list_properties(resource_id)
+        properties = response.get("properties", [])
+
+        for prop_item in properties:
+            prop = prop_item.get("property", {})
+            if prop.get("name") == property_name:
+                return prop
+
+        return None
+
     # Delete/Cleanup Methods
     def delete_component(self, org_id: str, component_id: str) -> None:
         """Delete a CloudBees component using the component UUID directly"""
