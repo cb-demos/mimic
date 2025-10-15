@@ -418,6 +418,52 @@ class ScenarioParametersScreen(Screen):
         self.parameter_inputs: dict[str, Input | Checkbox | Select] = {}
         self.config_manager = ConfigManager()
 
+    def _create_select_or_input(
+        self,
+        scroll: VerticalScroll,
+        label_text: str,
+        widget_id: str,
+        recent_values: list[tuple[str, str]] | None = None,
+        default_value: str = "",
+        placeholder: str = "",
+        key_prefix: str = "_",
+    ) -> None:
+        """Create Select (if recent values) or Input widget pair.
+
+        Args:
+            scroll: Container to mount widgets in
+            label_text: Label text to display
+            widget_id: ID for the widget (used in HTML id and storage key)
+            recent_values: List of (display, value) tuples for Select options
+            default_value: Default value for Input widget
+            placeholder: Placeholder text for Input widget
+            key_prefix: Prefix for parameter_inputs keys (default "_" for common fields, "" for scenario params)
+        """
+        scroll.mount(Label(label_text))
+
+        if recent_values:
+            select_widget = Select(
+                options=recent_values,
+                prompt="Select from recent",
+                id=f"select-{widget_id}",
+            )
+            scroll.mount(select_widget)
+            scroll.mount(Label("[dim]Or enter custom:[/dim]"))
+            input_widget = Input(
+                placeholder=placeholder or f"Enter new {widget_id}",
+                value=default_value,
+                id=f"input-{widget_id}",
+            )
+            scroll.mount(input_widget)
+            self.parameter_inputs[f"{key_prefix}{widget_id}_select"] = select_widget
+            self.parameter_inputs[f"{key_prefix}{widget_id}"] = input_widget
+        else:
+            input_widget = Input(
+                placeholder=placeholder, value=default_value, id=f"input-{widget_id}"
+            )
+            scroll.mount(input_widget)
+            self.parameter_inputs[f"{key_prefix}{widget_id}"] = input_widget
+
     def compose(self) -> ComposeResult:
         """Create child widgets."""
         yield Header()
@@ -444,72 +490,41 @@ class ScenarioParametersScreen(Screen):
         current_env = self.config_manager.get_current_environment()
 
         # Add common inputs - Organization ID
-        scroll.mount(Label("Organization ID:"))
-
-        # Show cached orgs as Select with custom input option
         cached_orgs = self.config_manager.get_cached_orgs_for_env(current_env)
-        if cached_orgs:
-            # Build select options with org names
-            org_options = [
+        org_options = (
+            [
                 (f"{name} ({org_id[:8]}...)", org_id)
                 for org_id, name in cached_orgs.items()
             ]
+            if cached_orgs
+            else None
+        )
+        self._create_select_or_input(
+            scroll=scroll,
+            label_text="Organization ID:",
+            widget_id="org_id",
+            recent_values=org_options,
+            placeholder="CloudBees Organization ID",
+        )
 
-            org_id_select = Select(
-                options=org_options, prompt="Select from recent", id="select-org-id"
-            )
-            scroll.mount(org_id_select)
-            scroll.mount(Label("[dim]Or enter custom:[/dim]"))
-            org_id_input = Input(
-                placeholder="Enter new organization ID", id="input-org-id"
-            )
-            scroll.mount(org_id_input)
-            # Store both widgets - Input takes precedence in handle_run
-            self.parameter_inputs["_org_id_select"] = org_id_select
-            self.parameter_inputs["_org_id"] = org_id_input
-        else:
-            org_id_input = Input(
-                placeholder="CloudBees Organization ID", id="input-org-id"
-            )
-            scroll.mount(org_id_input)
-            self.parameter_inputs["_org_id"] = org_id_input
-
-        scroll.mount(Label("Expiration Days:"))
-
-        # Get default expiration from config or recent values
+        # Expiration Days
         recent_expirations = self.config_manager.get_recent_values("expiration_days")
         default_expiration = str(
             self.config_manager.get_setting("default_expiration_days", 7)
         )
-
-        if recent_expirations:
-            # Build select options from recent values
-            exp_options = [(days, days) for days in recent_expirations[:5]]
-
-            expiration_select = Select(
-                options=exp_options,
-                prompt="Select from recent",
-                id="select-expiration-days",
-            )
-            scroll.mount(expiration_select)
-            scroll.mount(Label("[dim]Or enter custom:[/dim]"))
-            expiration_input = Input(
-                placeholder="Enter custom days",
-                value=default_expiration,
-                id="input-expiration-days",
-            )
-            scroll.mount(expiration_input)
-            # Store both widgets - Input takes precedence
-            self.parameter_inputs["_expiration_days_select"] = expiration_select
-            self.parameter_inputs["_expiration_days"] = expiration_input
-        else:
-            expiration_input = Input(
-                placeholder=default_expiration,
-                value=default_expiration,
-                id="input-expiration-days",
-            )
-            scroll.mount(expiration_input)
-            self.parameter_inputs["_expiration_days"] = expiration_input
+        exp_options = (
+            [(days, days) for days in recent_expirations[:5]]
+            if recent_expirations
+            else None
+        )
+        self._create_select_or_input(
+            scroll=scroll,
+            label_text="Expiration Days:",
+            widget_id="expiration_days",
+            recent_values=exp_options,
+            default_value=default_expiration,
+            placeholder="Enter custom days" if exp_options else default_expiration,
+        )
 
         scroll.mount(Label(""))  # Spacer
         preview_checkbox = Checkbox("Preview before running", id="checkbox-preview")
@@ -577,44 +592,24 @@ class ScenarioParametersScreen(Screen):
                     # Don't show recent values for non-whitelisted parameters
                     recent_values = []
 
-                # Determine default value for Input
-                if prop.default:
-                    default_value = str(prop.default)
-                else:
-                    default_value = ""
+                # Determine default value and create widget
+                default_value = str(prop.default) if prop.default else ""
+                param_options = (
+                    [(val, val) for val in recent_values[:5]] if recent_values else None
+                )
+                placeholder = str(prop.placeholder or prop.default or "")
 
-                # Show Select with custom Input if we have recent values
-                if recent_values:
-                    # Build select options from recent values
-                    param_options = [(val, val) for val in recent_values[:5]]
-
-                    param_select = Select(
-                        options=param_options,
-                        prompt="Select from recent",
-                        id=f"select-param-{prop_name}",
-                    )
-                    scroll.mount(param_select)
-                    scroll.mount(Label("[dim]Or enter custom:[/dim]"))
-
-                    placeholder = prop.placeholder or prop.default or ""
-                    param_input = Input(
-                        placeholder=f"Enter new {prop_name}",
-                        value=default_value,
-                        id=f"input-param-{prop_name}",
-                    )
-                    scroll.mount(param_input)
-                    # Store both widgets - Input takes precedence
-                    self.parameter_inputs[f"{prop_name}_select"] = param_select
-                    self.parameter_inputs[prop_name] = param_input
-                else:
-                    placeholder = prop.placeholder or prop.default or ""
-                    param_input = Input(
-                        placeholder=str(placeholder),
-                        value=default_value,
-                        id=f"input-param-{prop_name}",
-                    )
-                    scroll.mount(param_input)
-                    self.parameter_inputs[prop_name] = param_input
+                self._create_select_or_input(
+                    scroll=scroll,
+                    label_text=label_text,
+                    widget_id=prop_name,
+                    recent_values=param_options,
+                    default_value=default_value,
+                    placeholder=f"Enter new {prop_name}"
+                    if param_options
+                    else placeholder,
+                    key_prefix="",
+                )
 
     @on(Button.Pressed, "#btn-run")
     def handle_run(self) -> None:

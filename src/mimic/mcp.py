@@ -23,13 +23,10 @@ config_manager = ConfigManager()
 scenario_manager = initialize_scenarios_from_config()
 
 
+# Internal helper functions for testing
+# These contain the actual logic and can be called directly in tests
 def _list_scenarios_impl() -> list[dict[str, Any]]:
-    """
-    List all available scenarios with their parameter schemas.
-
-    Returns:
-        List of scenario dictionaries with id, name, summary, and parameter schema
-    """
+    """Internal: List all available scenarios."""
     return scenario_manager.list_scenarios()
 
 
@@ -52,37 +49,7 @@ async def _instantiate_scenario_impl(
     parameters: dict[str, Any] | None = None,
     environment: str | None = None,
 ) -> dict[str, Any]:
-    """
-    Execute a complete scenario using the Creation Pipeline.
-
-    This will:
-    1. Create repositories from templates with content replacements
-    2. Create CloudBees components for repos that need them
-    3. Create feature flags
-    4. Create environments
-    5. Create applications linking components and environments
-    6. Configure flags across environments
-
-    Args:
-        scenario_id: The ID of the scenario to execute (e.g., 'hackers-app')
-        organization_id: CloudBees Unify organization UUID (get from organization info)
-        invitee_username: GitHub username to invite to repositories (optional)
-        expires_in_days: Days until cleanup (1, 7, 14, 30, or None for never)
-        parameters: Dictionary of ALL scenario parameters (required and optional)
-        environment: CloudBees environment name (defaults to current environment)
-
-    Environment Variables (required):
-        MIMIC_CLOUDBEES_PAT: CloudBees API token (or configured in keyring)
-        MIMIC_GITHUB_PAT: GitHub PAT (or configured in keyring)
-
-    Returns:
-        Dictionary with execution status and summary
-
-    Raises:
-        ValueError: If credentials are missing or invalid
-        ValidationError: If scenario parameters are invalid
-        PipelineError: If pipeline execution fails
-    """
+    """Internal: Execute a complete scenario using the Creation Pipeline."""
     # Get environment (use specified or current)
     env_name = environment or config_manager.get_current_environment()
     if not env_name:
@@ -287,30 +254,7 @@ async def _cleanup_session_impl(
     session_id: str,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """
-    Clean up all resources for a specific session.
-
-    This will:
-    1. Delete GitHub repositories
-    2. Delete CloudBees components
-    3. Delete CloudBees applications
-    4. Delete CloudBees environments
-    5. Delete feature flags
-    6. Remove session from state tracking
-
-    Args:
-        session_id: Session ID to clean up
-        dry_run: If True, only show what would be cleaned up without doing it
-
-    Returns:
-        Dictionary with cleanup results including:
-        - cleaned: List of successfully cleaned resources
-        - errors: List of errors encountered
-        - skipped: List of skipped resources
-
-    Raises:
-        ValueError: If session not found
-    """
+    """Internal: Clean up all resources for a specific session."""
     cleanup_manager = CleanupManager(config_manager=config_manager)
 
     try:
@@ -356,10 +300,7 @@ async def cleanup_session(
     Raises:
         ValueError: If session not found
     """
-    return await _cleanup_session_impl(
-        session_id=session_id,
-        dry_run=dry_run,
-    )
+    return await _cleanup_session_impl(session_id=session_id, dry_run=dry_run)
 
 
 def run_mcp_server():

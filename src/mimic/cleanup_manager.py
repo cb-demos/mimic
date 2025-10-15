@@ -1,5 +1,6 @@
 """Resource cleanup management for Mimic sessions."""
 
+from collections import defaultdict
 from typing import Any
 
 from rich.console import Console
@@ -111,18 +112,11 @@ class CleanupManager:
         )
 
         # Clean up resources in reverse order (to handle dependencies)
-        resources_by_type = {
-            "cloudbees_application": [],
-            "cloudbees_environment": [],
-            "cloudbees_component": [],
-            "github_repo": [],
-        }
+        resources_by_type = defaultdict(list)
 
         # Group resources by type
         for resource in session.resources:
-            if resource.type in resources_by_type:
-                resources_by_type[resource.type].append(resource)
-            elif resource.type == "cloudbees_flag":
+            if resource.type == "cloudbees_flag":
                 results["skipped"].append(
                     {
                         "type": "cloudbees_flag",
@@ -130,6 +124,8 @@ class CleanupManager:
                         "reason": "Flags are not safe to auto-cleanup",
                     }
                 )
+            else:
+                resources_by_type[resource.type].append(resource)
 
         # Clean up applications
         for resource in resources_by_type["cloudbees_application"]:

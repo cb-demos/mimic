@@ -1,12 +1,13 @@
 """State tracking for Mimic sessions and resources."""
 
 import json
-import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from .paths import get_config_dir
 
 
 class Resource(BaseModel):
@@ -45,11 +46,7 @@ class StateTracker:
             state_file: Path to state JSON file. Defaults to $MIMIC_CONFIG_DIR/state.json or ~/.mimic/state.json
         """
         if state_file is None:
-            # Use MIMIC_CONFIG_DIR environment variable if set, otherwise default to ~/.mimic
-            if config_dir := os.environ.get("MIMIC_CONFIG_DIR"):
-                state_file = Path(config_dir) / "state.json"
-            else:
-                state_file = Path.home() / ".mimic" / "state.json"
+            state_file = get_config_dir() / "state.json"
         self.state_file = Path(state_file)
         self.state_file.parent.mkdir(parents=True, exist_ok=True)
 

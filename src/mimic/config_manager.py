@@ -1,32 +1,18 @@
 """Configuration and credential management for Mimic."""
 
-import os
-from pathlib import Path
 from typing import Any
 
 import keyring
 import yaml
+
+from .paths import get_config_dir
 
 
 class ConfigManager:
     """Manages configuration file and secure credential storage."""
 
     KEYRING_SERVICE = "mimic"
-
-    @staticmethod
-    def _get_config_dir() -> Path:
-        """Get config directory from environment or default.
-
-        Checks MIMIC_CONFIG_DIR environment variable first, falls back to ~/.mimic
-
-        Returns:
-            Path to configuration directory.
-        """
-        if config_dir := os.environ.get("MIMIC_CONFIG_DIR"):
-            return Path(config_dir)
-        return Path.home() / ".mimic"
-
-    CONFIG_DIR = _get_config_dir()
+    CONFIG_DIR = get_config_dir()
     CONFIG_FILE = CONFIG_DIR / "config.yaml"
     STATE_FILE = CONFIG_DIR / "state.json"
     PACKS_DIR = CONFIG_DIR / "scenario_packs"
