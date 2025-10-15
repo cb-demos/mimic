@@ -375,115 +375,9 @@ def run(
         )
         console.print()
 
-        # Collect parameters (merge provided parameters with interactive prompts)
-        parameters = provided_parameters.copy()
-
-        if scenario.parameter_schema:
-            # Determine if we need to prompt for any parameters
-            missing_params = []
-            for prop_name, prop in scenario.parameter_schema.properties.items():
-                is_required = prop_name in scenario.parameter_schema.required
-
-                # Check if parameter is missing or empty
-                if prop_name not in parameters or (
-                    is_required and not str(parameters.get(prop_name, "")).strip()
-                ):
-                    missing_params.append((prop_name, prop, is_required))
-
-            # Convert string boolean values in provided parameters to actual booleans
-            for prop_name, prop in scenario.parameter_schema.properties.items():
-                if prop.type == "boolean" and prop_name in parameters:
-                    value = parameters[prop_name]
-                    if isinstance(value, str):
-                        if value.lower() in ("true", "yes", "1", "on"):
-                            parameters[prop_name] = True
-                        elif value.lower() in ("false", "no", "0", "off", ""):
-                            parameters[prop_name] = False
-
-            # If there are missing parameters, prompt for them
-            if missing_params:
-                console.print("[bold]Required Parameters:[/bold]\n")
-
-                for prop_name, prop, is_required in missing_params:
-                    # Format field name nicely
-                    formatted_name = format_field_name(prop_name)
-
-                    # Build prompt text
-                    if prop.description:
-                        prompt_text = f"{formatted_name}: {prop.description}"
-                    else:
-                        prompt_text = formatted_name
-
-                    # Add optional indicator
-                    if not is_required:
-                        prompt_text += " [optional]"
-
-                    # Retry loop for validation
-                    value = None
-                    while True:
-                        try:
-                            # Special handling for GitHub org parameter
-                            if prop_name == "target_org":
-                                value = prompt_github_org(
-                                    description=prompt_text,
-                                    required=is_required,
-                                )
-                            # Prompt based on type
-                            elif prop.type == "boolean":
-                                value = typer.confirm(
-                                    prompt_text, default=prop.default or False
-                                )
-                            elif prop.enum:
-                                # For enum, use questionary for better UX
-                                import questionary
-
-                                value = questionary.select(
-                                    prompt_text,
-                                    choices=prop.enum,
-                                    default=prop.default or prop.enum[0],
-                                ).ask()
-                            else:
-                                # Regular text prompt
-                                default_val = prop.default or ""
-                                value = typer.prompt(
-                                    prompt_text,
-                                    default=default_val,
-                                    show_default=bool(prop.default),
-                                )
-
-                            # Validate the parameter immediately
-                            if value or is_required or value == 0 or value is False:
-                                scenario.validate_single_parameter(prop_name, value)
-
-                            # If we get here, validation passed
-                            break
-
-                        except ValidationError as e:
-                            # Show validation error and re-prompt
-                            console.print(f"[red]✗ {str(e)}[/red]")
-                            if not is_required:
-                                # For optional fields, allow them to skip on error
-                                skip = typer.confirm(
-                                    "Skip this optional parameter?", default=True
-                                )
-                                if skip:
-                                    value = None
-                                    break
-                            # Otherwise, loop and re-prompt
-
-                    # Add the validated value
-                    if (
-                        value or not is_required or value == 0 or value is False
-                    ):  # Add value (or empty string for optional params)
-                        parameters[prop_name] = value
-
-                console.print()
-            elif provided_parameters:
-                # All parameters provided, show confirmation
-                console.print("[bold]Using provided parameters:[/bold]\n")
-                for key, value in parameters.items():
-                    console.print(f"  • {key}: [yellow]{value}[/yellow]")
-                console.print()
+        # Show target environment immediately
+        console.print(f"Target Environment: [cyan]{current_env}[/cyan]")
+        console.print()
 
         # Get credentials
         cloudbees_pat = config_manager.get_cloudbees_pat(current_env)
@@ -520,7 +414,6 @@ def run(
             raise typer.Exit(1)
 
         # Prompt for organization ID if not provided
-        console.print("[bold]Execution Details:[/bold]\n")
         if not org_id:
             organization_id = prompt_cloudbees_org(
                 env_url=env_url,
@@ -628,6 +521,113 @@ def run(
             console.print(f"Expiration: [yellow]{expiration_label}[/yellow]")
 
         console.print()
+
+        # Collect parameters (merge provided parameters with interactive prompts)
+        parameters = provided_parameters.copy()
+
+        if scenario.parameter_schema:
+            # Determine if we need to prompt for any parameters
+            missing_params = []
+            for prop_name, prop in scenario.parameter_schema.properties.items():
+                is_required = prop_name in scenario.parameter_schema.required
+
+                # Check if parameter is missing or empty
+                if prop_name not in parameters or (
+                    is_required and not str(parameters.get(prop_name, "")).strip()
+                ):
+                    missing_params.append((prop_name, prop, is_required))
+
+            # Convert string boolean values in provided parameters to actual booleans
+            for prop_name, prop in scenario.parameter_schema.properties.items():
+                if prop.type == "boolean" and prop_name in parameters:
+                    value = parameters[prop_name]
+                    if isinstance(value, str):
+                        if value.lower() in ("true", "yes", "1", "on"):
+                            parameters[prop_name] = True
+                        elif value.lower() in ("false", "no", "0", "off", ""):
+                            parameters[prop_name] = False
+
+            # If there are missing parameters, prompt for them
+            if missing_params:
+                for prop_name, prop, is_required in missing_params:
+                    # Format field name nicely
+                    formatted_name = format_field_name(prop_name)
+
+                    # Build prompt text
+                    if prop.description:
+                        prompt_text = f"{formatted_name}: {prop.description}"
+                    else:
+                        prompt_text = formatted_name
+
+                    # Add optional indicator
+                    if not is_required:
+                        prompt_text += " [optional]"
+
+                    # Retry loop for validation
+                    value = None
+                    while True:
+                        try:
+                            # Special handling for GitHub org parameter
+                            if prop_name == "target_org":
+                                value = prompt_github_org(
+                                    description=prompt_text,
+                                    required=is_required,
+                                )
+                            # Prompt based on type
+                            elif prop.type == "boolean":
+                                value = typer.confirm(
+                                    prompt_text, default=prop.default or False
+                                )
+                            elif prop.enum:
+                                # For enum, use questionary for better UX
+                                import questionary
+
+                                value = questionary.select(
+                                    prompt_text,
+                                    choices=prop.enum,
+                                    default=prop.default or prop.enum[0],
+                                ).ask()
+                            else:
+                                # Regular text prompt
+                                default_val = prop.default or ""
+                                value = typer.prompt(
+                                    prompt_text,
+                                    default=default_val,
+                                    show_default=bool(prop.default),
+                                )
+
+                            # Validate the parameter immediately
+                            if value or is_required or value == 0 or value is False:
+                                scenario.validate_single_parameter(prop_name, value)
+
+                            # If we get here, validation passed
+                            break
+
+                        except ValidationError as e:
+                            # Show validation error and re-prompt
+                            console.print(f"[red]✗ {str(e)}[/red]")
+                            if not is_required:
+                                # For optional fields, allow them to skip on error
+                                skip = typer.confirm(
+                                    "Skip this optional parameter?", default=True
+                                )
+                                if skip:
+                                    value = None
+                                    break
+                            # Otherwise, loop and re-prompt
+
+                    # Add the validated value
+                    if (
+                        value or not is_required or value == 0 or value is False
+                    ):  # Add value (or empty string for optional params)
+                        parameters[prop_name] = value
+
+                console.print()
+            elif provided_parameters:
+                # All parameters provided, show confirmation
+                for key, value in parameters.items():
+                    console.print(f"  • {key}: [yellow]{value}[/yellow]")
+                console.print()
 
         # Validate credentials before starting scenario execution
         console.print("[bold]Checking credentials...[/bold]")

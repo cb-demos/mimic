@@ -512,9 +512,6 @@ class ScenarioManager:
                     )
 
                 self.scenarios[scenario.id] = scenario
-                print(
-                    f"✓ Loaded scenario: {scenario.id} ({yaml_file.name}) from {pack_name}"
-                )
 
             except yaml.YAMLError as e:
                 error_msg = f"YAML parsing error in {yaml_file.name}: {e}"
