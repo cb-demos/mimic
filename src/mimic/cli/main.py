@@ -980,7 +980,8 @@ def setup(
 
     Guides you through complete Mimic configuration:
     - Adding your first CloudBees environment
-    - Configuring GitHub credentials
+    - Configuring GitHub credentials (required)
+    - Setting up GitHub username for collaborator invites
     - Testing API access
     - Getting started with scenarios
 
@@ -1165,63 +1166,56 @@ def setup(
         "Mimic uses GitHub to create repositories from templates.\n"
         "You'll need a GitHub Personal Access Token with 'repo' scope.\n"
     )
-
-    skip_github = typer.confirm("Configure GitHub now?", default=True)
     console.print()
 
     github_configured = False
-    if skip_github:
-        console.print("[bold]GitHub Credentials:[/bold]")
-        github_pat = typer.prompt("GitHub Personal Access Token", hide_input=True)
-        console.print()
+    github_username = ""
+    console.print("[bold]GitHub Credentials:[/bold]")
+    github_pat = typer.prompt("GitHub Personal Access Token", hide_input=True)
+    console.print()
 
-        # Validate GitHub credentials
-        console.print("[dim]Validating GitHub credentials...[/dim]")
-        github_client = GitHubClient(github_pat)
-        try:
-            success, error = asyncio.run(github_client.validate_credentials())
-            if success:
-                console.print("[green]✓[/green] GitHub API access verified\n")
-                github_configured = True
-            else:
-                console.print(f"[yellow]⚠[/yellow] GitHub validation failed: {error}\n")
-                save_anyway = typer.confirm("Save GitHub token anyway?", default=False)
-                if save_anyway:
-                    github_configured = True
-                else:
-                    console.print(
-                        "[dim]Skipping GitHub setup. Configure later with: mimic config github-token[/dim]\n"
-                    )
-        except Exception as e:
-            console.print(f"[yellow]⚠[/yellow] Error validating GitHub: {str(e)}\n")
+    # Validate GitHub credentials
+    console.print("[dim]Validating GitHub credentials...[/dim]")
+    github_client = GitHubClient(github_pat)
+    try:
+        success, error = asyncio.run(github_client.validate_credentials())
+        if success:
+            console.print("[green]✓[/green] GitHub API access verified\n")
+            github_configured = True
+        else:
+            console.print(f"[yellow]⚠[/yellow] GitHub validation failed: {error}\n")
             save_anyway = typer.confirm("Save GitHub token anyway?", default=False)
             if save_anyway:
                 github_configured = True
-
-        if github_configured:
-            config_manager.set_github_pat(github_pat)
-            console.print("[green]✓[/green] GitHub token saved\n")
-
-            # Prompt for GitHub username
-            console.print("[bold]GitHub Username (optional):[/bold]")
-            console.print(
-                "[dim]Username to invite as collaborator on created repositories[/dim]"
-            )
-            github_username = typer.prompt(
-                "GitHub username", default="", show_default=False
-            )
-            if github_username.strip():
-                config_manager.set_github_username(github_username.strip())
-                console.print(
-                    f"[green]✓[/green] Default GitHub username set to '{github_username.strip()}'\n"
-                )
             else:
                 console.print(
-                    "[dim]Skipped. Configure later with: mimic config set github_username <username>[/dim]\n"
+                    "[red]GitHub credentials are required to use Mimic.[/red]\n"
                 )
-    else:
+                raise typer.Exit(1)
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[yellow]⚠[/yellow] Error validating GitHub: {str(e)}\n")
+        save_anyway = typer.confirm("Save GitHub token anyway?", default=False)
+        if save_anyway:
+            github_configured = True
+        else:
+            console.print("[red]GitHub credentials are required to use Mimic.[/red]\n")
+            raise typer.Exit(1) from None
+
+    if github_configured:
+        config_manager.set_github_pat(github_pat)
+        console.print("[green]✓[/green] GitHub token saved\n")
+
+        # Prompt for GitHub username
+        console.print("[bold]GitHub Username:[/bold]")
         console.print(
-            "[dim]Skipping GitHub setup. Configure later with: mimic config github-token[/dim]\n"
+            "[dim]Username to invite as collaborator on created repositories[/dim]"
+        )
+        github_username = typer.prompt("GitHub username")
+        config_manager.set_github_username(github_username.strip())
+        console.print(
+            f"[green]✓[/green] Default GitHub username set to '{github_username.strip()}'\n"
         )
 
     # Step 3: Success Summary
@@ -1231,7 +1225,8 @@ def setup(
             "[bold green]✓ Setup Complete![/bold green]\n\n"
             "[bold]Configuration Summary:[/bold]\n"
             f"  • CloudBees Environment: [cyan]{env_name}[/cyan]\n"
-            f"  • GitHub: [{'green' if github_configured else 'yellow'}]{'Configured' if github_configured else 'Not configured'}[/]\n\n"
+            f"  • GitHub: [green]Configured[/green]\n"
+            f"  • GitHub Username: [cyan]{github_username.strip()}[/cyan]\n\n"
             "[bold]Next Steps:[/bold]\n"
             f"  1. List available scenarios: [dim]mimic list[/dim]\n"
             f"  2. Run a scenario: [dim]mimic run <scenario-id>[/dim]\n\n"

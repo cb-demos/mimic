@@ -134,10 +134,15 @@ class TestSetupCommand:
 
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
+    @patch("mimic.gh.GitHubClient")
     def test_setup_preset_environment_skip_github(
-        self, mock_unify_client, mock_pack_manager, setup_config_manager
+        self,
+        mock_github_client,
+        mock_unify_client,
+        mock_pack_manager,
+        setup_config_manager,
     ):
-        """Test setup wizard skipping GitHub configuration."""
+        """Test setup wizard with GitHub configuration (now mandatory)."""
         # Mock ScenarioPackManager
         mock_pack_instance = MagicMock()
         mock_pack_instance.clone_pack = MagicMock()
@@ -150,13 +155,19 @@ class TestSetupCommand:
         mock_unify_instance.validate_credentials = MagicMock(return_value=(True, None))
         mock_unify_client.return_value = mock_unify_instance
 
+        # Mock GitHubClient validation
+        mock_gh_instance = MagicMock()
+        mock_gh_instance.validate_credentials = AsyncMock(return_value=(True, None))
+        mock_github_client.return_value = mock_gh_instance
+
         # Simulate user inputs
         inputs = [
             "y",  # Add official scenario pack?
             "2",  # Choose preset environment (preprod)
             "test-cloudbees-pat",  # CloudBees PAT
             "test-org-id",  # Organization ID
-            "n",  # Skip GitHub configuration
+            "test-github-pat",  # GitHub PAT (now mandatory)
+            "test-user",  # GitHub username (now mandatory)
         ]
 
         result = runner.invoke(app, ["setup"], input="\n".join(inputs))
@@ -169,8 +180,13 @@ class TestSetupCommand:
 
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
+    @patch("mimic.gh.GitHubClient")
     def test_setup_custom_environment(
-        self, mock_unify_client, mock_pack_manager, setup_config_manager
+        self,
+        mock_github_client,
+        mock_unify_client,
+        mock_pack_manager,
+        setup_config_manager,
     ):
         """Test setup wizard with custom environment."""
         # Mock ScenarioPackManager
@@ -185,6 +201,11 @@ class TestSetupCommand:
         mock_unify_instance.validate_credentials = MagicMock(return_value=(True, None))
         mock_unify_client.return_value = mock_unify_instance
 
+        # Mock GitHubClient validation
+        mock_gh_instance = MagicMock()
+        mock_gh_instance.validate_credentials = AsyncMock(return_value=(True, None))
+        mock_github_client.return_value = mock_gh_instance
+
         # Simulate user inputs
         inputs = [
             "n",  # Skip scenario pack
@@ -194,7 +215,8 @@ class TestSetupCommand:
             "custom-endpoint-123",  # Endpoint ID
             "test-pat",  # CloudBees PAT
             "test-org-id",  # Organization ID
-            "n",  # Skip GitHub
+            "test-github-pat",  # GitHub PAT (now mandatory)
+            "test-user",  # GitHub username (now mandatory)
         ]
 
         result = runner.invoke(app, ["setup"], input="\n".join(inputs))
@@ -309,7 +331,8 @@ class TestSetupCommand:
             "2",  # Choose preprod
             "new-pat",  # New CloudBees PAT
             "test-org-id",  # Organization ID
-            "n",  # Skip GitHub
+            "test-github-pat",  # GitHub PAT (now mandatory)
+            "test-user",  # GitHub username (now mandatory)
         ]
 
         result = runner.invoke(app, ["setup", "--force"], input="\n".join(inputs))
