@@ -1,5 +1,6 @@
 """Run command for Mimic CLI."""
 
+import logging
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -21,6 +22,80 @@ from .run_helpers import (
 
 # Shared instances
 console = Console()
+
+
+def validate_scenario_fm_token_config(
+    scenario, config_manager: ConfigManager, env_name: str
+) -> None:
+    """Validate that FM_TOKEN environments are properly configured.
+
+    For non-legacy flag environments (use_legacy_flags=False), environments
+    that request FM_TOKEN must be mapped to an application.
+
+    Args:
+        scenario: The scenario to validate
+        config_manager: ConfigManager instance
+        env_name: Current environment name
+
+    Raises:
+        typer.Exit: If configuration is invalid
+    """
+    # Check if this environment uses legacy flags
+    use_legacy_flags = config_manager.get_environment_uses_legacy_flags(env_name)
+
+    # Only validate for new app-based API
+    if use_legacy_flags:
+        return
+
+    # Find environments that need FM_TOKEN
+    fm_token_envs = [e for e in scenario.environments if e.create_fm_token_var]
+    if not fm_token_envs:
+        return  # No environments need FM_TOKEN
+
+    # Build environment-to-application mapping
+    env_to_app = {}
+    for app_config in scenario.applications:
+        for env_name_in_app in app_config.environments:
+            env_to_app[env_name_in_app] = app_config.name
+
+    # Check for unmapped environments
+    unmapped_envs = []
+    for env_config in fm_token_envs:
+        if env_config.name not in env_to_app:
+            unmapped_envs.append(env_config.name)
+
+    if unmapped_envs:
+        error_msg = (
+            f"\n[bold red]❌ Scenario Configuration Error[/bold red]\n\n"
+            f"The following environment(s) have 'create_fm_token_var: true' but are not "
+            f"mapped to any application:\n"
+        )
+        for env_name_unmapped in unmapped_envs:
+            error_msg += f"  • {env_name_unmapped}\n"
+
+        error_msg += (
+            f"\n[yellow]Why this matters:[/yellow]\n"
+            f"Environment '[cyan]{env_name}[/cyan]' uses the app-based flag API, which requires "
+            f"an application to retrieve SDK keys (FM_TOKEN).\n\n"
+            f"[yellow]How to fix:[/yellow]\n"
+            f"Add an application definition to the scenario YAML that includes "
+            f"{'these environments' if len(unmapped_envs) > 1 else 'this environment'}:\n\n"
+            f"[dim]applications:\n"
+            f"  - name: \"my-app\"\n"
+            f"    environments:\n"
+        )
+        for env_name_unmapped in unmapped_envs:
+            error_msg += f"      - \"{env_name_unmapped}\"\n"
+
+        error_msg += (
+            f"\nIf multiple scenario instances share resources, consider:\n"
+            f"[dim]    is_shared: true  # App persists across instances[/dim]\n\n"
+            f"[dim]Note: This validation only applies to non-prod environments.\n"
+            f"Prod environment uses the legacy org-based flag API.[/dim]"
+        )
+
+        console.print(Panel(error_msg, border_style="red", title="Configuration Error"))
+        raise typer.Exit(1)
 
 
 def run(
@@ -59,6 +134,12 @@ def run(
         "-y",
         help="Skip all confirmation prompts (use with caution)",
     ),
+    verbose: bool = typer.Option(
+        False,
+        "--verbose",
+        "-v",
+        help="Enable debug logging to see detailed API requests/responses",
+    ),
 ):
     """Run a scenario with interactive parameter prompts or non-interactive mode.
 
@@ -69,14 +150,24 @@ def run(
         mimic run hackers-app --expires-in 1
         mimic run hackers-app --no-expiration
         mimic run hackers-app --org-id abc-123
+        mimic run hackers-app --verbose  # With debug logging
 
         # Non-interactive mode (automation/CI-CD)
         mimic run hackers-app --set project_name=demo --set target_org=acme
         mimic run hackers-app -f params.json
         mimic run hackers-app -f params.json --set project_name=override
         mimic run hackers-app -f params.json --yes
+        mimic run hackers-app -f params.json --yes -v  # With debug logging
     """
     from ..scenarios import initialize_scenarios_from_config
+
+    # Set up logging based on verbose flag
+    if verbose:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='[%(levelname)s] %(name)s: %(message)s'
+        )
+        console.print("[dim]Debug logging enabled[/dim]\n")
 
     config_manager = ConfigManager()
 
@@ -138,6 +229,9 @@ def run(
             console.print(f"[red]Error:[/red] Scenario '{scenario_id}' not found")
             console.print("\n[dim]List available scenarios with:[/dim] mimic list")
             raise typer.Exit(1)
+
+        # Pre-flight validation: Check FM_TOKEN configuration before collecting any user input
+        validate_scenario_fm_token_config(scenario, config_manager, current_env)
 
         # Show scenario info
         console.print()

@@ -121,3 +121,98 @@ class RetryHandler:
         raise UnifyAPIError(
             f"Failed to update environment {env_name} after {settings.MAX_RETRY_ATTEMPTS} attempts"
         )
+
+    @staticmethod
+    async def wait_for_repository_sync(
+        unify_client: Any,  # UnifyAPIClient
+        org_id: str,
+        repo_urls: list[str],
+    ) -> None:
+        """
+        Wait for repositories to be synced to CloudBees Unify using intelligent polling.
+
+        Polls the CloudBees API to check if repositories have been indexed and are available
+        for component creation. Uses exponential backoff to avoid spamming the server.
+
+        Args:
+            unify_client: UnifyAPIClient instance for making API calls
+            org_id: CloudBees organization ID
+            repo_urls: List of repository URLs to wait for (e.g., "https://github.com/org/repo.git")
+
+        Raises:
+            UnifyAPIError: If repositories are not synced within the timeout period
+        """
+        if not repo_urls:
+            return  # Nothing to wait for
+
+        print(
+            f"   ⏳ Waiting for {len(repo_urls)} repository(ies) to sync to CloudBees..."
+        )
+
+        start_time = asyncio.get_event_loop().time()
+        interval = settings.REPO_SYNC_INITIAL_INTERVAL
+        attempts = 0
+
+        # Normalize repo URLs for comparison (handle both with and without .git suffix)
+        def normalize_url(url: str) -> str:
+            """Normalize URL for comparison by removing .git suffix if present."""
+            return url.rstrip("/").removesuffix(".git")
+
+        normalized_target_urls = {normalize_url(url) for url in repo_urls}
+
+        while True:
+            attempts += 1
+            elapsed = asyncio.get_event_loop().time() - start_time
+
+            # Check if we've exceeded the timeout
+            if elapsed >= settings.REPO_SYNC_TIMEOUT:
+                raise UnifyAPIError(
+                    f"Timeout waiting for repositories to sync after {elapsed:.1f}s. "
+                    f"Repositories may not be visible to CloudBees yet. "
+                    f"You can try running the scenario again or check your GitHub connection."
+                )
+
+            try:
+                # Query CloudBees for list of repositories
+                response = unify_client.list_repositories(org_id)
+                synced_repos = response.get("repository", [])
+
+                # Extract URLs from synced repos and normalize them
+                synced_urls = {
+                    normalize_url(repo.get("url", "")) for repo in synced_repos
+                }
+
+                # Check if all target repositories are now synced
+                missing_repos = normalized_target_urls - synced_urls
+
+                if not missing_repos:
+                    print(
+                        f"   ✅ All repositories synced after {elapsed:.1f}s ({attempts} checks)"
+                    )
+                    return
+
+                # Calculate next wait time with exponential backoff (capped)
+                next_interval = min(interval, settings.REPO_SYNC_MAX_INTERVAL)
+                remaining_time = settings.REPO_SYNC_TIMEOUT - elapsed
+
+                print(
+                    f"     Waiting for {len(missing_repos)} repo(s) to sync... "
+                    f"(checking again in {next_interval}s, {remaining_time:.0f}s remaining)"
+                )
+
+                await asyncio.sleep(next_interval)
+
+                # Exponential backoff: double the interval for next time
+                interval = min(interval * 2, settings.REPO_SYNC_MAX_INTERVAL)
+
+            except UnifyAPIError as e:
+                # If we get an API error, log it but continue retrying
+                # (unless we're out of time, which is checked at the top of the loop)
+                logger.warning(
+                    f"API error while checking repository sync: {e}. Will retry..."
+                )
+                await asyncio.sleep(settings.REPO_SYNC_INITIAL_INTERVAL)
+            except Exception as e:
+                # Unexpected error - log and continue
+                logger.error(f"Unexpected error checking repository sync: {e}")
+                await asyncio.sleep(settings.REPO_SYNC_INITIAL_INTERVAL)

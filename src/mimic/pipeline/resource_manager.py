@@ -191,17 +191,67 @@ class ResourceManager:
 
             for app_config in applications:
                 app_name = app_config.name
+                is_shared = app_config.is_shared
 
                 # Check if application already exists
                 existing_application = self._find_by_name(
                     existing_applications, app_name
                 )
+
                 if existing_application:
-                    print(
-                        f"   ⏭️  Application {app_name} already exists, skipping creation"
-                    )
-                    self.created_applications[app_name] = existing_application
+                    if is_shared:
+                        # Shared app exists - add new environments to it
+                        print(
+                            f"   🔗 Application {app_name} already exists (shared), adding environments"
+                        )
+
+                        # Get environment IDs to add
+                        new_environment_ids = []
+                        for env_name in app_config.environments:
+                            if env_name in self.created_environments:
+                                new_environment_ids.append(
+                                    self.created_environments[env_name]["id"]
+                                )
+
+                        # Merge with existing environment IDs
+                        existing_env_ids = existing_application.get("linkedEnvironmentIds", [])
+                        all_environment_ids = list(set(existing_env_ids + new_environment_ids))
+
+                        # Update the application with new environments (don't modify components)
+                        update_data = {
+                            "service": {
+                                "id": existing_application["id"],
+                                "name": existing_application["name"],
+                                "description": existing_application.get("description", ""),
+                                "repositoryUrl": existing_application.get("repositoryUrl", ""),
+                                "repositoryHref": existing_application.get("repositoryHref", ""),
+                                "endpointId": existing_application.get("endpointId", ""),
+                                "defaultBranch": existing_application.get("defaultBranch", "main"),
+                                "linkedComponentIds": existing_application.get("linkedComponentIds", []),
+                                "linkedEnvironmentIds": all_environment_ids,
+                                "components": existing_application.get("components", []),
+                                "environments": existing_application.get("environments", []),
+                                "organizationId": self.organization_id,
+                                "serviceType": "APPLICATION",
+                            }
+                        }
+
+                        client.update_service(
+                            self.organization_id,
+                            existing_application["id"],
+                            update_data
+                        )
+
+                        self.created_applications[app_name] = existing_application
+                        print(f"   ✅ Added {len(new_environment_ids)} environment(s) to shared application: {app_name}")
+                    else:
+                        # Non-shared app exists - skip creation
+                        print(
+                            f"   ⏭️  Application {app_name} already exists, skipping creation"
+                        )
+                        self.created_applications[app_name] = existing_application
                 else:
+                    # Application doesn't exist - create it
                     # Get component IDs
                     component_ids = []
                     for component_name in app_config.components:
@@ -220,12 +270,18 @@ class ResourceManager:
 
                     # Build repository URLs if repository is specified
                     repository_url = ""
+                    endpoint_id = ""
+                    default_branch = ""
+
                     if app_config.repository:
                         repository_url = (
                             f"https://github.com/{app_config.repository}.git"
                         )
+                        endpoint_id = self.endpoint_id
+                        default_branch = "main"
 
-                    print(f"   Creating application: {app_name}")
+                    shared_indicator = " (shared)" if is_shared else ""
+                    print(f"   Creating application: {app_name}{shared_indicator}")
                     print(f"     Components: {len(component_ids)}")
                     print(f"     Environments: {len(environment_ids)}")
                     if repository_url:
@@ -236,8 +292,8 @@ class ResourceManager:
                         name=app_name,
                         description=f"Application for {app_name}",
                         repository_url=repository_url,
-                        endpoint_id=self.endpoint_id,
-                        default_branch="main",
+                        endpoint_id=endpoint_id,
+                        default_branch=default_branch,
                         linked_component_ids=component_ids,
                         linked_environment_ids=environment_ids,
                     )
@@ -272,14 +328,27 @@ class ResourceManager:
 
         return self.flag_definitions
 
-    async def update_environments_with_fm_tokens(self, environments: list) -> None:
+    async def update_environments_with_fm_tokens(
+        self,
+        environments: list,
+        use_legacy_flags: bool,
+        env_to_app_mapping: dict[str, str] | None = None
+    ) -> None:
         """
         Update environments with FM_TOKEN SDK keys after applications are created.
 
         Args:
             environments: List of EnvironmentConfig objects
+            use_legacy_flags: If True, use org-based API; if False, use app-based API
+            env_to_app_mapping: Mapping of environment_name -> application_name (required for new API)
         """
         print("\n🔑 Step 5.5: Adding FM_TOKEN SDK keys to environments...")
+
+        if not use_legacy_flags and not env_to_app_mapping:
+            logger.warning(
+                "env_to_app_mapping is required when use_legacy_flags=False, skipping FM_TOKEN update"
+            )
+            return
 
         with UnifyAPIClient(
             base_url=self.unify_base_url, api_key=self.unify_pat
@@ -299,10 +368,34 @@ class ResourceManager:
 
                     try:
                         print(f"   Getting SDK key for environment: {env_name}")
-                        # Note: The 'app_id' parameter in this API is actually the organization ID
-                        sdk_response = client.get_environment_sdk_key(
-                            self.organization_id, env_id
-                        )
+
+                        # Choose API based on flag
+                        if use_legacy_flags:
+                            # Legacy org-based API
+                            # Note: The 'app_id' parameter is actually the organization ID in legacy API
+                            sdk_response = client.get_environment_sdk_key(
+                                self.organization_id, env_id
+                            )
+                        else:
+                            # New app-based API
+                            app_name = env_to_app_mapping.get(env_name) if env_to_app_mapping else None
+                            if not app_name:
+                                print(
+                                    f"   ⚠️  No application mapping found for environment {env_name}, skipping"
+                                )
+                                continue
+
+                            if app_name not in self.created_applications:
+                                print(
+                                    f"   ⚠️  Application {app_name} not found for environment {env_name}, skipping"
+                                )
+                                continue
+
+                            app_id = self.created_applications[app_name]["id"]
+                            sdk_response = client.get_application_environment_sdk_key(
+                                app_id, env_id
+                            )
+
                         sdk_key = sdk_response.get("sdkKey")
 
                         if not sdk_key:

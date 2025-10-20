@@ -10,7 +10,7 @@ from rich.table import Table
 
 from ..cleanup_manager import CleanupManager
 from ..config_manager import ConfigManager
-from ..state_tracker import StateTracker
+from ..instance_repository import InstanceRepository
 
 # Shared instances
 console = Console()
@@ -43,8 +43,8 @@ def cleanup_list(
 ):
     """List all tracked sessions."""
     try:
-        state_tracker = StateTracker()
-        sessions = state_tracker.list_sessions(include_expired=True)
+        instance_repo = InstanceRepository()
+        sessions = instance_repo.find_all(include_expired=True)
 
         if show_expired_only:
             now = datetime.now()
@@ -54,15 +54,15 @@ def cleanup_list(
 
         if not sessions:
             message = (
-                "No expired sessions found"
+                "No expired instances found"
                 if show_expired_only
-                else "No sessions found"
+                else "No instances found"
             )
             console.print(
                 Panel(
                     f"[yellow]{message}[/yellow]\n\n"
-                    "Sessions are created when you run scenarios with: [dim]mimic run <scenario-id>[/dim]",
-                    title="Sessions",
+                    "Instances are created when you run scenarios with: [dim]mimic run <scenario-id>[/dim]",
+                    title="Instances",
                     border_style="yellow",
                 )
             )
@@ -70,12 +70,12 @@ def cleanup_list(
 
         # Create table
         table = Table(
-            title=f"{'Expired ' if show_expired_only else ''}Tracked Sessions",
+            title=f"{'Expired ' if show_expired_only else ''}Tracked Instances",
             show_header=True,
             expand=True,
         )
         table.add_column("Run Name", style="bold cyan", no_wrap=True)
-        table.add_column("Session ID", style="dim", no_wrap=True)
+        table.add_column("Instance ID", style="dim", no_wrap=True)
         table.add_column("Scenario", style="white")
         table.add_column("Environment", style="dim")
         table.add_column("Created", style="dim")
@@ -96,7 +96,13 @@ def cleanup_list(
                 status = "[green]ACTIVE[/green]"
 
             # Count resources
-            resource_count = len(session.resources)
+            resource_count = (
+                len(session.repositories)
+                + len(session.components)
+                + len(session.environments)
+                + len(session.applications)
+                + len(session.flags)
+            )
 
             # Format dates
             created_str = session.created_at.strftime("%Y-%m-%d %H:%M")
@@ -106,12 +112,12 @@ def cleanup_list(
                 else session.expires_at.strftime("%Y-%m-%d %H:%M")
             )
 
-            # Get run_name with fallback for backward compatibility
-            run_name = getattr(session, "run_name", session.session_id)
+            # Get run name
+            run_name = session.name
 
             table.add_row(
                 run_name,
-                session.session_id,
+                session.id,
                 session.scenario_id,
                 session.environment,
                 created_str,
@@ -138,12 +144,12 @@ def cleanup_list(
 
         if expired_count > 0:
             console.print(
-                "[dim]Clean up expired sessions with:[/dim] mimic cleanup expired"
+                "[dim]Clean up expired instances with:[/dim] mimic cleanup expired"
             )
             console.print()
 
     except Exception as e:
-        console.print(f"[red]Error listing sessions:[/red] {e}")
+        console.print(f"[red]Error listing instances:[/red] {e}")
         raise typer.Exit(1) from e
 
 
@@ -155,40 +161,40 @@ cleanup_app.command("ls")(cleanup_list)
 def cleanup_run(
     session_id: str | None = typer.Argument(
         None,
-        help="Session ID or run name to clean up (interactive selection if omitted)",
+        help="Instance ID or run name to clean up (interactive selection if omitted)",
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Show what would be cleaned without doing it"
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
-    """Clean up resources for a specific session.
+    """Clean up resources for a specific instance.
 
-    You can specify a session by its ID or run name. If omitted, an interactive
-    selector will allow you to choose from available sessions.
+    You can specify an instance by its ID or run name. If omitted, an interactive
+    selector will allow you to choose from available instances.
 
     Examples:
-        mimic cleanup run                       # Interactive session selection
+        mimic cleanup run                       # Interactive instance selection
         mimic cleanup run my-app-abc123         # Clean up by run name
-        mimic cleanup run a1b2c3d4               # Clean up by session ID
+        mimic cleanup run a1b2c3d4               # Clean up by instance ID
         mimic cleanup run --dry-run             # Preview cleanup interactively
-        mimic cleanup run my-app --dry-run      # Preview specific session cleanup
+        mimic cleanup run my-app --dry-run      # Preview specific instance cleanup
     """
     try:
-        state_tracker = StateTracker()
+        instance_repo = InstanceRepository()
 
-        # Interactive session selection if not provided
+        # Interactive instance selection if not provided
         if not session_id:
             import questionary
 
-            sessions = state_tracker.list_sessions(include_expired=True)
+            sessions = instance_repo.find_all(include_expired=True)
             if not sessions:
                 console.print(
                     Panel(
-                        "[yellow]No sessions found[/yellow]\n\n"
-                        "Sessions are created when you run scenarios.\n"
-                        "Create a session with: [dim]mimic run <scenario-id>[/dim]",
-                        title="Sessions",
+                        "[yellow]No instances found[/yellow]\n\n"
+                        "Instances are created when you run scenarios.\n"
+                        "Create an instance with: [dim]mimic run <scenario-id>[/dim]",
+                        title="Instances",
                         border_style="yellow",
                     )
                 )
@@ -200,22 +206,28 @@ def cleanup_run(
             now = datetime.now()
 
             for s in sessions:
-                run_name = getattr(s, "run_name", s.session_id)
+                run_name = s.name
                 is_expired = s.expires_at is not None and s.expires_at <= now
                 status = (
                     "EXPIRED"
                     if is_expired
                     else ("ACTIVE" if s.expires_at else "NEVER EXPIRES")
                 )
-                resource_count = len(s.resources)
+                resource_count = (
+                    len(s.repositories)
+                    + len(s.components)
+                    + len(s.environments)
+                    + len(s.applications)
+                    + len(s.flags)
+                )
 
-                display = f"{run_name} ({s.session_id[:8]}) - {s.scenario_id} | {resource_count} resources | {status}"
+                display = f"{run_name} ({s.id[:8]}) - {s.scenario_id} | {resource_count} resources | {status}"
                 choices.append(display)
-                session_map[display] = s.session_id
+                session_map[display] = s.id
 
             console.print()
             selection = questionary.select(
-                "Select a session to clean up:",
+                "Select an instance to clean up:",
                 choices=choices,
                 use_shortcuts=True,
                 use_arrow_keys=True,
@@ -233,34 +245,52 @@ def cleanup_run(
         assert session_id is not None
 
         # Get session by ID or run name
-        session = state_tracker.get_session_by_identifier(session_id)
+        session = instance_repo.get_by_id(session_id) or instance_repo.get_by_name(
+            session_id
+        )
 
         if not session:
-            console.print(f"[red]Error:[/red] Session '{session_id}' not found")
-            console.print("\n[dim]List sessions with:[/dim] mimic cleanup list")
+            console.print(f"[red]Error:[/red] Instance '{session_id}' not found")
+            console.print("\n[dim]List instances with:[/dim] mimic cleanup list")
             raise typer.Exit(1)
 
-        # Show session details
+        # Show instance details
+        total_resources = (
+            len(session.repositories)
+            + len(session.components)
+            + len(session.environments)
+            + len(session.applications)
+            + len(session.flags)
+        )
+
         console.print()
         console.print(
             Panel(
-                f"[bold]Session:[/bold] {session.session_id}\n"
+                f"[bold]Instance:[/bold] {session.id}\n"
                 f"[bold]Scenario:[/bold] {session.scenario_id}\n"
                 f"[bold]Environment:[/bold] {session.environment}\n"
                 f"[bold]Created:[/bold] {session.created_at.strftime('%Y-%m-%d %H:%M')}\n"
                 f"[bold]Expires:[/bold] {'Never' if session.expires_at is None else session.expires_at.strftime('%Y-%m-%d %H:%M')}\n"
-                f"[bold]Resources:[/bold] {len(session.resources)}",
-                title="Session Details",
+                f"[bold]Resources:[/bold] {total_resources}",
+                title="Instance Details",
                 border_style="cyan",
             )
         )
         console.print()
 
         # Show resources
-        if session.resources:
+        if total_resources > 0:
             console.print("[bold]Resources to clean up:[/bold]")
-            for resource in session.resources:
-                console.print(f"  • {resource.type}: {resource.name}")
+            for repo in session.repositories:
+                console.print(f"  • github_repo: {repo.name}")
+            for comp in session.components:
+                console.print(f"  • cloudbees_component: {comp.name}")
+            for env in session.environments:
+                console.print(f"  • cloudbees_environment: {env.name}")
+            for app in session.applications:
+                console.print(f"  • cloudbees_application: {app.name}")
+            for flag in session.flags:
+                console.print(f"  • cloudbees_flag: {flag.name}")
             console.print()
 
         # Confirm unless --force or --dry-run
@@ -327,7 +357,7 @@ def cleanup_expired(
     ),
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
-    """Clean up all expired sessions."""
+    """Clean up all expired instances."""
     try:
         cleanup_manager = CleanupManager(console=console)
 
@@ -337,8 +367,8 @@ def cleanup_expired(
         if not expired_sessions:
             console.print(
                 Panel(
-                    "[green]No expired sessions found[/green]\n\n"
-                    "All tracked sessions are still active.",
+                    "[green]No expired instances found[/green]\n\n"
+                    "All tracked instances are still active.",
                     title="Cleanup",
                     border_style="green",
                 )
@@ -348,12 +378,19 @@ def cleanup_expired(
         # Show expired sessions
         console.print()
         console.print(
-            f"[yellow]Found {len(expired_sessions)} expired session(s):[/yellow]\n"
+            f"[yellow]Found {len(expired_sessions)} expired instance(s):[/yellow]\n"
         )
 
         for session in expired_sessions:
+            total_resources = (
+                len(session.repositories)
+                + len(session.components)
+                + len(session.environments)
+                + len(session.applications)
+                + len(session.flags)
+            )
             console.print(
-                f"  • {session.session_id} - {session.scenario_id} ({len(session.resources)} resources)"
+                f"  • {session.id} - {session.scenario_id} ({total_resources} resources)"
             )
 
         console.print()
@@ -361,7 +398,7 @@ def cleanup_expired(
         # Confirm unless --force or --dry-run
         if not force and not dry_run:
             confirm = typer.confirm(
-                f"Clean up {len(expired_sessions)} expired session(s)?", default=True
+                f"Clean up {len(expired_sessions)} expired instance(s)?", default=True
             )
             if not confirm:
                 console.print("[dim]Cancelled[/dim]")
@@ -379,9 +416,9 @@ def cleanup_expired(
             console.print(
                 Panel(
                     f"[yellow]Dry run completed[/yellow]\n\n"
-                    f"Sessions found: {results['total_sessions']}\n"
-                    f"Would clean: {results['cleaned_sessions']} sessions\n"
-                    f"Errors: {results['failed_sessions']} sessions",
+                    f"Instances found: {results['total_sessions']}\n"
+                    f"Would clean: {results['cleaned_sessions']} instances\n"
+                    f"Errors: {results['failed_sessions']} instances",
                     title="Cleanup Summary (Dry Run)",
                     border_style="yellow",
                 )
@@ -391,7 +428,7 @@ def cleanup_expired(
             console.print(
                 Panel(
                     f"[{'green' if success else 'yellow'}]Cleanup {'completed successfully' if success else 'completed with errors'}[/]\n\n"
-                    f"Sessions cleaned: {results['cleaned_sessions']}/{results['total_sessions']}\n"
+                    f"Instances cleaned: {results['cleaned_sessions']}/{results['total_sessions']}\n"
                     f"Failed: {results['failed_sessions']}",
                     title="Cleanup Summary",
                     border_style="green" if success else "yellow",

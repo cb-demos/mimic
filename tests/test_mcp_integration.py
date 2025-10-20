@@ -131,7 +131,7 @@ class TestMCPServerIntegration:
         """Test that cleanup_session validates session exists."""
         from mimic.mcp import _cleanup_session_impl
 
-        with pytest.raises(ValueError, match="Session .* not found"):
+        with pytest.raises(ValueError, match="Instance .* not found"):
             await _cleanup_session_impl(session_id="nonexistent-session")
 
 

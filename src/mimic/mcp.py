@@ -9,6 +9,7 @@ from fastmcp import FastMCP
 from .cleanup_manager import CleanupManager
 from .config_manager import ConfigManager
 from .exceptions import PipelineError, ValidationError
+from .instance_repository import InstanceRepository
 from .pipeline import CreationPipeline
 from .scenarios import initialize_scenarios_from_config
 from .utils import resolve_run_name
@@ -94,8 +95,17 @@ async def _instantiate_scenario_impl(
 
         # Generate session ID
         import uuid
+        from datetime import datetime, timedelta
 
         session_id = f"{scenario_id}-{uuid.uuid4().hex[:8]}"
+
+        # Resolve instance name from scenario name_template
+        instance_name = resolve_run_name(scenario, parameters or {}, session_id)
+
+        # Calculate expiration datetime
+        expires_at = None
+        if expires_in_days is not None:
+            expires_at = datetime.now() + timedelta(days=expires_in_days)
 
         # Get environment properties
         env_properties = config_manager.get_environment_properties(env_name)
@@ -110,76 +120,19 @@ async def _instantiate_scenario_impl(
             github_pat=github_pat,
             invitee_username=invitee_username,
             env_properties=env_properties,
+            scenario_id=scenario_id,
+            instance_name=instance_name,
+            environment=env_name,
+            expires_at=expires_at,
         )
 
         summary = await pipeline.execute_scenario(scenario, parameters or {})
 
-        # Track resources in state
-        from .state_tracker import StateTracker
-
-        state_tracker = StateTracker()
-
-        # Resolve run name from scenario name_template
-        run_name = resolve_run_name(scenario, parameters or {}, session_id)
-
-        # Add session (None = never expires)
-        state_tracker.create_session(
-            session_id=session_id,
-            scenario_id=scenario_id,
-            run_name=run_name,
-            environment=env_name,
-            expiration_days=expires_in_days,
-        )
-
-        # Add repositories
-        for repo_data in summary.get("repositories", []):
-            state_tracker.add_resource(
-                session_id=session_id,
-                resource_type="github_repo",
-                resource_id=repo_data.get("full_name", ""),
-                resource_name=repo_data.get("name", ""),
-                metadata=repo_data,
-            )
-
-        # Add CloudBees components
-        for comp_data in summary.get("components", []):
-            state_tracker.add_resource(
-                session_id=session_id,
-                resource_type="cloudbees_component",
-                resource_id=comp_data.get("id", ""),
-                resource_name=comp_data.get("name", ""),
-                metadata=comp_data,
-            )
-
-        # Add CloudBees environments
-        for env_data in summary.get("environments", []):
-            state_tracker.add_resource(
-                session_id=session_id,
-                resource_type="cloudbees_environment",
-                resource_id=env_data.get("id", ""),
-                resource_name=env_data.get("name", ""),
-                metadata=env_data,
-            )
-
-        # Add CloudBees applications
-        for app_data in summary.get("applications", []):
-            state_tracker.add_resource(
-                session_id=session_id,
-                resource_type="cloudbees_application",
-                resource_id=app_data.get("id", ""),
-                resource_name=app_data.get("name", ""),
-                metadata=app_data,
-            )
-
-        # Add feature flags
-        for flag_data in summary.get("flags", []):
-            state_tracker.add_resource(
-                session_id=session_id,
-                resource_type="cloudbees_flag",
-                resource_id=flag_data.get("id", ""),
-                resource_name=flag_data.get("name", ""),
-                metadata=flag_data,
-            )
+        # Save Instance to repository
+        instance = summary.get("instance")
+        if instance:
+            repo = InstanceRepository()
+            repo.save(instance)
 
         return {
             "status": "success",
@@ -254,7 +207,7 @@ async def _cleanup_session_impl(
     session_id: str,
     dry_run: bool = False,
 ) -> dict[str, Any]:
-    """Internal: Clean up all resources for a specific session."""
+    """Internal: Clean up all resources for a specific instance."""
     cleanup_manager = CleanupManager(config_manager=config_manager)
 
     try:
@@ -264,7 +217,7 @@ async def _cleanup_session_impl(
         )
         return result
     except ValueError as e:
-        logger.error(f"Session not found: {e}")
+        logger.error(f"Instance not found: {e}")
         raise
     except Exception as e:
         logger.error(f"Cleanup error: {e}")
@@ -277,7 +230,7 @@ async def cleanup_session(
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """
-    Clean up all resources for a specific session.
+    Clean up all resources for a specific instance.
 
     This will:
     1. Delete GitHub repositories
@@ -285,10 +238,10 @@ async def cleanup_session(
     3. Delete CloudBees applications
     4. Delete CloudBees environments
     5. Delete feature flags
-    6. Remove session from state tracking
+    6. Remove instance from state tracking
 
     Args:
-        session_id: Session ID to clean up
+        session_id: Instance ID to clean up (parameter name kept for API compatibility)
         dry_run: If True, only show what would be cleaned up without doing it
 
     Returns:
@@ -298,7 +251,7 @@ async def cleanup_session(
         - skipped: List of skipped resources
 
     Raises:
-        ValueError: If session not found
+        ValueError: If instance not found
     """
     return await _cleanup_session_impl(session_id=session_id, dry_run=dry_run)
 

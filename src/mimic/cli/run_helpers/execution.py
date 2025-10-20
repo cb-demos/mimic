@@ -2,6 +2,7 @@
 
 import asyncio
 import uuid
+from datetime import timedelta
 
 from rich.console import Console
 
@@ -43,8 +44,10 @@ def execute_scenario(
         env_url: CloudBees Unify API URL.
         github_pat: GitHub Personal Access Token.
     """
+    from datetime import datetime
+
+    from ...instance_repository import InstanceRepository
     from ...pipeline import CreationPipeline
-    from ...state_tracker import StateTracker
 
     # Generate session ID
     session_id = str(uuid.uuid4())[:8]
@@ -52,19 +55,9 @@ def execute_scenario(
     # Resolve run name from scenario name_template
     run_name = resolve_run_name(scenario, parameters, session_id)
 
-    # Create state tracker and session
-    state_tracker = StateTracker()
-    state_tracker.create_session(
-        session_id=session_id,
-        scenario_id=scenario_id,
-        run_name=run_name,
-        environment=current_env,
-        expiration_days=expiration_days,
-        metadata={
-            "parameters": parameters,
-            "no_expiration": no_expiration,
-        },
-    )
+    # Calculate expiration datetime
+    now = datetime.now()
+    expires_at = None if no_expiration else now + timedelta(days=expiration_days)
 
     # Create and run pipeline
     console.print("[bold green]Starting scenario execution...[/bold green]")
@@ -79,6 +72,9 @@ def execute_scenario(
     # Get environment properties
     env_properties = config_manager.get_environment_properties(current_env)
 
+    # Check if environment uses legacy flags API
+    use_legacy_flags = config_manager.get_environment_uses_legacy_flags(current_env)
+
     pipeline = CreationPipeline(
         organization_id=organization_id,
         endpoint_id=endpoint_id,
@@ -88,54 +84,22 @@ def execute_scenario(
         github_pat=github_pat,
         invitee_username=invitee_username,
         env_properties=env_properties,
+        # New parameters for Instance creation
+        scenario_id=scenario_id,
+        instance_name=run_name,
+        environment=current_env,
+        expires_at=expires_at,
+        use_legacy_flags=use_legacy_flags,
     )
 
     # Execute scenario
     summary = asyncio.run(pipeline.execute_scenario(scenario, parameters))
 
-    # Track resources in state
-    # Add repositories
-    for repo_data in summary.get("repositories", []):
-        state_tracker.add_resource(
-            session_id=session_id,
-            resource_type="github_repo",
-            resource_id=repo_data.get("full_name", ""),
-            resource_name=repo_data.get("name", ""),
-            metadata=repo_data,
-        )
-
-    # Add components
-    for component_name, component_data in pipeline.created_components.items():
-        state_tracker.add_resource(
-            session_id=session_id,
-            resource_type="cloudbees_component",
-            resource_id=component_data.get("id", ""),
-            resource_name=component_name,
-            org_id=organization_id,
-            metadata=component_data,
-        )
-
-    # Add environments
-    for env_name, env_data in pipeline.created_environments.items():
-        state_tracker.add_resource(
-            session_id=session_id,
-            resource_type="cloudbees_environment",
-            resource_id=env_data.get("id", ""),
-            resource_name=env_name,
-            org_id=organization_id,
-            metadata=env_data,
-        )
-
-    # Add applications
-    for app_name, app_data in pipeline.created_applications.items():
-        state_tracker.add_resource(
-            session_id=session_id,
-            resource_type="cloudbees_application",
-            resource_id=app_data.get("id", ""),
-            resource_name=app_name,
-            org_id=organization_id,
-            metadata=app_data,
-        )
+    # Save Instance to repository
+    instance = summary.get("instance")
+    if instance:
+        repo = InstanceRepository()
+        repo.save(instance)
 
     # Build success message with resource details
     console.print()

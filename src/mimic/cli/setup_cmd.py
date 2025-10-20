@@ -151,7 +151,7 @@ def setup(
         endpoint_id = typer.prompt("Endpoint ID")
 
     # Prepare environment configuration (validates and sets defaults)
-    env_name, env_url, endpoint_id, env_properties = prepare_environment_config(
+    env_name, env_url, endpoint_id, env_properties, use_legacy_flags = prepare_environment_config(
         env_name, env_url, endpoint_id
     )
 
@@ -198,7 +198,7 @@ def setup(
     # Save environment
     try:
         config_manager.add_environment(
-            env_name, env_url, pat, endpoint_id, env_properties
+            env_name, env_url, pat, endpoint_id, env_properties, use_legacy_flags
         )
         console.print(f"[green]✓[/green] Environment '[cyan]{env_name}[/cyan]' saved\n")
     except Exception as e:

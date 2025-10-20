@@ -10,6 +10,8 @@ from typing import Any
 
 from mimic import settings
 from mimic.gh import GitHubClient
+from mimic.pipeline.retry_handler import RetryHandler
+from mimic.unify import UnifyAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,12 @@ class RepositoryManager:
     """Manages GitHub repository operations for scenario execution."""
 
     def __init__(
-        self, github_client: GitHubClient, invitee_username: str | None = None
+        self,
+        github_client: GitHubClient,
+        invitee_username: str | None = None,
+        organization_id: str | None = None,
+        unify_base_url: str | None = None,
+        unify_pat: str | None = None,
     ):
         """
         Initialize the repository manager.
@@ -26,9 +33,15 @@ class RepositoryManager:
         Args:
             github_client: GitHubClient instance for API operations
             invitee_username: Optional GitHub username to invite as collaborator
+            organization_id: Optional CloudBees organization ID for repository sync polling
+            unify_base_url: Optional CloudBees Unify API base URL
+            unify_pat: Optional CloudBees Unify API personal access token
         """
         self.github = github_client
         self.invitee_username = invitee_username
+        self.organization_id = organization_id
+        self.unify_base_url = unify_base_url
+        self.unify_pat = unify_pat
         self.created_repositories: dict[str, dict[str, Any]] = {}
 
     async def create_repositories(
@@ -121,10 +134,35 @@ class RepositoryManager:
         # Smart delay based on whether we need component creation
         needs_component_creation = any(repo.create_component for repo in repositories)
         if needs_component_creation:
-            print(
-                f"   Waiting {settings.REPO_TO_COMPONENT_DELAY}s for GitHub to index repositories before creating components..."
-            )
-            await asyncio.sleep(settings.REPO_TO_COMPONENT_DELAY)
+            # If CloudBees credentials are available, use intelligent polling
+            if self.organization_id and self.unify_base_url and self.unify_pat:
+                # Build list of repository URLs that need to be synced
+                repo_urls = []
+                for repo_data in self.created_repositories.values():
+                    # Only wait for newly created repos, not existing ones
+                    if not repo_data.get("existed", False):
+                        # Construct the .git URL format expected by CloudBees
+                        full_name = repo_data.get("full_name", "")
+                        if full_name:
+                            repo_url = f"https://github.com/{full_name}.git"
+                            repo_urls.append(repo_url)
+
+                if repo_urls:
+                    # Use intelligent polling to wait for CloudBees to sync repositories
+                    with UnifyAPIClient(
+                        base_url=self.unify_base_url, api_key=self.unify_pat
+                    ) as unify_client:
+                        await RetryHandler.wait_for_repository_sync(
+                            unify_client, self.organization_id, repo_urls
+                        )
+                else:
+                    print("   ⏭️  All repositories already existed, no sync needed")
+            else:
+                # Fallback to basic delay if CloudBees credentials not available
+                print(
+                    f"   ⏸️  Waiting {settings.REPO_BASIC_DELAY}s for repositories to be ready..."
+                )
+                await asyncio.sleep(settings.REPO_BASIC_DELAY)
         else:
             print(
                 f"   Waiting {settings.REPO_BASIC_DELAY}s for repositories to be ready..."
