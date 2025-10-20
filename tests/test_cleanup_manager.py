@@ -8,7 +8,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.mimic.cleanup_manager import CleanupManager
-from src.mimic.state_tracker import Resource, Session, StateTracker
+from src.mimic.instance_repository import InstanceRepository
+from src.mimic.models import (
+    CloudBeesApplication,
+    CloudBeesComponent,
+    CloudBeesEnvironment,
+    GitHubRepository,
+    Instance,
+)
 
 
 @pytest.fixture
@@ -18,7 +25,7 @@ def temp_state_file():
         # Initialize with empty state
         import json
 
-        json.dump({"sessions": {}}, tmp)
+        json.dump({"instances": {}}, tmp)
         state_file = Path(tmp.name)
     yield state_file
     if state_file.exists():
@@ -26,13 +33,13 @@ def temp_state_file():
 
 
 @pytest.fixture
-def state_tracker(temp_state_file):
-    """Create a state tracker with temporary file."""
-    return StateTracker(state_file=temp_state_file)
+def instance_repository(temp_state_file):
+    """Create an instance repository with temporary file."""
+    return InstanceRepository(state_file=temp_state_file)
 
 
 @pytest.fixture
-def cleanup_manager(state_tracker):
+def cleanup_manager(instance_repository):
     """Create a cleanup manager with mocked config."""
     with patch("src.mimic.cleanup_manager.ConfigManager") as mock_config_manager:
         # Mock config manager
@@ -43,12 +50,12 @@ def cleanup_manager(state_tracker):
         mock_config_manager.return_value = mock_config
 
         with patch("src.mimic.cleanup_manager.Console"):
-            manager = CleanupManager(state_tracker=state_tracker)
+            manager = CleanupManager(instance_repository=instance_repository)
             yield manager
 
 
-def test_get_cleanup_stats_empty(cleanup_manager, state_tracker):
-    """Test cleanup stats with no sessions."""
+def test_get_cleanup_stats_empty(cleanup_manager):
+    """Test cleanup stats with no instances."""
     stats = cleanup_manager.get_cleanup_stats()
 
     assert stats["total_sessions"] == 0
@@ -56,33 +63,32 @@ def test_get_cleanup_stats_empty(cleanup_manager, state_tracker):
     assert stats["expired_sessions"] == 0
 
 
-def test_get_cleanup_stats_with_sessions(cleanup_manager, state_tracker):
-    """Test cleanup stats with active and expired sessions."""
-    # Create an active session
-    state_tracker.create_session(
-        session_id="active-1",
-        scenario_id="test-scenario",
-        run_name="test-run-active",
-        environment="prod",
-        expiration_days=7,
-    )
-
-    # Create an expired session
+def test_get_cleanup_stats_with_sessions(cleanup_manager, instance_repository):
+    """Test cleanup stats with active and expired instances."""
     now = datetime.now()
-    past_time = now - timedelta(days=1)
-    expired_session = Session(
-        session_id="expired-1",
+
+    # Create an active instance
+    active_instance = Instance(
+        id="active-1",
         scenario_id="test-scenario",
-        run_name="test-run-expired",
+        name="test-run-active",
+        environment="prod",
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+    )
+    instance_repository.save(active_instance)
+
+    # Create an expired instance
+    past_time = now - timedelta(days=1)
+    expired_instance = Instance(
+        id="expired-1",
+        scenario_id="test-scenario",
+        name="test-run-expired",
         environment="prod",
         created_at=past_time,
         expires_at=past_time,  # Already expired
-        resources=[],
     )
-
-    state = state_tracker._load_state()
-    state["sessions"]["expired-1"] = expired_session.model_dump(mode="json")
-    state_tracker._save_state(state)
+    instance_repository.save(expired_instance)
 
     stats = cleanup_manager.get_cleanup_stats()
 
@@ -91,49 +97,51 @@ def test_get_cleanup_stats_with_sessions(cleanup_manager, state_tracker):
     assert stats["expired_sessions"] == 1
 
 
-def test_check_expired_sessions(cleanup_manager, state_tracker):
-    """Test checking for expired sessions."""
-    # Create expired session
+def test_check_expired_sessions(cleanup_manager, instance_repository):
+    """Test checking for expired instances."""
     now = datetime.now()
     past_time = now - timedelta(days=1)
-    expired_session = Session(
-        session_id="expired-1",
+
+    expired_instance = Instance(
+        id="expired-1",
         scenario_id="test-scenario",
-        run_name="test-run-expired",
+        name="test-run-expired",
         environment="prod",
         created_at=past_time,
         expires_at=past_time,
-        resources=[],
     )
-
-    state = state_tracker._load_state()
-    state["sessions"]["expired-1"] = expired_session.model_dump(mode="json")
-    state_tracker._save_state(state)
+    instance_repository.save(expired_instance)
 
     expired = cleanup_manager.check_expired_sessions()
 
     assert len(expired) == 1
-    assert expired[0].session_id == "expired-1"
+    assert expired[0].id == "expired-1"
 
 
 @pytest.mark.asyncio
-async def test_cleanup_session_github_repo(cleanup_manager, state_tracker):
-    """Test cleaning up a session with a GitHub repository."""
-    # Create session with GitHub repo
-    _session = state_tracker.create_session(
-        session_id="test-session",
-        scenario_id="test-scenario",
-        run_name="test-run",
-        environment="prod",
-        expiration_days=7,
+async def test_cleanup_session_github_repo(cleanup_manager, instance_repository):
+    """Test cleaning up an instance with a GitHub repository."""
+    now = datetime.now()
+
+    # Create instance with GitHub repo
+    repo = GitHubRepository(
+        id="owner/test-repo",
+        name="test-repo",
+        owner="owner",
+        url="https://github.com/owner/test-repo",
+        created_at=now,
     )
 
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="github_repo",
-        resource_id="owner/test-repo",
-        resource_name="test-repo",
+    instance = Instance(
+        id="test-session",
+        scenario_id="test-scenario",
+        name="test-run",
+        environment="prod",
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+        repositories=[repo],
     )
+    instance_repository.save(instance)
 
     # Mock GitHub client
     with patch("src.mimic.cleanup_manager.GitHubClient") as mock_github:
@@ -150,29 +158,35 @@ async def test_cleanup_session_github_repo(cleanup_manager, state_tracker):
         assert results["cleaned"][0]["type"] == "github_repo"
         assert len(results["errors"]) == 0
 
-        # Verify session was deleted
-        assert state_tracker.get_session("test-session") is None
+        # Verify instance was deleted
+        assert instance_repository.get_by_id("test-session") is None
 
 
 @pytest.mark.asyncio
-async def test_cleanup_session_cloudbees_component(cleanup_manager, state_tracker):
-    """Test cleaning up a session with a CloudBees component."""
-    # Create session with component
-    _session = state_tracker.create_session(
-        session_id="test-session",
-        scenario_id="test-scenario",
-        run_name="test-run",
-        environment="prod",
-        expiration_days=7,
+async def test_cleanup_session_cloudbees_component(
+    cleanup_manager, instance_repository
+):
+    """Test cleaning up an instance with a CloudBees component."""
+    now = datetime.now()
+
+    # Create instance with component
+    component = CloudBeesComponent(
+        id="comp-uuid",
+        name="test-component",
+        org_id="org-uuid",
+        created_at=now,
     )
 
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="cloudbees_component",
-        resource_id="comp-uuid",
-        resource_name="test-component",
-        org_id="org-uuid",
+    instance = Instance(
+        id="test-session",
+        scenario_id="test-scenario",
+        name="test-run",
+        environment="prod",
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+        components=[component],
     )
+    instance_repository.save(instance)
 
     # Mock UnifyAPIClient
     with patch("src.mimic.cleanup_manager.UnifyAPIClient") as mock_unify:
@@ -194,23 +208,29 @@ async def test_cleanup_session_cloudbees_component(cleanup_manager, state_tracke
 
 
 @pytest.mark.asyncio
-async def test_cleanup_session_dry_run(cleanup_manager, state_tracker):
+async def test_cleanup_session_dry_run(cleanup_manager, instance_repository):
     """Test dry run mode doesn't delete resources."""
-    # Create session
-    _session = state_tracker.create_session(
-        session_id="test-session",
-        scenario_id="test-scenario",
-        run_name="test-run",
-        environment="prod",
-        expiration_days=7,
+    now = datetime.now()
+
+    # Create instance with repository
+    repo = GitHubRepository(
+        id="owner/test-repo",
+        name="test-repo",
+        owner="owner",
+        url="https://github.com/owner/test-repo",
+        created_at=now,
     )
 
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="github_repo",
-        resource_id="owner/test-repo",
-        resource_name="test-repo",
+    instance = Instance(
+        id="test-session",
+        scenario_id="test-scenario",
+        name="test-run",
+        environment="prod",
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+        repositories=[repo],
     )
+    instance_repository.save(instance)
 
     # Mock GitHub client
     with patch("src.mimic.cleanup_manager.GitHubClient") as mock_github:
@@ -228,28 +248,34 @@ async def test_cleanup_session_dry_run(cleanup_manager, state_tracker):
         # Verify delete was NOT called
         mock_client.delete_repository.assert_not_called()
 
-        # Verify session was NOT deleted
-        assert state_tracker.get_session("test-session") is not None
+        # Verify instance was NOT deleted
+        assert instance_repository.get_by_id("test-session") is not None
 
 
 @pytest.mark.asyncio
-async def test_cleanup_session_with_errors(cleanup_manager, state_tracker):
+async def test_cleanup_session_with_errors(cleanup_manager, instance_repository):
     """Test cleanup handles errors gracefully."""
-    # Create session
-    _session = state_tracker.create_session(
-        session_id="test-session",
-        scenario_id="test-scenario",
-        run_name="test-run",
-        environment="prod",
-        expiration_days=7,
+    now = datetime.now()
+
+    # Create instance with repository
+    repo = GitHubRepository(
+        id="owner/test-repo",
+        name="test-repo",
+        owner="owner",
+        url="https://github.com/owner/test-repo",
+        created_at=now,
     )
 
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="github_repo",
-        resource_id="owner/test-repo",
-        resource_name="test-repo",
+    instance = Instance(
+        id="test-session",
+        scenario_id="test-scenario",
+        name="test-run",
+        environment="prod",
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+        repositories=[repo],
     )
+    instance_repository.save(instance)
 
     # Mock GitHub client to raise error
     with patch("src.mimic.cleanup_manager.GitHubClient") as mock_github:
@@ -267,32 +293,30 @@ async def test_cleanup_session_with_errors(cleanup_manager, state_tracker):
 
 
 @pytest.mark.asyncio
-async def test_cleanup_expired_sessions(cleanup_manager, state_tracker):
-    """Test cleaning up multiple expired sessions."""
-    # Create expired sessions
+async def test_cleanup_expired_sessions(cleanup_manager, instance_repository):
+    """Test cleaning up multiple expired instances."""
     now = datetime.now()
     past_time = now - timedelta(days=1)
 
     for i in range(3):
-        expired_session = Session(
-            session_id=f"expired-{i}",
+        repo = GitHubRepository(
+            id=f"owner/repo-{i}",
+            name=f"repo-{i}",
+            owner="owner",
+            url=f"https://github.com/owner/repo-{i}",
+            created_at=past_time,
+        )
+
+        instance = Instance(
+            id=f"expired-{i}",
             scenario_id="test-scenario",
-            run_name=f"test-run-{i}",
+            name=f"test-run-{i}",
             environment="prod",
             created_at=past_time,
             expires_at=past_time,
-            resources=[
-                Resource(
-                    type="github_repo",
-                    id=f"owner/repo-{i}",
-                    name=f"repo-{i}",
-                )
-            ],
+            repositories=[repo],
         )
-
-        state = state_tracker._load_state()
-        state["sessions"][f"expired-{i}"] = expired_session.model_dump(mode="json")
-        state_tracker._save_state(state)
+        instance_repository.save(instance)
 
     # Mock GitHub client
     with patch("src.mimic.cleanup_manager.GitHubClient") as mock_github:
@@ -310,60 +334,65 @@ async def test_cleanup_expired_sessions(cleanup_manager, state_tracker):
         assert results["cleaned_sessions"] == 3
         assert results["failed_sessions"] == 0
 
-        # Verify all sessions were deleted
-        assert len(state_tracker.list_sessions()) == 0
+        # Verify all instances were deleted
+        assert len(instance_repository.find_all()) == 0
 
 
 @pytest.mark.asyncio
 async def test_cleanup_session_not_found(cleanup_manager):
-    """Test cleanup with non-existent session."""
-    with pytest.raises(ValueError, match="Session .* not found"):
+    """Test cleanup with non-existent instance."""
+    with pytest.raises(ValueError, match="Instance .* not found"):
         await cleanup_manager.cleanup_session("nonexistent", dry_run=False)
 
 
 @pytest.mark.asyncio
-async def test_cleanup_multiple_resource_types(cleanup_manager, state_tracker):
-    """Test cleaning up session with multiple resource types."""
-    # Create session with various resources
-    _session = state_tracker.create_session(
-        session_id="test-session",
+async def test_cleanup_multiple_resource_types(cleanup_manager, instance_repository):
+    """Test cleaning up instance with multiple resource types."""
+    now = datetime.now()
+
+    # Create instance with various resources
+    repo = GitHubRepository(
+        id="owner/repo",
+        name="repo",
+        owner="owner",
+        url="https://github.com/owner/repo",
+        created_at=now,
+    )
+
+    component = CloudBeesComponent(
+        id="comp-uuid",
+        name="component",
+        org_id="org-uuid",
+        created_at=now,
+    )
+
+    environment = CloudBeesEnvironment(
+        id="env-uuid",
+        name="environment",
+        org_id="org-uuid",
+        created_at=now,
+    )
+
+    application = CloudBeesApplication(
+        id="app-uuid",
+        name="application",
+        org_id="org-uuid",
+        created_at=now,
+    )
+
+    instance = Instance(
+        id="test-session",
         scenario_id="test-scenario",
-        run_name="test-run",
+        name="test-run",
         environment="prod",
-        expiration_days=7,
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+        repositories=[repo],
+        components=[component],
+        environments=[environment],
+        applications=[application],
     )
-
-    # Add different resource types
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="github_repo",
-        resource_id="owner/repo",
-        resource_name="repo",
-    )
-
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="cloudbees_component",
-        resource_id="comp-uuid",
-        resource_name="component",
-        org_id="org-uuid",
-    )
-
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="cloudbees_environment",
-        resource_id="env-uuid",
-        resource_name="environment",
-        org_id="org-uuid",
-    )
-
-    state_tracker.add_resource(
-        session_id="test-session",
-        resource_type="cloudbees_application",
-        resource_id="app-uuid",
-        resource_name="application",
-        org_id="org-uuid",
-    )
+    instance_repository.save(instance)
 
     # Mock clients
     with (
@@ -388,3 +417,53 @@ async def test_cleanup_multiple_resource_types(cleanup_manager, state_tracker):
         mock_unify_client.delete_component.assert_called_once()
         mock_unify_client.delete_environment.assert_called_once()
         mock_unify_client.delete_application.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_cleanup_skips_feature_flags(cleanup_manager, instance_repository):
+    """Test that feature flags are skipped during cleanup (many-to-many relationship)."""
+    from src.mimic.models import CloudBeesFlag
+
+    now = datetime.now()
+
+    # Create instance with a feature flag
+    flag = CloudBeesFlag(
+        id="flag-uuid",
+        name="test-flag",
+        org_id="org-uuid",
+        type="boolean",
+        key="test_flag",
+        created_at=now,
+    )
+
+    instance = Instance(
+        id="test-session",
+        scenario_id="test-scenario",
+        name="test-run",
+        environment="prod",
+        created_at=now,
+        expires_at=now + timedelta(days=7),
+        flags=[flag],
+    )
+    instance_repository.save(instance)
+
+    # Mock UnifyAPIClient
+    with patch("src.mimic.cleanup_manager.UnifyAPIClient") as mock_unify:
+        mock_client = MagicMock()
+        mock_unify.return_value = mock_client
+
+        # Run cleanup
+        results = await cleanup_manager.cleanup_session("test-session", dry_run=False)
+
+        # Verify flag was skipped
+        assert len(results["skipped"]) == 1
+        assert results["skipped"][0]["type"] == "cloudbees_flag"
+        assert results["skipped"][0]["id"] == "flag-uuid"
+        assert "not safe to auto-cleanup" in results["skipped"][0]["reason"]
+
+        # Verify no resources were cleaned (only skipped)
+        assert len(results["cleaned"]) == 0
+        assert len(results["errors"]) == 0
+
+        # Verify instance was still deleted
+        assert instance_repository.get_by_id("test-session") is None

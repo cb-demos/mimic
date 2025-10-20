@@ -4,6 +4,7 @@ Orchestrates the setup of a complete scenario including repos, components, envir
 """
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from rich.console import Console
@@ -17,6 +18,15 @@ from rich.progress import (
 
 from mimic.exceptions import GitHubError, PipelineError, UnifyAPIError
 from mimic.gh import GitHubClient
+from mimic.models import (
+    CloudBeesApplication,
+    CloudBeesComponent,
+    CloudBeesEnvironment,
+    CloudBeesFlag,
+    EnvironmentVariable,
+    GitHubRepository,
+    Instance,
+)
 from mimic.pipeline.repository_manager import RepositoryManager
 from mimic.pipeline.resource_manager import ResourceManager
 from mimic.scenarios import Scenario
@@ -38,6 +48,11 @@ class CreationPipeline:
         github_pat: str,
         invitee_username: str | None = None,
         env_properties: dict[str, str] | None = None,
+        # New parameters for Instance creation
+        scenario_id: str | None = None,
+        instance_name: str | None = None,
+        environment: str | None = None,
+        expires_at: datetime | None = None,
     ):
         self.organization_id = organization_id
         self.endpoint_id = endpoint_id
@@ -48,6 +63,13 @@ class CreationPipeline:
         self.invitee_username = invitee_username
         self.env_properties = env_properties or {}
         self.current_step = "initialization"
+
+        # Instance metadata
+        self.scenario_id = scenario_id
+        self.instance_name = instance_name or session_id
+        self.environment = environment
+        self.expires_at = expires_at
+        self.created_at = datetime.now()
 
         # Initialize GitHub client
         github_client = GitHubClient(github_pat)
@@ -256,7 +278,11 @@ class CreationPipeline:
                     description="[bold green]✓ Scenario completed successfully!",
                 )
 
+                # Build Instance object with structured resources
+                instance = self._build_instance()
+
                 summary = self._generate_summary()
+                summary["instance"] = instance
                 return summary
 
             except (GitHubError, UnifyAPIError) as e:
@@ -290,6 +316,123 @@ class CreationPipeline:
             "repositories": list(self.repo_manager.created_repositories.values()),
             "success": True,
         }
+
+    def _build_instance(self) -> Instance:
+        """Build an Instance object from created resources."""
+        # Convert repositories
+        repositories = []
+        for repo_data in self.repo_manager.created_repositories.values():
+            repo = GitHubRepository(
+                id=repo_data.get("full_name", ""),
+                name=repo_data.get("name", ""),
+                owner=repo_data.get("owner", {}).get("login", ""),
+                url=repo_data.get("html_url", ""),
+                created_at=self.created_at,
+            )
+            repositories.append(repo)
+
+        # Convert components
+        components = []
+        for name, comp_data in self.resource_manager.created_components.items():
+            # Find linked repository URL
+            repo_url = None
+            if name in self.repo_manager.created_repositories:
+                repo_url = self.repo_manager.created_repositories[name].get(
+                    "html_url", ""
+                )
+
+            component = CloudBeesComponent(
+                id=comp_data.get("id", ""),
+                name=name,
+                org_id=self.organization_id,
+                repository_url=repo_url,
+                created_at=self.created_at,
+            )
+            components.append(component)
+
+        # Convert flags
+        flags = []
+        for name, flag_data in self.resource_manager.created_flags.items():
+            flag = CloudBeesFlag(
+                id=flag_data.get("id", ""),
+                name=name,
+                org_id=self.organization_id,
+                type=flag_data.get("type", "boolean"),
+                key=flag_data.get("key", name),
+                created_at=self.created_at,
+            )
+            flags.append(flag)
+
+        # Convert environments
+        environments = []
+        for name, env_data in self.resource_manager.created_environments.items():
+            # Convert properties to EnvironmentVariable objects
+            variables = []
+            for prop in env_data.get("properties", []):
+                var = EnvironmentVariable(
+                    name=prop.get("name", ""),
+                    value=prop.get("value", ""),
+                    is_secret=prop.get("isSecret", False),
+                )
+                variables.append(var)
+
+            # Find flags associated with this environment
+            flag_ids = []
+            for flag_data in self.resource_manager.created_flags.values():
+                # This is a simplified approach - in reality we'd need to track
+                # which flags were configured for which environments
+                flag_ids.append(flag_data.get("id", ""))
+
+            environment = CloudBeesEnvironment(
+                id=env_data.get("id", ""),
+                name=name,
+                org_id=self.organization_id,
+                variables=variables,
+                flag_ids=flag_ids,
+                created_at=self.created_at,
+            )
+            environments.append(environment)
+
+        # Convert applications
+        applications = []
+        for name, app_data in self.resource_manager.created_applications.items():
+            # Get component IDs
+            component_ids = []
+            for comp in components:
+                if comp.id in app_data.get("components", []):
+                    component_ids.append(comp.id)
+
+            # Get environment IDs
+            environment_ids = []
+            for env in environments:
+                if env.id in app_data.get("environments", []):
+                    environment_ids.append(env.id)
+
+            application = CloudBeesApplication(
+                id=app_data.get("id", ""),
+                name=name,
+                org_id=self.organization_id,
+                repository_url=app_data.get("repositoryUrl", ""),
+                component_ids=component_ids,
+                environment_ids=environment_ids,
+                created_at=self.created_at,
+            )
+            applications.append(application)
+
+        # Create and return Instance
+        return Instance(
+            id=self.session_id,
+            scenario_id=self.scenario_id or "unknown",
+            name=self.instance_name,
+            environment=self.environment or "unknown",
+            created_at=self.created_at,
+            expires_at=self.expires_at,
+            repositories=repositories,
+            components=components,
+            environments=environments,
+            flags=flags,
+            applications=applications,
+        )
 
     @staticmethod
     def preview_scenario(scenario: Scenario) -> dict[str, Any]:

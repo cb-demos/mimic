@@ -9,7 +9,7 @@ console = Console()
 
 
 def handle_opportunistic_cleanup(config_manager, skip_prompt: bool):
-    """Check for expired sessions and optionally clean them up.
+    """Check for expired instances and optionally clean them up.
 
     Args:
         config_manager: ConfigManager instance.
@@ -25,12 +25,12 @@ def handle_opportunistic_cleanup(config_manager, skip_prompt: bool):
         if expired_sessions:
             console.print()
             console.print(
-                f"[yellow]Found {len(expired_sessions)} expired session(s)[/yellow]"
+                f"[yellow]Found {len(expired_sessions)} expired instance(s)[/yellow]"
             )
 
             # Show brief list
             for session in expired_sessions[:3]:  # Show max 3
-                run_name = getattr(session, "run_name", session.session_id)
+                run_name = getattr(session, "name", session.id)
                 console.print(f"  • {run_name} - {session.scenario_id}")
 
             if len(expired_sessions) > 3:
@@ -40,7 +40,7 @@ def handle_opportunistic_cleanup(config_manager, skip_prompt: bool):
 
             # Prompt to clean up
             cleanup_now = typer.confirm(
-                "Clean up expired sessions before proceeding?", default=True
+                "Clean up expired instances before proceeding?", default=True
             )
 
             if cleanup_now:
@@ -51,7 +51,7 @@ def handle_opportunistic_cleanup(config_manager, skip_prompt: bool):
                     )
                 )
                 console.print(
-                    f"[green]✓[/green] Cleaned up {results['cleaned_sessions']} session(s)\n"
+                    f"[green]✓[/green] Cleaned up {results['cleaned_sessions']} instance(s)\n"
                 )
             else:
                 console.print(

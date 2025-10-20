@@ -21,7 +21,7 @@ def display_success_summary(
     lines = []
     lines.append("[bold green]✓ Scenario completed successfully![/bold green]\n")
     lines.append(f"Run Name: [bold cyan]{run_name}[/bold cyan]")
-    lines.append(f"Session ID: [dim]{session_id}[/dim]")
+    lines.append(f"Instance ID: [dim]{session_id}[/dim]")
     lines.append(f"Environment: [cyan]{environment}[/cyan]")
     lines.append(f"Expires: [yellow]{expiration_label}[/yellow]\n")
 
