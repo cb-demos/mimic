@@ -24,7 +24,8 @@ def prepare_environment_config(
     url: str | None = None,
     endpoint_id: str | None = None,
     custom_properties: dict[str, str] | None = None,
-) -> tuple[str, str, str, dict[str, str]]:
+    use_legacy_flags: bool | None = None,
+) -> tuple[str, str, str, dict[str, str], bool]:
     """Prepare environment configuration by resolving preset or custom settings.
 
     Args:
@@ -32,9 +33,10 @@ def prepare_environment_config(
         url: API URL (required for custom environments, optional for presets).
         endpoint_id: Endpoint ID (required for custom environments, optional for presets).
         custom_properties: Custom properties to merge with defaults.
+        use_legacy_flags: Whether to use legacy org-based flag API (None = use preset/default).
 
     Returns:
-        Tuple of (name, url, endpoint_id, properties).
+        Tuple of (name, url, endpoint_id, properties, use_legacy_flags).
 
     Raises:
         typer.Exit: If configuration is invalid.
@@ -53,6 +55,10 @@ def prepare_environment_config(
 
         url = preset.url
         endpoint_id = preset.endpoint_id
+
+        # Use preset's use_legacy_flags if not explicitly provided
+        if use_legacy_flags is None:
+            use_legacy_flags = preset.use_legacy_flags
 
         # Merge preset properties with custom properties (custom overrides preset)
         properties = preset.properties.copy()
@@ -73,13 +79,17 @@ def prepare_environment_config(
             )
             raise typer.Exit(1)
 
+        # Default to new app-based flag API for custom environments
+        if use_legacy_flags is None:
+            use_legacy_flags = False
+
         # Start with default properties from prod preset
         prod_preset = get_preset_environment("prod")
         properties = prod_preset.properties.copy() if prod_preset else {}
         # Allow custom properties to override defaults
         properties.update(custom_properties)
 
-    return name, url, endpoint_id, properties
+    return name, url, endpoint_id, properties, use_legacy_flags
 
 
 @env_app.command("add")
@@ -103,6 +113,11 @@ def env_add(
         "--property",
         "-p",
         help="Custom property (KEY=VALUE, can be repeated)",
+    ),
+    use_legacy_flags: bool | None = typer.Option(
+        None,
+        "--use-legacy-flags/--no-legacy-flags",
+        help="Use org-based flag API (True) or app-based flag API (False). Defaults to preset value or False.",
     ),
 ):
     """Add a new CloudBees Unify environment.
@@ -206,8 +221,8 @@ def env_add(
             custom_properties[key.strip()] = value.strip()
 
     # Prepare environment configuration
-    name, url, endpoint_id, properties = prepare_environment_config(
-        name, url, endpoint_id, custom_properties
+    name, url, endpoint_id, properties, resolved_use_legacy_flags = prepare_environment_config(
+        name, url, endpoint_id, custom_properties, use_legacy_flags
     )
 
     # Display environment details
@@ -275,7 +290,9 @@ def env_add(
 
     # Add environment
     try:
-        config_manager.add_environment(name, url, pat, endpoint_id, properties)
+        config_manager.add_environment(
+            name, url, pat, endpoint_id, properties, resolved_use_legacy_flags
+        )
         console.print()
 
         # Build success message
@@ -326,11 +343,16 @@ def env_list():
     table.add_column("Name", style="cyan")
     table.add_column("API URL", style="white", no_wrap=False)
     table.add_column("Endpoint ID", style="dim", overflow="fold")
+    table.add_column("Flag API", style="magenta")
     table.add_column("Properties", style="yellow")
     table.add_column("Current", justify="center")
 
     for name, env_config in environments.items():
         is_current = "✓" if name == current_env else ""
+
+        # Get flag API type
+        uses_legacy = config_manager.get_environment_uses_legacy_flags(name)
+        flag_api_display = "org-based" if uses_legacy else "app-based"
 
         # Get custom properties (not built-in)
         properties = env_config.get("properties", {})
@@ -340,6 +362,7 @@ def env_list():
             name,
             env_config.get("url", ""),
             env_config.get("endpoint_id", ""),
+            flag_api_display,
             prop_display,
             f"[green]{is_current}[/green]" if is_current else "",
         )

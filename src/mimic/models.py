@@ -170,6 +170,7 @@ class CloudBeesApplication(BaseModel):
     environment_ids: list[str] = Field(
         default_factory=list
     )  # References to environments
+    is_shared: bool = False  # If True, reuse existing app; don't delete on cleanup
     created_at: datetime
 
 

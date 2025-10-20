@@ -3,12 +3,16 @@ Minimal CloudBees Unify API client
 Built from api-platform.json spec but only implementing what we need
 """
 
+import json
+import logging
 from typing import Any
 
 import httpx
 
 from mimic.config_manager import ConfigManager
 from mimic.exceptions import UnifyAPIError
+
+logger = logging.getLogger(__name__)
 
 
 class UnifyAPIClient:
@@ -73,7 +77,17 @@ class UnifyAPIClient:
     def _make_request(self, method: str, url: str, **kwargs) -> dict[str, Any]:
         """Make an HTTP request with error handling"""
         try:
+            # Debug log the request
+            logger.debug(f"Making {method} request to {url}")
+            if "json" in kwargs:
+                logger.debug(f"Request body: {json.dumps(kwargs['json'], indent=2)}")
+
             response = self.client.request(method, url, **kwargs)
+
+            # Debug log the response
+            logger.debug(f"Response status: {response.status_code}")
+            logger.debug(f"Response body: {response.text[:500]}")  # First 500 chars
+
             response.raise_for_status()
 
             # Handle empty responses
@@ -85,11 +99,13 @@ class UnifyAPIClient:
             error_msg = f"HTTP {e.response.status_code} error for {method} {url}"
             try:
                 error_detail = e.response.json()
+                logger.error(f"API error response: {json.dumps(error_detail, indent=2)}")
                 if "message" in error_detail:
                     error_msg += f": {error_detail['message']}"
                 elif "error" in error_detail:
                     error_msg += f": {error_detail['error']}"
             except Exception:
+                logger.error(f"API error response (non-JSON): {e.response.text}")
                 error_msg += f": {e.response.text}"
 
             raise UnifyAPIError(
@@ -276,17 +292,12 @@ class UnifyAPIClient:
         linked_environment_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         """Create a new application service"""
-        # Create repositoryHref (without .git) if repository_url is provided
-        repository_href = ""
-        if repository_url and repository_url.endswith(".git"):
-            repository_href = repository_url[:-4]  # Remove .git suffix
-
+        # Build base service data - these fields are always required
         service_data = {
             "service": {
                 "name": name,
                 "description": description,
                 "repositoryUrl": repository_url,
-                "repositoryHref": repository_href,
                 "endpointId": endpoint_id,
                 "defaultBranch": default_branch,
                 "linkedComponentIds": linked_component_ids or [],
@@ -297,6 +308,19 @@ class UnifyAPIClient:
                 "serviceType": "APPLICATION",
             }
         }
+
+        # Only include repositoryHref if repository URL is provided
+        if repository_url:
+            repository_href = ""
+            if repository_url.endswith(".git"):
+                repository_href = repository_url[:-4]  # Remove .git suffix
+            service_data["service"]["repositoryHref"] = repository_href
+
+        # Debug logging
+        logger.debug(f"Creating application with name: {name}")
+        logger.debug(f"Organization ID: {org_id}")
+        logger.debug(f"Request payload: {json.dumps(service_data, indent=2)}")
+
         return self.create_service(org_id, service_data)
 
     def create_basic_environment(
@@ -339,7 +363,27 @@ class UnifyAPIClient:
         return self.create_feature_flag(app_id, flag_data)
 
     def get_environment_sdk_key(self, app_id: str, env_id: str) -> dict[str, Any]:
-        """Get SDK key for an application environment"""
+        """Get SDK key for an application environment.
+
+        LEGACY METHOD: In the old API, this expects org_id to be passed as app_id.
+        For new application-based API, use get_application_environment_sdk_key instead.
+        """
+        return self._make_request(
+            "GET", f"/v1/applications/{app_id}/environments/{env_id}/sdk-key"
+        )
+
+    def get_application_environment_sdk_key(
+        self, app_id: str, env_id: str
+    ) -> dict[str, Any]:
+        """Get SDK key for an environment within an application (new app-based API).
+
+        Args:
+            app_id: The CloudBees application ID (not organization ID)
+            env_id: The environment ID
+
+        Returns:
+            Dictionary containing sdkKey
+        """
         return self._make_request(
             "GET", f"/v1/applications/{app_id}/environments/{env_id}/sdk-key"
         )

@@ -53,6 +53,7 @@ class CreationPipeline:
         instance_name: str | None = None,
         environment: str | None = None,
         expires_at: datetime | None = None,
+        use_legacy_flags: bool = False,
     ):
         self.organization_id = organization_id
         self.endpoint_id = endpoint_id
@@ -63,6 +64,7 @@ class CreationPipeline:
         self.invitee_username = invitee_username
         self.env_properties = env_properties or {}
         self.current_step = "initialization"
+        self.use_legacy_flags = use_legacy_flags
 
         # Instance metadata
         self.scenario_id = scenario_id
@@ -251,8 +253,17 @@ class CreationPipeline:
                         main_task,
                         description="[cyan]Adding SDK keys to environments...",
                     )
+
+                    # Build mapping of environment_name -> application_name
+                    env_to_app_mapping = {}
+                    for app_config in resolved_scenario.applications:
+                        for env_name in app_config.environments:
+                            env_to_app_mapping[env_name] = app_config.name
+
                     await self.resource_manager.update_environments_with_fm_tokens(
-                        resolved_scenario.environments
+                        resolved_scenario.environments,
+                        self.use_legacy_flags,
+                        env_to_app_mapping
                     )
                     completed_steps += 1
                     progress.update(
@@ -285,7 +296,7 @@ class CreationPipeline:
                 )
 
                 # Build Instance object with structured resources
-                instance = self._build_instance()
+                instance = self._build_instance(resolved_scenario)
 
                 summary = self._generate_summary()
                 summary["instance"] = instance
@@ -323,8 +334,12 @@ class CreationPipeline:
             "success": True,
         }
 
-    def _build_instance(self) -> Instance:
-        """Build an Instance object from created resources."""
+    def _build_instance(self, resolved_scenario: Scenario) -> Instance:
+        """Build an Instance object from created resources.
+
+        Args:
+            resolved_scenario: The scenario with resolved template variables
+        """
         # Convert repositories
         repositories = []
         for repo_data in self.repo_manager.created_repositories.values():
@@ -414,6 +429,13 @@ class CreationPipeline:
                 if env.id in app_data.get("environments", []):
                     environment_ids.append(env.id)
 
+            # Find if this application is marked as shared in the scenario
+            is_shared = False
+            for app_config in resolved_scenario.applications:
+                if app_config.name == name:
+                    is_shared = app_config.is_shared
+                    break
+
             application = CloudBeesApplication(
                 id=app_data.get("id", ""),
                 name=name,
@@ -421,6 +443,7 @@ class CreationPipeline:
                 repository_url=app_data.get("repositoryUrl", ""),
                 component_ids=component_ids,
                 environment_ids=environment_ids,
+                is_shared=is_shared,
                 created_at=self.created_at,
             )
             applications.append(application)

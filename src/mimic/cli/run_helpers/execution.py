@@ -72,6 +72,9 @@ def execute_scenario(
     # Get environment properties
     env_properties = config_manager.get_environment_properties(current_env)
 
+    # Check if environment uses legacy flags API
+    use_legacy_flags = config_manager.get_environment_uses_legacy_flags(current_env)
+
     pipeline = CreationPipeline(
         organization_id=organization_id,
         endpoint_id=endpoint_id,
@@ -86,6 +89,7 @@ def execute_scenario(
         instance_name=run_name,
         environment=current_env,
         expires_at=expires_at,
+        use_legacy_flags=use_legacy_flags,
     )
 
     # Execute scenario

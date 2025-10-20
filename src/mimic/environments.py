@@ -10,6 +10,7 @@ class EnvironmentConfig(NamedTuple):
     endpoint_id: str
     description: str
     properties: dict[str, str] = {}
+    use_legacy_flags: bool = False  # True for org-based flags (prod), False for app-based flags
 
 
 # Pre-defined CloudBees Unify environments
@@ -22,6 +23,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
             "USE_VPC": "false",
             "FM_INSTANCE": "cloudbees.io",
         },
+        use_legacy_flags=True,  # Prod uses org-based flag API
     ),
     "preprod": EnvironmentConfig(
         url="https://api.saas-preprod.beescloud.com",
@@ -31,6 +33,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
             "USE_VPC": "true",
             "FM_INSTANCE": "saas-preprod.beescloud.com",
         },
+        use_legacy_flags=False,  # Preprod uses app-based flag API
     ),
     "demo": EnvironmentConfig(
         url="https://api.demo1.cloudbees.io",
@@ -40,6 +43,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
             "USE_VPC": "true",
             "FM_INSTANCE": "demo1.cloudbees.io",
         },
+        use_legacy_flags=False,  # Demo uses app-based flag API
     ),
 }
 

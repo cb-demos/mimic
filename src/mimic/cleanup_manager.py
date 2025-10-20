@@ -296,6 +296,20 @@ class CleanupManager:
             )
             return
 
+        # Skip deletion of shared applications
+        if resource.is_shared:
+            self.console.print(
+                f"  [dim]⏭️  Skipping shared application:[/dim] {resource.name}"
+            )
+            results["skipped"].append(
+                {
+                    "type": "cloudbees_application",
+                    "id": resource.id,
+                    "reason": "Application is marked as shared and won't be deleted",
+                }
+            )
+            return
+
         try:
             if dry_run:
                 self.console.print(

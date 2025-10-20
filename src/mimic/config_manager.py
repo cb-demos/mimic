@@ -72,6 +72,7 @@ class ConfigManager:
         pat: str,
         endpoint_id: str,
         properties: dict[str, str] | None = None,
+        use_legacy_flags: bool = False,
     ) -> None:
         """Add a new environment.
 
@@ -81,6 +82,7 @@ class ConfigManager:
             pat: Personal Access Token (stored securely in keyring).
             endpoint_id: CloudBees endpoint ID for the environment.
             properties: Optional custom properties for this environment.
+            use_legacy_flags: Whether to use org-based flag API (True) or app-based (False).
         """
         config = self.load_config()
 
@@ -88,7 +90,11 @@ class ConfigManager:
         if "environments" not in config:
             config["environments"] = {}
 
-        env_config: dict[str, Any] = {"url": url, "endpoint_id": endpoint_id}
+        env_config: dict[str, Any] = {
+            "url": url,
+            "endpoint_id": endpoint_id,
+            "use_legacy_flags": use_legacy_flags,
+        }
         if properties:
             env_config["properties"] = properties
 
@@ -231,6 +237,37 @@ class ConfigManager:
         properties.update(custom_properties)
 
         return properties
+
+    def get_environment_uses_legacy_flags(self, name: str | None = None) -> bool:
+        """Check if an environment uses legacy (org-based) or new (app-based) flag API.
+
+        Args:
+            name: Environment name. If None, uses current environment.
+
+        Returns:
+            True if environment uses legacy org-based flag API, False for app-based API.
+            Returns False if environment not found.
+        """
+        from mimic.environments import get_preset_environment
+
+        if name is None:
+            name = self.get_current_environment()
+
+        if not name:
+            return False
+
+        # Check if it's a preset environment first
+        preset = get_preset_environment(name)
+        if preset:
+            return preset.use_legacy_flags
+
+        # Check custom environment configuration
+        config = self.load_config()
+        env = config.get("environments", {}).get(name)
+        if env:
+            return env.get("use_legacy_flags", False)
+
+        return False
 
     def set_environment_property(self, name: str, key: str, value: str) -> None:
         """Set a custom property for an environment.
