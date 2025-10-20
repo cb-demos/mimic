@@ -18,7 +18,13 @@ VERSION = get_version()
 
 # Timing configuration for resource creation
 REPO_BASIC_DELAY = 3  # Seconds to wait for basic repo availability
-REPO_TO_COMPONENT_DELAY = 15  # Seconds for GitHub indexing before creating components
+
+# Repository sync polling configuration
+REPO_SYNC_INITIAL_INTERVAL = 5  # Initial interval between sync checks (seconds)
+REPO_SYNC_MAX_INTERVAL = 30  # Maximum interval between sync checks (seconds)
+REPO_SYNC_TIMEOUT = 300  # Maximum time to wait for repository sync (5 minutes)
+
+# Retry configuration
 MAX_RETRY_ATTEMPTS = 3  # Maximum retry attempts for component creation
 RETRY_BACKOFF_BASE = 5  # Base seconds for exponential backoff on retries
 

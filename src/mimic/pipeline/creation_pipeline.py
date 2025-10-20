@@ -75,7 +75,13 @@ class CreationPipeline:
         github_client = GitHubClient(github_pat)
 
         # Initialize managers
-        self.repo_manager = RepositoryManager(github_client, invitee_username)
+        self.repo_manager = RepositoryManager(
+            github_client,
+            invitee_username,
+            organization_id,
+            unify_base_url,
+            unify_pat,
+        )
         self.resource_manager = ResourceManager(
             organization_id, endpoint_id, unify_base_url, unify_pat
         )
