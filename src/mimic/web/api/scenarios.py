@@ -183,14 +183,8 @@ async def run_scenario(
     # Get environment properties
     env_properties = config.get_environment_properties(env_name)
 
-    # Get organization ID from validated parameters
-    # Scenarios should include organization_id in their parameters
-    organization_id = validated_params.get("organization_id")
-    if not organization_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Parameter 'organization_id' is required but not provided",
-        )
+    # Get organization ID from request
+    organization_id = request.organization_id
 
     # Start execution in background
     background_tasks.add_task(

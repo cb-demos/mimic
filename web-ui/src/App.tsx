@@ -56,7 +56,7 @@ function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/scenarios" element={<ScenariosPage />} />
-              <Route path="/scenarios/:scenarioId" element={<RunScenarioPage />} />
+              <Route path="/scenarios/:scenarioId/run" element={<RunScenarioPage />} />
               <Route path="/environments" element={<EnvironmentsPage />} />
               <Route path="/config" element={<ConfigPage />} />
               <Route path="/cleanup" element={<CleanupPage />} />

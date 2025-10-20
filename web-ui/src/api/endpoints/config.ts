@@ -4,11 +4,16 @@
 
 import { apiClient } from '../client';
 import type {
+  AddRecentValueRequest,
+  CachedOrgsResponse,
+  CloudBeesConfigResponse,
+  FetchOrgNameRequest,
+  FetchOrgNameResponse,
   GitHubConfigResponse,
+  RecentValuesResponse,
+  SetCloudBeesTokenRequest,
   SetGitHubTokenRequest,
   SetGitHubUsernameRequest,
-  CloudBeesConfigResponse,
-  SetCloudBeesTokenRequest,
   StatusResponse,
 } from '../../types/api';
 
@@ -91,4 +96,46 @@ export async function setGithubUsername(username: string): Promise<StatusRespons
  */
 export async function setCloubeesToken(environment: string, token: string): Promise<StatusResponse> {
   return setCloudBeesToken({ environment, token });
+}
+
+// ==================== Recent Values ====================
+
+/**
+ * Get recent values for a category
+ */
+export async function getRecentValues(category: string): Promise<RecentValuesResponse> {
+  const response = await apiClient.get<RecentValuesResponse>(`/api/config/recent/${category}`);
+  return response.data;
+}
+
+/**
+ * Add a recent value to a category
+ */
+export async function addRecentValue(category: string, value: string): Promise<StatusResponse> {
+  const response = await apiClient.post<StatusResponse>(
+    `/api/config/recent/${category}`,
+    { value } as AddRecentValueRequest
+  );
+  return response.data;
+}
+
+// ==================== CloudBees Organizations ====================
+
+/**
+ * Get cached CloudBees organizations for current environment
+ */
+export async function getCachedOrgs(): Promise<CachedOrgsResponse> {
+  const response = await apiClient.get<CachedOrgsResponse>('/api/config/cloudbees-orgs');
+  return response.data;
+}
+
+/**
+ * Fetch organization name from API and cache it
+ */
+export async function fetchOrgName(orgId: string): Promise<FetchOrgNameResponse> {
+  const response = await apiClient.post<FetchOrgNameResponse>(
+    '/api/config/cloudbees-orgs/fetch',
+    { org_id: orgId } as FetchOrgNameRequest
+  );
+  return response.data;
 }

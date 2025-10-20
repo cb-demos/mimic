@@ -17,16 +17,54 @@ export interface ErrorResponse {
 
 // ==================== Scenario Models ====================
 
+/**
+ * Parameter property definition (matches backend ParameterProperty model)
+ */
+export interface ParameterProperty {
+  type: 'string' | 'number' | 'boolean';
+  pattern?: string;
+  description?: string;
+  placeholder?: string;
+  default?: any;
+  enum?: string[];
+}
+
+/**
+ * Parameter schema (matches backend ParameterSchema model)
+ * Uses JSON Schema format: { properties: {...}, required: [...] }
+ */
+export interface ParameterSchema {
+  properties: Record<string, ParameterProperty>;
+  required: string[];
+}
+
+/**
+ * Scenario object from API responses
+ */
+export interface Scenario {
+  id: string;
+  name: string;
+  summary: string;
+  details?: string;
+  wip: boolean;
+  pack_source?: string;
+  scenario_pack?: string;  // Pack name for display
+  parameter_schema?: ParameterSchema;
+  required_properties: string[];
+  required_secrets: string[];
+}
+
 export interface ScenarioListResponse {
-  scenarios: Array<Record<string, any>>;
+  scenarios: Scenario[];
   wip_enabled: boolean;
 }
 
 export interface ScenarioDetailResponse {
-  scenario: Record<string, any>;
+  scenario: Scenario;
 }
 
 export interface RunScenarioRequest {
+  organization_id: string;
   parameters?: Record<string, any>;
   ttl_days?: number | null;
   dry_run?: boolean;
@@ -75,6 +113,33 @@ export interface CloudBeesConfigResponse {
 export interface SetCloudBeesTokenRequest {
   environment: string;
   token: string;
+}
+
+export interface RecentValuesResponse {
+  category: string;
+  values: string[];
+}
+
+export interface AddRecentValueRequest {
+  value: string;
+}
+
+export interface CachedOrg {
+  org_id: string;
+  display_name: string;
+}
+
+export interface CachedOrgsResponse {
+  orgs: CachedOrg[];
+}
+
+export interface FetchOrgNameRequest {
+  org_id: string;
+}
+
+export interface FetchOrgNameResponse {
+  org_id: string;
+  display_name: string;
 }
 
 // ==================== Environment Models ====================
@@ -261,11 +326,6 @@ export type Environment = EnvironmentInfo;
  * Alias for ScenarioPackInfo - used by packs page
  */
 export type ScenarioPack = ScenarioPackInfo;
-
-/**
- * Scenario object from API responses
- */
-export type Scenario = Record<string, any>;
 
 /**
  * Environment property key-value pair

@@ -39,6 +39,7 @@ class ScenarioDetailResponse(BaseModel):
 class RunScenarioRequest(BaseModel):
     """Request to run a scenario."""
 
+    organization_id: str
     parameters: dict[str, Any] = Field(default_factory=dict)
     ttl_days: int | None = 7
     dry_run: bool = False
@@ -105,6 +106,45 @@ class SetCloudBeesTokenRequest(BaseModel):
 
     environment: str
     token: str
+
+
+class RecentValuesResponse(BaseModel):
+    """Response with recent values for a category."""
+
+    category: str
+    values: list[str]
+
+
+class AddRecentValueRequest(BaseModel):
+    """Request to add a recent value."""
+
+    value: str
+
+
+class CachedOrg(BaseModel):
+    """A cached organization with ID and display name."""
+
+    org_id: str
+    display_name: str
+
+
+class CachedOrgsResponse(BaseModel):
+    """Response with cached CloudBees organizations."""
+
+    orgs: list[CachedOrg]
+
+
+class FetchOrgNameRequest(BaseModel):
+    """Request to fetch organization name by ID."""
+
+    org_id: str
+
+
+class FetchOrgNameResponse(BaseModel):
+    """Response with organization name."""
+
+    org_id: str
+    display_name: str
 
 
 # ==================== Environment Models ====================

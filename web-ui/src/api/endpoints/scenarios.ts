@@ -75,9 +75,17 @@ export const get = getScenario;
  */
 export async function run(
   scenarioId: string,
+  organizationId: string,
   parameters: Record<string, any>,
   ttl_days?: number,
-  dry_run?: boolean
+  dry_run?: boolean,
+  invitee_username?: string
 ): Promise<RunScenarioResponse> {
-  return runScenario(scenarioId, { parameters, ttl_days, dry_run });
+  return runScenario(scenarioId, {
+    organization_id: organizationId,
+    parameters,
+    ttl_days,
+    dry_run,
+    invitee_username,
+  });
 }

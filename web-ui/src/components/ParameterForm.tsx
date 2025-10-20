@@ -1,9 +1,14 @@
 /**
  * Dynamic parameter form generator component
  * Generates form fields from scenario parameter schemas
+ *
+ * Accepts JSON Schema format: { properties: {...}, required: [...] }
+ * This matches the CLI's parameter handling logic in parameter_handler.py
  */
 
+import { useEffect, useState } from 'react';
 import {
+  Autocomplete,
   Box,
   TextField,
   Select,
@@ -17,20 +22,11 @@ import {
   Typography,
 } from '@mui/material';
 import { Controller, useForm } from 'react-hook-form';
-
-interface ParameterSchema {
-  type: 'string' | 'number' | 'boolean';
-  description?: string;
-  default?: any;
-  enum?: string[];
-  pattern?: string;
-  min?: number;
-  max?: number;
-  required?: boolean;
-}
+import { configApi } from '../api/endpoints';
+import type { ParameterSchema, ParameterProperty } from '../types/api';
 
 interface ParameterFormProps {
-  schema: Record<string, ParameterSchema>;
+  schema: ParameterSchema;
   initialValues?: Record<string, any>;
   onSubmit: (values: Record<string, any>) => void;
   submitLabel?: string;
@@ -53,7 +49,8 @@ export function ParameterForm({
 
   const handleReset = () => {
     const defaults: Record<string, any> = {};
-    Object.entries(schema).forEach(([key, config]) => {
+    // Iterate over schema.properties (matches CLI logic in parameter_handler.py line 95)
+    Object.entries(schema.properties).forEach(([key, config]) => {
       if (config.default !== undefined) {
         defaults[key] = config.default;
       }
@@ -61,18 +58,39 @@ export function ParameterForm({
     reset(defaults);
   };
 
+  const handleFormSubmit = async (values: Record<string, any>) => {
+    // Save parameter values to recent values
+    for (const [key, value] of Object.entries(values)) {
+      if (value && typeof value === 'string' && value.trim()) {
+        const category = key === 'target_org' ? 'github_orgs' : key;
+        try {
+          await configApi.addRecentValue(category, value);
+        } catch (err) {
+          console.error(`Failed to save recent value for ${key}:`, err);
+        }
+      }
+    }
+    onSubmit(values);
+  };
+
   return (
-    <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <Box component="form" onSubmit={handleSubmit(handleFormSubmit)} noValidate>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {Object.entries(schema).map(([name, config]) => (
-          <ParameterField
-            key={name}
-            name={name}
-            config={config}
-            control={control}
-            error={errors[name]?.message as string}
-          />
-        ))}
+        {/* Iterate over schema.properties (matches CLI logic in parameter_handler.py line 95) */}
+        {Object.entries(schema.properties).map(([name, config]) => {
+          // Check if required using schema.required array (matches CLI logic line 96)
+          const isRequired = schema.required.includes(name);
+          return (
+            <ParameterField
+              key={name}
+              name={name}
+              config={config}
+              isRequired={isRequired}
+              control={control}
+              error={errors[name]?.message as string}
+            />
+          );
+        })}
       </Box>
 
       <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
@@ -89,12 +107,37 @@ export function ParameterForm({
 
 interface ParameterFieldProps {
   name: string;
-  config: ParameterSchema;
+  config: ParameterProperty;
+  isRequired: boolean;
   control: any;
   error?: string;
+  onValueChange?: (name: string, value: any) => void;
 }
 
-function ParameterField({ name, config, control, error }: ParameterFieldProps) {
+function ParameterField({
+  name,
+  config,
+  isRequired,
+  control,
+  error,
+  onValueChange,
+}: ParameterFieldProps) {
+  const [recentValues, setRecentValues] = useState<string[]>([]);
+
+  // Load recent values for this parameter
+  useEffect(() => {
+    const loadRecentValues = async () => {
+      try {
+        // Use parameter name as category, with special case for target_org
+        const category = name === 'target_org' ? 'github_orgs' : name;
+        const response = await configApi.getRecentValues(category);
+        setRecentValues(response.values);
+      } catch (err) {
+        console.error(`Failed to load recent values for ${name}:`, err);
+      }
+    };
+    loadRecentValues();
+  }, [name]);
   // Enum field (dropdown)
   if (config.enum && config.enum.length > 0) {
     return (
@@ -102,7 +145,7 @@ function ParameterField({ name, config, control, error }: ParameterFieldProps) {
         name={name}
         control={control}
         rules={{
-          required: config.required ? `${name} is required` : undefined,
+          required: isRequired ? `${name} is required` : undefined,
         }}
         render={({ field }) => (
           <FormControl fullWidth error={!!error}>
@@ -157,9 +200,7 @@ function ParameterField({ name, config, control, error }: ParameterFieldProps) {
         name={name}
         control={control}
         rules={{
-          required: config.required ? `${name} is required` : undefined,
-          min: config.min !== undefined ? { value: config.min, message: `Minimum value is ${config.min}` } : undefined,
-          max: config.max !== undefined ? { value: config.max, message: `Maximum value is ${config.max}` } : undefined,
+          required: isRequired ? `${name} is required` : undefined,
         }}
         render={({ field }) => (
           <TextField
@@ -169,32 +210,48 @@ function ParameterField({ name, config, control, error }: ParameterFieldProps) {
             fullWidth
             error={!!error}
             helperText={error || config.description}
-            inputProps={{
-              min: config.min,
-              max: config.max,
-            }}
           />
         )}
       />
     );
   }
 
-  // String field (default)
+  // String field with autocomplete (default)
   return (
     <Controller
       name={name}
       control={control}
       rules={{
-        required: config.required ? `${name} is required` : undefined,
-        pattern: config.pattern ? { value: new RegExp(config.pattern), message: `Invalid format for ${name}` } : undefined,
+        required: isRequired ? `${name} is required` : undefined,
+        pattern: config.pattern
+          ? { value: new RegExp(config.pattern), message: `Invalid format for ${name}` }
+          : undefined,
       }}
       render={({ field }) => (
-        <TextField
-          {...field}
-          label={name}
-          fullWidth
-          error={!!error}
-          helperText={error || config.description}
+        <Autocomplete
+          freeSolo
+          options={recentValues}
+          value={field.value || ''}
+          onChange={(_event, value) => {
+            field.onChange(value || '');
+            if (onValueChange && value) {
+              onValueChange(name, value);
+            }
+          }}
+          onInputChange={(_event, value) => {
+            field.onChange(value || '');
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label={name}
+              fullWidth
+              error={!!error}
+              helperText={error || config.description}
+              placeholder={config.placeholder}
+              required={isRequired}
+            />
+          )}
         />
       )}
     />
