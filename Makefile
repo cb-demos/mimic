@@ -1,4 +1,4 @@
-.PHONY: help test lint typecheck format build clean install
+.PHONY: help test lint typecheck format build build-ui dev-ui clean install
 
 help: ## Show this help message
 	@echo "Usage: make [target]"
@@ -21,7 +21,15 @@ typecheck: ## Run type checking with pyright
 format: ## Format code
 	uv run ruff format src/ tests/
 
-build: ## Build and push CLI Docker image for multiple architectures
+build-ui: ## Build the web UI (React app)
+	@echo "Building web UI..."
+	cd web-ui && npm install && npm run build
+	@echo "Web UI built to src/mimic/web/static/"
+
+dev-ui: ## Run the web UI development server
+	cd web-ui && npm run dev
+
+build: build-ui ## Build and push Docker image with UI for multiple architectures
 	@VERSION=$$(python scripts/get-version.py); \
 	echo "Building mimic:$$VERSION for multiple architectures"; \
 	docker buildx create --use --name multiarch-builder --driver docker-container --bootstrap 2>/dev/null || docker buildx use multiarch-builder; \
@@ -33,3 +41,6 @@ clean: ## Clean up cache and temporary files
 	rm -rf .pytest_cache
 	rm -rf .ruff_cache
 	rm -rf .nox
+	rm -rf src/mimic/web/static
+	rm -rf web-ui/node_modules
+	rm -rf web-ui/dist

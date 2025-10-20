@@ -1,6 +1,6 @@
 # Mimic
 
-Tool for orchestrating demo scenarios on CloudBees Unify with CLI/MCP interfaces.
+Tool for orchestrating demo scenarios on CloudBees Unify. Provides a CLI, web UI, and MCP server interface.
 
 ## Prerequisites
 
@@ -189,6 +189,95 @@ mimic cleanup run <session-id>
 mimic cleanup expired
 ```
 
+## Web UI
+
+Mimic includes a local web interface for users who prefer a graphical interface over the command line.
+
+### Starting the Web UI
+
+```bash
+# Start the web server (auto-opens browser)
+mimic ui
+
+# Specify a custom port
+mimic ui --port 3000
+
+# Start without opening browser
+mimic ui --no-browser
+```
+
+The web UI will automatically:
+- Find an available port (default: 8080)
+- Start a local FastAPI server
+- Open your browser to http://localhost:8080
+- Use your existing credentials from the OS keyring
+
+### Features
+
+The web UI provides full feature parity with the CLI:
+
+**Setup & Configuration**
+- First-run setup wizard (GitHub + CloudBees credentials)
+- Environment management (add, switch, remove environments)
+- Credential management (GitHub and CloudBees PATs)
+- Scenario pack management (add, remove, enable/disable, update)
+
+**Scenario Execution**
+- Browse and search available scenarios
+- Filter by scenario pack
+- View scenario details and parameters
+- Execute scenarios with real-time progress tracking
+- Dynamic parameter forms with validation
+
+**Resource Management**
+- View all tracked sessions
+- Filter by environment or expiration status
+- Clean up individual sessions or batch cleanup expired sessions
+- Dry-run mode to preview cleanup actions
+
+**Dashboard**
+- Overview of active and expired sessions
+- Quick access to common actions
+- Connection status indicators for GitHub and CloudBees
+
+### Real-time Progress
+
+When running scenarios, the web UI displays live progress updates:
+- Current task and overall progress
+- Resource creation status (repositories, components, environments, etc.)
+- Success/error indicators
+- Detailed logs of operations
+
+Progress updates are streamed via Server-Sent Events (SSE) for instant feedback without polling.
+
+### Security Model
+
+The web UI follows the same security model as the CLI:
+- **Local-only**: Server binds to localhost (127.0.0.1) only
+- **No shared server**: Each user runs their own instance
+- **OS Keyring**: Credentials stored securely via OS keyring
+- **No authentication**: Not needed since it's local-only
+
+### Development
+
+To develop the web UI:
+
+```bash
+# Terminal 1: Start the FastAPI backend
+mimic ui
+
+# Terminal 2: Start the Vite dev server (with hot reload)
+make dev-ui
+# Opens at http://localhost:5173 with API proxy to port 8080
+```
+
+To build the production UI:
+
+```bash
+# Build React app to src/mimic/web/static/
+make build-ui
+```
+
 ## MCP Integration
 
 Use Mimic with AI assistants via stdio MCP:
@@ -287,8 +376,10 @@ See [scenarios/README.md](scenarios/README.md) for details on creating new demo 
 
 ## Development
 
+### Backend (Python)
+
 ```bash
-# Install dependencies
+# Install Python dependencies
 make install
 
 # Run tests
@@ -302,4 +393,22 @@ make typecheck
 
 # Format code
 make format
+```
+
+### Frontend (Web UI)
+
+```bash
+# Install frontend dependencies and build
+make build-ui
+
+# Run development server (with hot reload)
+make dev-ui
+```
+
+### Building Docker Image
+
+```bash
+# Build multi-arch image with UI included
+make build
+# This runs build-ui first, then builds the Docker image
 ```
