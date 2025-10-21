@@ -13,6 +13,7 @@ from ..models import (
     CleanupResponse,
     CleanupResult,
     CleanupSessionRequest,
+    Resource,
     SessionInfo,
     SessionListResponse,
 )
@@ -56,14 +57,38 @@ async def list_sessions(
     for instance in instances:
         is_expired = instance.expires_at is not None and instance.expires_at < now
 
-        # Count resources
-        resource_count = (
-            len(instance.repositories)
-            + len(instance.components)
-            + len(instance.environments)
-            + len(instance.flags)
-            + len(instance.applications)
-        )
+        # Build resources list
+        resources = []
+
+        # Add repositories
+        for repo in instance.repositories:
+            resources.append(
+                Resource(type="repository", id=repo.id, name=repo.name, org_id=None)
+            )
+
+        # Add components
+        for comp in instance.components:
+            resources.append(
+                Resource(type="component", id=comp.id, name=comp.name, org_id=comp.org_id)
+            )
+
+        # Add environments
+        for env in instance.environments:
+            resources.append(
+                Resource(type="environment", id=env.id, name=env.name, org_id=env.org_id)
+            )
+
+        # Add flags
+        for flag in instance.flags:
+            resources.append(
+                Resource(type="flag", id=flag.id, name=flag.name, org_id=flag.org_id)
+            )
+
+        # Add applications
+        for app in instance.applications:
+            resources.append(
+                Resource(type="application", id=app.id, name=app.name, org_id=app.org_id)
+            )
 
         sessions.append(
             SessionInfo(
@@ -74,7 +99,8 @@ async def list_sessions(
                 created_at=instance.created_at,
                 expires_at=instance.expires_at,
                 is_expired=is_expired,
-                resource_count=resource_count,
+                resource_count=len(resources),
+                resources=resources,
             )
         )
 
@@ -86,7 +112,9 @@ async def list_sessions(
 
 @router.post("/run", response_model=CleanupResponse)
 async def cleanup_session(
-    session_id: str, request: CleanupSessionRequest, config: ConfigDep
+    config: ConfigDep,
+    request: CleanupSessionRequest,
+    session_id: str = Query(..., description="Session ID to clean up"),
 ):
     """Clean up all resources for a specific session.
 

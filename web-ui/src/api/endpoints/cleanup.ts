@@ -29,9 +29,8 @@ export async function cleanupSession(
   sessionId: string,
   request: CleanupSessionRequest
 ): Promise<CleanupResponse> {
-  const response = await apiClient.post<CleanupResponse>('/api/cleanup/run', {
-    session_id: sessionId,
-    ...request,
+  const response = await apiClient.post<CleanupResponse>('/api/cleanup/run', request, {
+    params: { session_id: sessionId },
   });
   return response.data;
 }

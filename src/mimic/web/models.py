@@ -313,6 +313,15 @@ class ValidateAllCredentialsResponse(BaseModel):
 # ==================== Cleanup Models ====================
 
 
+class Resource(BaseModel):
+    """A resource created during scenario execution."""
+
+    type: str
+    id: str
+    name: str
+    org_id: str | None = None
+
+
 class SessionInfo(BaseModel):
     """Information about a session for cleanup."""
 
@@ -324,6 +333,7 @@ class SessionInfo(BaseModel):
     expires_at: datetime | None
     is_expired: bool
     resource_count: int
+    resources: list[Resource] = Field(default_factory=list)
 
 
 class SessionListResponse(BaseModel):

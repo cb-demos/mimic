@@ -384,7 +384,7 @@ export function CleanupPage() {
                     <TableRow>
                       <TableCell colSpan={8} sx={{ py: 0, borderBottom: 'none' }}>
                         <Collapse in={expandedRow === session.session_id}>
-                          <Box sx={{ p: 2, bgcolor: 'grey.50' }}>
+                          <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
                             <Typography variant="subtitle2" gutterBottom>
                               Resources ({session.resources?.length || 0})
                             </Typography>
