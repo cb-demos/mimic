@@ -1,6 +1,7 @@
 """Run command for Mimic CLI."""
 
 import logging
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -66,9 +67,9 @@ def validate_scenario_fm_token_config(
 
     if unmapped_envs:
         error_msg = (
-            f"\n[bold red]❌ Scenario Configuration Error[/bold red]\n\n"
-            f"The following environment(s) have 'create_fm_token_var: true' but are not "
-            f"mapped to any application:\n"
+            "\n[bold red]❌ Scenario Configuration Error[/bold red]\n\n"
+            "The following environment(s) have 'create_fm_token_var: true' but are not "
+            "mapped to any application:\n"
         )
         for env_name_unmapped in unmapped_envs:
             error_msg += f"  • {env_name_unmapped}\n"
@@ -88,10 +89,10 @@ def validate_scenario_fm_token_config(
             error_msg += f"      - \"{env_name_unmapped}\"\n"
 
         error_msg += (
-            f"\nIf multiple scenario instances share resources, consider:\n"
-            f"[dim]    is_shared: true  # App persists across instances[/dim]\n\n"
-            f"[dim]Note: This validation only applies to non-prod environments.\n"
-            f"Prod environment uses the legacy org-based flag API.[/dim]"
+            "\nIf multiple scenario instances share resources, consider:\n"
+            "[dim]    is_shared: true  # App persists across instances[/dim]\n\n"
+            "[dim]Note: This validation only applies to non-prod environments.\n"
+            "Prod environment uses the legacy org-based flag API.[/dim]"
         )
 
         console.print(Panel(error_msg, border_style="red", title="Configuration Error"))

@@ -54,6 +54,8 @@ class CreationPipeline:
         environment: str | None = None,
         expires_at: datetime | None = None,
         use_legacy_flags: bool = False,
+        # Optional callback for progress events (used by web UI)
+        event_callback: Any | None = None,
     ):
         self.organization_id = organization_id
         self.endpoint_id = endpoint_id
@@ -65,6 +67,7 @@ class CreationPipeline:
         self.env_properties = env_properties or {}
         self.current_step = "initialization"
         self.use_legacy_flags = use_legacy_flags
+        self.event_callback = event_callback
 
         # Instance metadata
         self.scenario_id = scenario_id
@@ -113,6 +116,19 @@ class CreationPipeline:
     def created_flags(self) -> dict[str, dict[str, Any]]:
         """Access created flags from the resource manager."""
         return self.resource_manager.created_flags
+
+    async def _emit_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Emit an event if callback is configured.
+
+        Args:
+            event_type: Type of event (e.g., "task_start", "task_progress")
+            data: Event data dictionary
+        """
+        if self.event_callback:
+            try:
+                await self.event_callback({"event": event_type, "data": data})
+            except Exception as e:
+                logger.error(f"Error emitting event {event_type}: {e}")
 
     async def execute_scenario(
         self, scenario: Scenario, parameters: dict[str, str]
@@ -166,6 +182,14 @@ class CreationPipeline:
 
                 # Step 1: Create repositories
                 self.current_step = "repository_creation"
+                await self._emit_event(
+                    "task_start",
+                    {
+                        "task_id": "repositories",
+                        "description": "Creating GitHub repositories",
+                        "total": len(resolved_scenario.repositories),
+                    },
+                )
                 progress.update(
                     main_task, description="[cyan]Creating GitHub repositories..."
                 )
@@ -178,6 +202,14 @@ class CreationPipeline:
                     completed=completed_steps,
                     description=f"[green]✓[/green] Created {len(created_repositories)} repositories",
                 )
+                await self._emit_event(
+                    "task_complete",
+                    {
+                        "task_id": "repositories",
+                        "success": True,
+                        "message": f"Created {len(created_repositories)} repositories",
+                    },
+                )
 
                 # Step 2: Create components
                 self.current_step = "component_creation"
@@ -185,6 +217,14 @@ class CreationPipeline:
                     r for r in resolved_scenario.repositories if r.create_component
                 ]
                 if component_repos:
+                    await self._emit_event(
+                        "task_start",
+                        {
+                            "task_id": "components",
+                            "description": "Creating CloudBees components",
+                            "total": len(component_repos),
+                        },
+                    )
                     progress.update(
                         main_task, description="[cyan]Creating CloudBees components..."
                     )
@@ -197,10 +237,26 @@ class CreationPipeline:
                         completed=completed_steps,
                         description=f"[green]✓[/green] Created {len(created_components)} components",
                     )
+                    await self._emit_event(
+                        "task_complete",
+                        {
+                            "task_id": "components",
+                            "success": True,
+                            "message": f"Created {len(created_components)} components",
+                        },
+                    )
 
                 # Step 3: Define feature flags
                 self.current_step = "flag_creation"
                 if resolved_scenario.flags:
+                    await self._emit_event(
+                        "task_start",
+                        {
+                            "task_id": "flags",
+                            "description": "Defining feature flags",
+                            "total": len(resolved_scenario.flags),
+                        },
+                    )
                     progress.update(
                         main_task, description="[cyan]Defining feature flags..."
                     )
@@ -211,10 +267,26 @@ class CreationPipeline:
                         completed=completed_steps,
                         description=f"[green]✓[/green] Defined {len(self.resource_manager.flag_definitions)} flags",
                     )
+                    await self._emit_event(
+                        "task_complete",
+                        {
+                            "task_id": "flags",
+                            "success": True,
+                            "message": f"Defined {len(self.resource_manager.flag_definitions)} flags",
+                        },
+                    )
 
                 # Step 4: Create environments
                 self.current_step = "environment_creation"
                 if resolved_scenario.environments:
+                    await self._emit_event(
+                        "task_start",
+                        {
+                            "task_id": "environments",
+                            "description": "Creating environments",
+                            "total": len(resolved_scenario.environments),
+                        },
+                    )
                     progress.update(
                         main_task, description="[cyan]Creating environments..."
                     )
@@ -229,9 +301,25 @@ class CreationPipeline:
                         completed=completed_steps,
                         description=f"[green]✓[/green] Created {len(created_environments)} environments",
                     )
+                    await self._emit_event(
+                        "task_complete",
+                        {
+                            "task_id": "environments",
+                            "success": True,
+                            "message": f"Created {len(created_environments)} environments",
+                        },
+                    )
 
                 # Step 5: Create applications
                 self.current_step = "application_creation"
+                await self._emit_event(
+                    "task_start",
+                    {
+                        "task_id": "applications",
+                        "description": "Creating applications",
+                        "total": len(resolved_scenario.applications),
+                    },
+                )
                 progress.update(main_task, description="[cyan]Creating applications...")
                 created_applications = await self.resource_manager.create_applications(
                     resolved_scenario.applications
@@ -241,6 +329,14 @@ class CreationPipeline:
                     main_task,
                     completed=completed_steps,
                     description=f"[green]✓[/green] Created {len(created_applications)} applications",
+                )
+                await self._emit_event(
+                    "task_complete",
+                    {
+                        "task_id": "applications",
+                        "success": True,
+                        "message": f"Created {len(created_applications)} applications",
+                    },
                 )
 
                 # Step 5.5: Update environments with FM_TOKEN
@@ -275,6 +371,14 @@ class CreationPipeline:
                 # Step 6: Configure flags
                 self.current_step = "flag_configuration"
                 if resolved_scenario.flags:
+                    await self._emit_event(
+                        "task_start",
+                        {
+                            "task_id": "flag_configuration",
+                            "description": "Configuring feature flags",
+                            "total": len(resolved_scenario.flags),
+                        },
+                    )
                     progress.update(
                         main_task, description="[cyan]Configuring feature flags..."
                     )
@@ -286,6 +390,14 @@ class CreationPipeline:
                         main_task,
                         completed=completed_steps,
                         description="[green]✓[/green] Feature flags configured",
+                    )
+                    await self._emit_event(
+                        "task_complete",
+                        {
+                            "task_id": "flag_configuration",
+                            "success": True,
+                            "message": "Feature flags configured",
+                        },
                     )
 
                 self.current_step = "completed"

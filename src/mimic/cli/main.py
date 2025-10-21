@@ -11,6 +11,7 @@ from .list_cmd import list_scenarios
 from .run_cmd import run as run_scenario
 from .scenario_pack import scenario_pack_app
 from .setup_cmd import setup
+from .ui_cmd import ui_app
 from .upgrade_cmd import upgrade
 
 # Create main Typer app
@@ -31,6 +32,7 @@ app.add_typer(cleanup_app, name="cleanup")
 app.add_typer(cleanup_app, name="clean")  # Alias for cleanup
 app.add_typer(scenario_pack_app, name="scenario-pack")
 app.add_typer(scenario_pack_app, name="pack")  # Alias for scenario-pack
+app.add_typer(ui_app, name="ui")
 
 # Register list command and its alias
 app.command("list")(list_scenarios)
