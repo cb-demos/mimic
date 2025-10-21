@@ -209,7 +209,7 @@ class TestSetupCommand:
         # Simulate user inputs
         inputs = [
             "n",  # Skip scenario pack
-            "4",  # Choose custom environment (option 4 for 3 presets + custom)
+            "5",  # Choose custom environment (option 5 for 4 presets + custom)
             "custom-env",  # Environment name
             "https://custom.api.example.com",  # API URL
             "custom-endpoint-123",  # Endpoint ID

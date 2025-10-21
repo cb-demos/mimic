@@ -69,13 +69,17 @@ async def list_sessions(
         # Add components
         for comp in instance.components:
             resources.append(
-                Resource(type="component", id=comp.id, name=comp.name, org_id=comp.org_id)
+                Resource(
+                    type="component", id=comp.id, name=comp.name, org_id=comp.org_id
+                )
             )
 
         # Add environments
         for env in instance.environments:
             resources.append(
-                Resource(type="environment", id=env.id, name=env.name, org_id=env.org_id)
+                Resource(
+                    type="environment", id=env.id, name=env.name, org_id=env.org_id
+                )
             )
 
         # Add flags
@@ -87,7 +91,9 @@ async def list_sessions(
         # Add applications
         for app in instance.applications:
             resources.append(
-                Resource(type="application", id=app.id, name=app.name, org_id=app.org_id)
+                Resource(
+                    type="application", id=app.id, name=app.name, org_id=app.org_id
+                )
             )
 
         sessions.append(
@@ -269,4 +275,4 @@ async def delete_session(
         Cleanup results
     """
     # This is just an alias for cleanup_session
-    return await cleanup_session(session_id, request, config)
+    return await cleanup_session(config, request, session_id)
