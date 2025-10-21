@@ -46,13 +46,14 @@ def _count_scenarios_in_pack(pack_path: Path) -> int:
         pack_path: Path to the scenario pack directory
 
     Returns:
-        Number of .yaml files in the scenarios/ directory
+        Number of .yaml and .yml files in the pack directory
     """
-    scenarios_dir = pack_path / "scenarios"
-    if not scenarios_dir.exists():
+    if not pack_path.exists():
         return 0
 
-    return len(list(scenarios_dir.glob("*.yaml")))
+    # Count both .yaml and .yml files (matching scenarios.py loading behavior)
+    yaml_files = list(pack_path.glob("*.yaml")) + list(pack_path.glob("*.yml"))
+    return len(yaml_files)
 
 
 @router.get("", response_model=ScenarioPackListResponse)

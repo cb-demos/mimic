@@ -82,5 +82,5 @@ export async function setEnabled(packName: string, enabled: boolean): Promise<St
  * Update packs - convenience wrapper
  */
 export async function update(packName?: string): Promise<UpdatePacksResponse> {
-  return updatePacks(packName ? { pack_name: packName } : undefined);
+  return updatePacks(packName ? { pack_name: packName } : {});
 }

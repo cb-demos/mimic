@@ -6,10 +6,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface AppState {
-  // Theme
-  darkMode: boolean;
-  toggleDarkMode: () => void;
-
   // UI State
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
@@ -26,10 +22,6 @@ export interface AppState {
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      // Theme state
-      darkMode: false,
-      toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
-
       // UI state
       drawerOpen: true,
       setDrawerOpen: (open) => set({ drawerOpen: open }),
@@ -43,7 +35,6 @@ export const useAppStore = create<AppState>()(
       name: 'mimic-app-store', // localStorage key
       partialize: (state) => ({
         // Only persist these values
-        darkMode: state.darkMode,
         drawerOpen: state.drawerOpen,
       }),
     }

@@ -24,8 +24,6 @@ import {
   Settings,
   CleaningServices,
   Inventory,
-  Brightness4,
-  Brightness7,
 } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
@@ -44,7 +42,7 @@ interface NavigationItem {
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { darkMode, toggleDarkMode, drawerOpen, toggleDrawer } = useAppStore();
+  const { drawerOpen, toggleDrawer } = useAppStore();
 
   const navigationItems: NavigationItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Dashboard />, path: '/' },
@@ -83,11 +81,6 @@ export function Layout() {
 
           {/* Spacer */}
           <Box sx={{ flexGrow: 1 }} />
-
-          {/* Theme toggle */}
-          <IconButton color="inherit" onClick={toggleDarkMode}>
-            {darkMode ? <Brightness7 /> : <Brightness4 />}
-          </IconButton>
         </Toolbar>
       </AppBar>
 

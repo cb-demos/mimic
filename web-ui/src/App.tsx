@@ -6,7 +6,6 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { useMemo } from 'react';
-import { useAppStore } from './store/appStore';
 import { Layout } from './components/Layout';
 
 // Import pages (will create these next)
@@ -30,17 +29,15 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  const { darkMode } = useAppStore();
-
-  // Create MUI theme based on dark mode preference
+  // Create MUI dark theme
   const theme = useMemo(
     () =>
       createTheme({
         palette: {
-          mode: darkMode ? 'dark' : 'light',
+          mode: 'dark',
         },
       }),
-    [darkMode]
+    []
   );
 
   return (
