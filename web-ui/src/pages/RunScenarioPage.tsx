@@ -214,7 +214,7 @@ export function RunScenarioPage() {
   };
 
   // Load preview
-  const loadPreview = async () => {
+  const loadPreview = async (params: Record<string, any>) => {
     if (!scenarioId) return null;
 
     setIsLoadingPreview(true);
@@ -223,7 +223,7 @@ export function RunScenarioPage() {
     try {
       const preview = await scenariosApi.previewScenario(scenarioId, {
         organization_id: organizationId,
-        parameters,
+        parameters: params,
       });
 
       setPreviewData(preview);
@@ -283,7 +283,7 @@ export function RunScenarioPage() {
     }
 
     // Step 2: Load and show preview
-    const preview = await loadPreview();
+    const preview = await loadPreview(params);
     if (preview) {
       setShowPreview(true);
     }
@@ -293,8 +293,8 @@ export function RunScenarioPage() {
   const handlePropertiesCreated = async () => {
     setShowPropertyDialog(false);
 
-    // Load and show preview
-    const preview = await loadPreview();
+    // Load and show preview (use current parameters state)
+    const preview = await loadPreview(parameters);
     if (preview) {
       setShowPreview(true);
     }
