@@ -5,8 +5,10 @@ import json
 import logging
 import uuid
 from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from mimic.exceptions import ValidationError
@@ -40,6 +42,27 @@ from ..models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/scenarios", tags=["scenarios"])
+
+
+def _safe_json_serialize(data: Any) -> str:
+    """Safely serialize data to JSON, handling Pydantic models and datetime objects.
+
+    Args:
+        data: Data to serialize (may contain Pydantic models, datetime, etc.)
+
+    Returns:
+        JSON string representation of the data
+    """
+
+    def default_serializer(obj):
+        """Custom serializer for non-standard JSON types."""
+        if isinstance(obj, BaseModel):
+            return obj.model_dump()
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+    return json.dumps(data, default=default_serializer)
 
 
 @router.get("", response_model=ScenarioListResponse)
@@ -432,10 +455,10 @@ async def get_progress(session_id: str):
                 # Wait for events with a timeout to allow periodic checks
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    yield {
-                        "event": event["event"],
-                        "data": json.dumps(event["data"]),
-                    }
+                    # Serialize the entire event object (with both "event" and "data" fields)
+                    # as the SSE data payload. This allows the frontend to use onmessage
+                    # instead of needing separate listeners for each event type.
+                    yield {"data": _safe_json_serialize(event)}
 
                     # Check if this is the final event
                     if event["event"] in ["scenario_complete", "scenario_error"]:

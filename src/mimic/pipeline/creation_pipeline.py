@@ -411,6 +411,7 @@ class CreationPipeline:
                 instance = self._build_instance(resolved_scenario)
 
                 summary = self._generate_summary()
+                # Keep Instance object for persistence, will be converted to dict for SSE
                 summary["instance"] = instance
                 return summary
 
