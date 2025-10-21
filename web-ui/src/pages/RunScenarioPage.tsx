@@ -58,6 +58,7 @@ export function RunScenarioPage() {
 
   // Form state
   const [organizationId, setOrganizationId] = useState('');
+  const [orgInputValue, setOrgInputValue] = useState('');
   const [inviteeUsername, setInviteeUsername] = useState('');
   const [ttlDays, setTtlDays] = useState(7);
   const [dryRun, setDryRun] = useState(false);
@@ -68,6 +69,7 @@ export function RunScenarioPage() {
   const [runName, setRunName] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [orgFetchError, setOrgFetchError] = useState<string | null>(null);
 
   // Credential validation state
   const [isValidatingCredentials, setIsValidatingCredentials] = useState(false);
@@ -305,26 +307,51 @@ export function RunScenarioPage() {
     runMutation.mutate();
   };
 
-  // Handle organization autocomplete change
+  // Handle organization autocomplete change (when option is selected from dropdown)
   const handleOrgChange = async (_event: any, value: string | CachedOrg | null) => {
-    if (typeof value === 'string') {
-      setOrganizationId(value);
-
-      if (value && value.trim().length > 0) {
-        try {
-          const response = await configApi.fetchOrgName(value);
-          setCachedOrgs((prev) => [
-            ...prev.filter((org) => org.org_id !== response.org_id),
-            { org_id: response.org_id, display_name: response.display_name },
-          ]);
-        } catch (err) {
-          console.error('Failed to fetch org name:', err);
-        }
-      }
-    } else if (value) {
+    if (typeof value === 'object' && value !== null) {
+      // User selected a cached org from the dropdown
       setOrganizationId(value.org_id);
+      // Update display to show formatted version
+      const displayValue = `${value.display_name} (${value.org_id.substring(0, 8)}...)`;
+      setOrgInputValue(displayValue);
+    } else if (typeof value === 'string') {
+      // User typed and pressed Enter (freeSolo mode)
+      setOrganizationId(value);
+      setOrgInputValue(value);
     } else {
+      // User cleared the field
       setOrganizationId('');
+      setOrgInputValue('');
+    }
+  };
+
+  // Handle organization input blur - fetch org name for new entries
+  const handleOrgBlur = async () => {
+    const trimmedId = organizationId.trim();
+
+    // Only fetch if:
+    // 1. Org ID is not empty
+    // 2. It's not already in cached orgs (i.e., it's a new entry)
+    if (!trimmedId || cachedOrgs.some((org) => org.org_id === trimmedId)) {
+      return;
+    }
+
+    try {
+      setOrgFetchError(null);
+      const response = await configApi.fetchOrgName(trimmedId);
+
+      // Update cached orgs (this persists via backend)
+      setCachedOrgs((prev) => [
+        ...prev.filter((org) => org.org_id !== response.org_id),
+        { org_id: response.org_id, display_name: response.display_name },
+      ]);
+
+      // Update the input display to show "Name (ID...)" format
+      const displayValue = `${response.display_name} (${response.org_id.substring(0, 8)}...)`;
+      setOrgInputValue(displayValue);
+    } catch (err) {
+      setOrgFetchError('Invalid organization ID');
     }
   };
 
@@ -398,20 +425,30 @@ export function RunScenarioPage() {
                   ? option
                   : `${option.display_name} (${option.org_id.substring(0, 8)}...)`
               }
-              value={cachedOrgs.find((org) => org.org_id === organizationId) || organizationId}
+              value={cachedOrgs.find((org) => org.org_id === organizationId) || null}
+              inputValue={orgInputValue}
               onChange={handleOrgChange}
               onInputChange={(_event, value) => {
-                if (value && !cachedOrgs.find((org) => org.org_id === value)) {
-                  setOrganizationId(value);
+                // Update both the actual org ID and the display value when typing
+                setOrganizationId(value);
+                setOrgInputValue(value);
+
+                // Clear org fetch error when user starts typing
+                if (orgFetchError) {
+                  setOrgFetchError(null);
                 }
               }}
+              onBlur={handleOrgBlur}
               renderInput={(params) => (
                 <TextField
                   {...params}
                   label="CloudBees Organization"
                   required
-                  helperText="Select from recent organizations or enter a new organization ID"
-                  error={!organizationId.trim() && !!error}
+                  helperText={
+                    orgFetchError ||
+                    'Select from recent organizations or enter a new organization ID'
+                  }
+                  error={!!orgFetchError || (!organizationId.trim() && !!error)}
                 />
               )}
               sx={{ mb: 2 }}
