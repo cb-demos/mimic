@@ -29,6 +29,7 @@ import {
 } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
+import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 
 const drawerWidth = 240;
 
@@ -73,9 +74,15 @@ export function Layout() {
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
+          <Typography variant="h6" noWrap component="div">
             Mimic
           </Typography>
+
+          {/* Environment switcher */}
+          <EnvironmentSwitcher />
+
+          {/* Spacer */}
+          <Box sx={{ flexGrow: 1 }} />
 
           {/* Theme toggle */}
           <IconButton color="inherit" onClick={toggleDarkMode}>
