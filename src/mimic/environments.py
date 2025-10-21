@@ -48,7 +48,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         use_legacy_flags=False,  # Demo uses app-based flag API
     ),
     "golden": EnvironmentConfig(
-        url="https://api.golden.beescloud.com",
+        url="https://api.cloudbees.io",
         endpoint_id="5848f60a-077d-438b-acad-842b64686797",
         description="SE Golden Demo Env",
         properties={
