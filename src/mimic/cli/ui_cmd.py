@@ -30,7 +30,9 @@ def find_available_port(start_port: int = 8080) -> int:
 @ui_app.callback(invoke_without_command=True)
 def start_ui(
     ctx: typer.Context,
-    port: int = typer.Option(None, help="Port to run on (auto-detect if not specified)"),
+    port: int = typer.Option(
+        None, help="Port to run on (auto-detect if not specified)"
+    ),
     no_browser: bool = typer.Option(False, help="Don't open browser automatically"),
     host: str = typer.Option("127.0.0.1", help="Host to bind to (default: 127.0.0.1)"),
 ):
@@ -59,7 +61,9 @@ def start_ui(
 
     url = f"http://{host}:{port}"
 
-    typer.echo(f"Starting Mimic Web UI at {typer.style(url, fg=typer.colors.CYAN, bold=True)}")
+    typer.echo(
+        f"Starting Mimic Web UI at {typer.style(url, fg=typer.colors.CYAN, bold=True)}"
+    )
     typer.echo("Press Ctrl+C to stop the server")
     typer.echo()
 

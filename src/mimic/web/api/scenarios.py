@@ -82,7 +82,9 @@ async def get_scenario(
         "wip": scenario.wip,
         "pack_source": scenario.pack_source,
         "parameter_schema": (
-            scenario.parameter_schema.model_dump() if scenario.parameter_schema else None
+            scenario.parameter_schema.model_dump()
+            if scenario.parameter_schema
+            else None
         ),
         "required_properties": scenario.required_properties,
         "required_secrets": scenario.required_secrets,
@@ -285,25 +287,29 @@ async def _execute_scenario_background(
 
     try:
         # Emit initial event
-        await emit_event({
-            "event": "scenario_start",
-            "data": {
-                "session_id": session_id,
-                "scenario_id": scenario_id,
-                "instance_name": instance_name,
-            },
-        })
+        await emit_event(
+            {
+                "event": "scenario_start",
+                "data": {
+                    "session_id": session_id,
+                    "scenario_id": scenario_id,
+                    "instance_name": instance_name,
+                },
+            }
+        )
 
         if dry_run:
             # Dry run: just preview
-            await emit_event({
-                "event": "task_start",
-                "data": {
-                    "task_id": "preview",
-                    "description": "Generating preview",
-                    "total": 1,
-                },
-            })
+            await emit_event(
+                {
+                    "event": "task_start",
+                    "data": {
+                        "task_id": "preview",
+                        "description": "Generating preview",
+                        "total": 1,
+                    },
+                }
+            )
 
             # Resolve template variables for preview
             resolved_scenario = scenario.resolve_template_variables(
@@ -311,24 +317,28 @@ async def _execute_scenario_background(
             )
             preview = CreationPipeline.preview_scenario(resolved_scenario)
 
-            await emit_event({
-                "event": "task_complete",
-                "data": {
-                    "task_id": "preview",
-                    "success": True,
-                    "message": "Preview generated",
-                },
-            })
+            await emit_event(
+                {
+                    "event": "task_complete",
+                    "data": {
+                        "task_id": "preview",
+                        "success": True,
+                        "message": "Preview generated",
+                    },
+                }
+            )
 
-            await emit_event({
-                "event": "scenario_complete",
-                "data": {
-                    "session_id": session_id,
-                    "instance_name": instance_name,
-                    "dry_run": True,
-                    "preview": preview,
-                },
-            })
+            await emit_event(
+                {
+                    "event": "scenario_complete",
+                    "data": {
+                        "session_id": session_id,
+                        "instance_name": instance_name,
+                        "dry_run": True,
+                        "preview": preview,
+                    },
+                }
+            )
         else:
             # Real execution
             pipeline = CreationPipeline(
@@ -355,22 +365,26 @@ async def _execute_scenario_background(
                 repo = InstanceRepository()
                 repo.save(instance)
 
-            await emit_event({
-                "event": "scenario_complete",
-                "data": {
-                    "session_id": session_id,
-                    "instance_name": instance_name,
-                    "summary": summary,
-                },
-            })
+            await emit_event(
+                {
+                    "event": "scenario_complete",
+                    "data": {
+                        "session_id": session_id,
+                        "instance_name": instance_name,
+                        "summary": summary,
+                    },
+                }
+            )
 
     except Exception as e:
         logger.error(f"Error executing scenario {scenario_id}: {e}", exc_info=True)
-        await emit_event({
-            "event": "scenario_error",
-            "data": {
-                "session_id": session_id,
-                "error": str(e),
-                "error_type": type(e).__name__,
-            },
-        })
+        await emit_event(
+            {
+                "event": "scenario_error",
+                "data": {
+                    "session_id": session_id,
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                },
+            }
+        )

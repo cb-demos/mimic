@@ -359,7 +359,7 @@ class CreationPipeline:
                     await self.resource_manager.update_environments_with_fm_tokens(
                         resolved_scenario.environments,
                         self.use_legacy_flags,
-                        env_to_app_mapping
+                        env_to_app_mapping,
                     )
                     completed_steps += 1
                     progress.update(

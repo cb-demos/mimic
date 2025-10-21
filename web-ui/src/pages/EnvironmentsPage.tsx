@@ -2,7 +2,7 @@
  * Environments page - manage CloudBees environments
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Box,
   Container,
@@ -28,18 +28,30 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  ButtonGroup,
+  ClickAwayListener,
+  Grow,
+  MenuItem,
+  MenuList,
+  Popper,
 } from '@mui/material';
-import { Add, Delete, Settings, CheckCircle } from '@mui/icons-material';
+import { Add, Delete, Settings, CheckCircle, ArrowDropDown, DeleteOutline } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { environmentsApi } from '../api/endpoints';
 import type { Environment } from '../types/api';
+import { AddPresetEnvironmentDialog } from '../components/AddPresetEnvironmentDialog';
 
 export function EnvironmentsPage() {
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addPresetDialogOpen, setAddPresetDialogOpen] = useState(false);
   const [propsDialogOpen, setPropsDialogOpen] = useState(false);
   const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
+  const addButtonRef = useRef<HTMLDivElement | null>(null);
 
   // Add environment form
   const [newEnv, setNewEnv] = useState({
@@ -81,9 +93,10 @@ export function EnvironmentsPage() {
   // Add environment mutation
   const addMutation = useMutation({
     mutationFn: (env: { name: string; url: string; endpoint_id: string }) =>
-      environmentsApi.add(env.name, env.url, env.endpoint_id, {}),
+      environmentsApi.add(env.name, env.url, env.endpoint_id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['environments'] });
+      queryClient.invalidateQueries({ queryKey: ['preset-environments'] });
       setAddDialogOpen(false);
       setNewEnv({ name: '', url: '', endpoint_id: '' });
       setError(null);
@@ -118,6 +131,21 @@ export function EnvironmentsPage() {
     },
   });
 
+  // Delete property mutation
+  const deletePropMutation = useMutation({
+    mutationFn: (data: { envName: string; propertyKey: string }) =>
+      environmentsApi.deleteEnvironmentProperty(data.envName, data.propertyKey),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['environment-properties', selectedEnv] });
+      setDeleteConfirmOpen(false);
+      setPropertyToDelete(null);
+      setError(null);
+    },
+    onError: (err: any) => {
+      setError(err.response?.data?.detail || 'Failed to delete property');
+    },
+  });
+
   const handleManageProps = (envName: string) => {
     setSelectedEnv(envName);
     setPropsDialogOpen(true);
@@ -138,6 +166,29 @@ export function EnvironmentsPage() {
         value: newProp.value,
       });
     }
+  };
+
+  const handleDeleteProperty = (propertyKey: string) => {
+    setPropertyToDelete(propertyKey);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteProperty = () => {
+    if (selectedEnv && propertyToDelete) {
+      deletePropMutation.mutate({
+        envName: selectedEnv,
+        propertyKey: propertyToDelete,
+      });
+    }
+  };
+
+  const handlePresetSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['environments'] });
+    queryClient.invalidateQueries({ queryKey: ['preset-environments'] });
+  };
+
+  const isBuiltInProperty = (key: string) => {
+    return key === 'UNIFY_API' || key === 'ENDPOINT_ID';
   };
 
   if (isLoading) {
@@ -161,9 +212,52 @@ export function EnvironmentsPage() {
             Manage CloudBees environments and properties
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<Add />} onClick={() => setAddDialogOpen(true)}>
-          Add Environment
-        </Button>
+        <ButtonGroup variant="contained" ref={addButtonRef}>
+          <Button startIcon={<Add />} onClick={() => setAddPresetDialogOpen(true)}>
+            Add Preset
+          </Button>
+          <Button
+            size="small"
+            onClick={() => setAddMenuOpen((prev) => !prev)}
+          >
+            <ArrowDropDown />
+          </Button>
+        </ButtonGroup>
+        <Popper
+          open={addMenuOpen}
+          anchorEl={addButtonRef.current}
+          role={undefined}
+          placement="bottom-end"
+          transition
+          disablePortal
+        >
+          {({ TransitionProps }) => (
+            <Grow {...TransitionProps}>
+              <Paper>
+                <ClickAwayListener onClickAway={() => setAddMenuOpen(false)}>
+                  <MenuList>
+                    <MenuItem
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        setAddPresetDialogOpen(true);
+                      }}
+                    >
+                      Add Preset Environment
+                    </MenuItem>
+                    <MenuItem
+                      onClick={() => {
+                        setAddMenuOpen(false);
+                        setAddDialogOpen(true);
+                      }}
+                    >
+                      Add Custom Environment
+                    </MenuItem>
+                  </MenuList>
+                </ClickAwayListener>
+              </Paper>
+            </Grow>
+          )}
+        </Popper>
       </Box>
 
       {error && (
@@ -188,6 +282,7 @@ export function EnvironmentsPage() {
                   <TableCell>Name</TableCell>
                   <TableCell>URL</TableCell>
                   <TableCell>Endpoint ID</TableCell>
+                  <TableCell>Flag API</TableCell>
                   <TableCell>Properties</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -203,7 +298,11 @@ export function EnvironmentsPage() {
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         {env.name}
-                        {!env.is_preset && <Chip label="Custom" size="small" />}
+                        {env.is_preset ? (
+                          <Chip label="Preset" size="small" color="primary" />
+                        ) : (
+                          <Chip label="Custom" size="small" color="default" />
+                        )}
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -215,6 +314,13 @@ export function EnvironmentsPage() {
                       <Typography variant="body2" fontFamily="monospace" fontSize="0.875rem">
                         {env.endpoint_id}
                       </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        label={env.flag_api_type === 'org' ? 'Org Flags' : 'App Flags'}
+                        size="small"
+                        color={env.flag_api_type === 'org' ? 'warning' : 'info'}
+                      />
                     </TableCell>
                     <TableCell>
                       <Button
@@ -299,6 +405,34 @@ export function EnvironmentsPage() {
         </DialogActions>
       </Dialog>
 
+      {/* Add Preset Environment Dialog */}
+      <AddPresetEnvironmentDialog
+        open={addPresetDialogOpen}
+        onClose={() => setAddPresetDialogOpen(false)}
+        onSuccess={handlePresetSuccess}
+      />
+
+      {/* Delete Property Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
+        <DialogTitle>Delete Property</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete the property <strong>{propertyToDelete}</strong>?
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteConfirmOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={confirmDeleteProperty}
+            disabled={deletePropMutation.isPending}
+          >
+            {deletePropMutation.isPending ? <CircularProgress size={24} /> : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Properties Dialog */}
       <Dialog
         open={propsDialogOpen}
@@ -326,7 +460,16 @@ export function EnvironmentsPage() {
                     {Object.entries(propertiesData.properties).map(([key, value]) => (
                       <ListItem key={key} divider>
                         <ListItemText
-                          primary={key}
+                          primary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" fontWeight="medium">
+                                {key}
+                              </Typography>
+                              {isBuiltInProperty(key) && (
+                                <Chip label="Built-in" size="small" color="default" />
+                              )}
+                            </Box>
+                          }
                           secondary={
                             <Typography
                               variant="body2"
@@ -339,7 +482,17 @@ export function EnvironmentsPage() {
                           }
                         />
                         <ListItemSecondaryAction>
-                          {/* Delete property would go here if supported by API */}
+                          {!isBuiltInProperty(key) && (
+                            <IconButton
+                              edge="end"
+                              aria-label="delete"
+                              onClick={() => handleDeleteProperty(key)}
+                              size="small"
+                              color="error"
+                            >
+                              <DeleteOutline />
+                            </IconButton>
+                          )}
                         </ListItemSecondaryAction>
                       </ListItem>
                     ))}

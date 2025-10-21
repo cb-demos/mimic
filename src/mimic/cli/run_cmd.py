@@ -82,11 +82,11 @@ def validate_scenario_fm_token_config(
             f"Add an application definition to the scenario YAML that includes "
             f"{'these environments' if len(unmapped_envs) > 1 else 'this environment'}:\n\n"
             f"[dim]applications:\n"
-            f"  - name: \"my-app\"\n"
+            f'  - name: "my-app"\n'
             f"    environments:\n"
         )
         for env_name_unmapped in unmapped_envs:
-            error_msg += f"      - \"{env_name_unmapped}\"\n"
+            error_msg += f'      - "{env_name_unmapped}"\n'
 
         error_msg += (
             "\nIf multiple scenario instances share resources, consider:\n"
@@ -165,8 +165,7 @@ def run(
     # Set up logging based on verbose flag
     if verbose:
         logging.basicConfig(
-            level=logging.DEBUG,
-            format='[%(levelname)s] %(name)s: %(message)s'
+            level=logging.DEBUG, format="[%(levelname)s] %(name)s: %(message)s"
         )
         console.print("[dim]Debug logging enabled[/dim]\n")
 

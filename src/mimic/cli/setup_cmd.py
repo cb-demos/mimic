@@ -151,8 +151,8 @@ def setup(
         endpoint_id = typer.prompt("Endpoint ID")
 
     # Prepare environment configuration (validates and sets defaults)
-    env_name, env_url, endpoint_id, env_properties, use_legacy_flags = prepare_environment_config(
-        env_name, env_url, endpoint_id
+    env_name, env_url, endpoint_id, env_properties, use_legacy_flags = (
+        prepare_environment_config(env_name, env_url, endpoint_id)
     )
 
     console.print(f"[dim]API URL: {env_url}[/dim]")

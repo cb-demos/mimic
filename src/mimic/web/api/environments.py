@@ -9,16 +9,157 @@ from mimic.environments import PRESET_ENVIRONMENTS
 from ..dependencies import ConfigDep
 from ..models import (
     AddEnvironmentRequest,
+    AddPresetEnvironmentRequest,
     AddPropertyRequest,
     EnvironmentInfo,
     EnvironmentListResponse,
+    PresetEnvironmentInfo,
+    PresetEnvironmentListResponse,
     PropertiesResponse,
     StatusResponse,
+    ValidateCredentialsRequest,
+    ValidateCredentialsResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/environments", tags=["environments"])
+
+
+@router.get("/presets", response_model=PresetEnvironmentListResponse)
+async def list_preset_environments(config: ConfigDep):
+    """List all available preset environments.
+
+    Returns:
+        List of preset environments with their configurations and whether they're already added
+    """
+    configured_envs = config.list_environments()
+    presets = []
+
+    for name, preset_config in PRESET_ENVIRONMENTS.items():
+        flag_api_type = "org" if preset_config.use_legacy_flags else "app"
+        presets.append(
+            PresetEnvironmentInfo(
+                name=name,
+                url=preset_config.url,
+                endpoint_id=preset_config.endpoint_id,
+                description=preset_config.description,
+                flag_api_type=flag_api_type,
+                default_properties=preset_config.properties,
+                is_configured=(name in configured_envs),
+            )
+        )
+
+    return PresetEnvironmentListResponse(presets=presets)
+
+
+@router.post("/validate-credentials", response_model=ValidateCredentialsResponse)
+async def validate_credentials(request: ValidateCredentialsRequest):
+    """Validate CloudBees credentials before adding environment.
+
+    Args:
+        request: Validation request with PAT, org ID, and environment URL
+
+    Returns:
+        Validation result with organization name if valid
+    """
+    try:
+        from mimic.unify import UnifyAPIClient
+
+        # Create temporary client to validate credentials
+        with UnifyAPIClient(
+            base_url=request.environment_url, api_key=request.pat
+        ) as client:
+            success, error = client.validate_credentials(request.org_id)
+
+            if success:
+                # Try to fetch org name for better UX
+                try:
+                    org_data = client.get_organization(request.org_id)
+                    # API response format: {"organization": {"displayName": "..."}}
+                    org_info = org_data.get("organization", {})
+                    org_name = org_info.get("displayName", "Unknown")
+                    return ValidateCredentialsResponse(valid=True, org_name=org_name)
+                except Exception:
+                    # If we can't fetch org name, that's fine - credentials are still valid
+                    return ValidateCredentialsResponse(valid=True)
+            else:
+                return ValidateCredentialsResponse(valid=False, error=error)
+    except Exception as e:
+        logger.error(f"Credential validation error: {e}")
+        return ValidateCredentialsResponse(valid=False, error=str(e))
+
+
+@router.post("/presets", response_model=StatusResponse)
+async def add_preset_environment(
+    request: AddPresetEnvironmentRequest, config: ConfigDep
+):
+    """Add a preset environment with credentials.
+
+    Args:
+        request: Preset environment configuration with PAT
+        config: Config manager dependency
+
+    Returns:
+        Status message
+    """
+    # Verify it's a valid preset
+    if request.name not in PRESET_ENVIRONMENTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown preset environment: {request.name}",
+        )
+
+    preset_config = PRESET_ENVIRONMENTS[request.name]
+
+    # Check if already configured
+    existing_envs = config.list_environments()
+    if request.name in existing_envs:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Environment '{request.name}' is already configured",
+        )
+
+    try:
+        from mimic.unify import UnifyAPIClient
+
+        # Validate credentials first
+        with UnifyAPIClient(base_url=preset_config.url, api_key=request.pat) as client:
+            success, error = client.validate_credentials(request.org_id)
+
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail=error
+                    or "Invalid CloudBees credentials for this environment",
+                )
+
+        # Add the environment with proper configuration
+        config.add_environment(
+            name=request.name,
+            url=preset_config.url,
+            pat=request.pat,
+            endpoint_id=preset_config.endpoint_id,
+            use_legacy_flags=preset_config.use_legacy_flags,
+        )
+
+        # Add any custom properties provided by user
+        for key, value in request.custom_properties.items():
+            config.set_environment_property(request.name, key, value)
+
+        logger.info(f"Added preset environment: {request.name}")
+        return StatusResponse(
+            status="success",
+            message=f"Preset environment '{request.name}' added successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to add preset environment {request.name}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to add preset environment: {str(e)}",
+        ) from e
 
 
 @router.get("", response_model=EnvironmentListResponse)
@@ -38,13 +179,24 @@ async def list_environments(config: ConfigDep):
         endpoint_id = config.get_endpoint_id(env_name)
         properties = config.get_environment_properties(env_name)
 
+        # Determine flag API type
+        is_preset = env_name in preset_names
+        if is_preset:
+            preset_config = PRESET_ENVIRONMENTS[env_name]
+            flag_api_type = "org" if preset_config.use_legacy_flags else "app"
+        else:
+            # For custom environments, check use_legacy_flags setting
+            use_legacy = config.get_environment_uses_legacy_flags(env_name)
+            flag_api_type = "org" if use_legacy else "app"
+
         environments.append(
             EnvironmentInfo(
                 name=env_name,
                 url=url or "",
                 endpoint_id=endpoint_id or "",
                 is_current=(env_name == current_env),
-                is_preset=(env_name in preset_names),
+                is_preset=is_preset,
+                flag_api_type=flag_api_type,
                 properties=properties,
             )
         )
@@ -57,25 +209,41 @@ async def add_environment(request: AddEnvironmentRequest, config: ConfigDep):
     """Add a custom environment.
 
     Args:
-        request: Environment configuration
+        request: Environment configuration with optional PAT validation
         config: Config manager dependency
 
     Returns:
         Status message
     """
     try:
-        # Note: add_environment requires PAT, but we're not setting it here
-        # Users should configure the PAT separately via the config endpoints
+        # If PAT and org_id provided, validate credentials first
+        if request.pat and request.org_id:
+            from mimic.unify import UnifyAPIClient
+
+            with UnifyAPIClient(base_url=request.url, api_key=request.pat) as client:
+                success, error = client.validate_credentials(request.org_id)
+                if not success:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail=error
+                        or "Invalid CloudBees credentials for this environment",
+                    )
+
+        # Add the environment
         config.add_environment(
             name=request.name,
             url=request.url,
-            pat="",  # Will be set separately via /api/config/cloudbees/token
+            pat=request.pat or "",  # Store PAT if provided
             endpoint_id=request.endpoint_id,
+            use_legacy_flags=request.use_legacy_flags,
         )
+
         logger.info(f"Added custom environment: {request.name}")
         return StatusResponse(
             status="success", message=f"Environment '{request.name}' added successfully"
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to add environment {request.name}: {e}")
         raise HTTPException(

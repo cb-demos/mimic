@@ -221,8 +221,10 @@ def env_add(
             custom_properties[key.strip()] = value.strip()
 
     # Prepare environment configuration
-    name, url, endpoint_id, properties, resolved_use_legacy_flags = prepare_environment_config(
-        name, url, endpoint_id, custom_properties, use_legacy_flags
+    name, url, endpoint_id, properties, resolved_use_legacy_flags = (
+        prepare_environment_config(
+            name, url, endpoint_id, custom_properties, use_legacy_flags
+        )
     )
 
     # Display environment details

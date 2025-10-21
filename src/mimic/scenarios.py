@@ -103,7 +103,9 @@ class ApplicationConfig(BaseModel):
     repository: str | None = None  # Optional repository URL
     components: list[str] = Field(default_factory=list)  # Component name templates
     environments: list[str] = Field(default_factory=list)  # Environment name templates
-    is_shared: bool = False  # If True, reuse existing app if found; don't delete on cleanup
+    is_shared: bool = (
+        False  # If True, reuse existing app if found; don't delete on cleanup
+    )
 
 
 class Scenario(BaseModel):

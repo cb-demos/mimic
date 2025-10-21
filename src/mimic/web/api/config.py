@@ -60,9 +60,7 @@ async def set_github_token(request: SetGitHubTokenRequest, config: ConfigDep):
         return StatusResponse(status="success", message="GitHub token saved securely")
     except Exception as e:
         logger.error(f"Failed to save GitHub token: {e}")
-        return StatusResponse(
-            status="error", message=f"Failed to save token: {str(e)}"
-        )
+        return StatusResponse(status="error", message=f"Failed to save token: {str(e)}")
 
 
 @router.post("/github/username", response_model=StatusResponse)
@@ -137,12 +135,8 @@ async def set_cloudbees_token(request: SetCloudBeesTokenRequest, config: ConfigD
             message=f"CloudBees token saved securely for {request.environment}",
         )
     except Exception as e:
-        logger.error(
-            f"Failed to save CloudBees token for {request.environment}: {e}"
-        )
-        return StatusResponse(
-            status="error", message=f"Failed to save token: {str(e)}"
-        )
+        logger.error(f"Failed to save CloudBees token for {request.environment}: {e}")
+        return StatusResponse(status="error", message=f"Failed to save token: {str(e)}")
 
 
 @router.get("/recent/{category}", response_model=RecentValuesResponse)

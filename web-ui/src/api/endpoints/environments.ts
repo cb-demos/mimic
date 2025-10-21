@@ -9,6 +9,10 @@ import type {
   AddPropertyRequest,
   PropertiesResponse,
   StatusResponse,
+  PresetEnvironmentListResponse,
+  AddPresetEnvironmentRequest,
+  ValidateCredentialsRequest,
+  ValidateCredentialsResponse,
 } from '../../types/api';
 
 /**
@@ -65,6 +69,53 @@ export async function addEnvironmentProperty(
   return response.data;
 }
 
+/**
+ * Delete an environment property
+ */
+export async function deleteEnvironmentProperty(
+  envName: string,
+  propertyKey: string
+): Promise<StatusResponse> {
+  const response = await apiClient.delete<StatusResponse>(
+    `/api/environments/${envName}/properties/${propertyKey}`
+  );
+  return response.data;
+}
+
+/**
+ * List all available preset environments
+ */
+export async function listPresetEnvironments(): Promise<PresetEnvironmentListResponse> {
+  const response = await apiClient.get<PresetEnvironmentListResponse>('/api/environments/presets');
+  return response.data;
+}
+
+/**
+ * Validate CloudBees credentials before adding environment
+ */
+export async function validateCredentials(
+  request: ValidateCredentialsRequest
+): Promise<ValidateCredentialsResponse> {
+  const response = await apiClient.post<ValidateCredentialsResponse>(
+    '/api/environments/validate-credentials',
+    request
+  );
+  return response.data;
+}
+
+/**
+ * Add a preset environment with credentials
+ */
+export async function addPresetEnvironment(
+  request: AddPresetEnvironmentRequest
+): Promise<StatusResponse> {
+  const response = await apiClient.post<StatusResponse>(
+    '/api/environments/presets',
+    request
+  );
+  return response.data;
+}
+
 // ==================== Convenience Wrappers ====================
 
 /**
@@ -79,9 +130,11 @@ export async function add(
   name: string,
   url: string,
   endpoint_id: string,
-  properties: Record<string, string>
+  pat?: string,
+  org_id?: string,
+  use_legacy_flags?: boolean
 ): Promise<StatusResponse> {
-  return addEnvironment({ name, url, endpoint_id, properties });
+  return addEnvironment({ name, url, endpoint_id, pat, org_id, use_legacy_flags });
 }
 
 /**

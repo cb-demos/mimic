@@ -73,12 +73,8 @@ async def run_setup(request: RunSetupRequest, config: ConfigDep):
         config.set_cloudbees_pat(request.environment, request.cloudbees_token)
         logger.info(f"Set CloudBees PAT for environment: {request.environment}")
 
-        return RunSetupResponse(
-            success=True, message="Setup completed successfully"
-        )
+        return RunSetupResponse(success=True, message="Setup completed successfully")
 
     except Exception as e:
         logger.error(f"Setup failed: {e}")
-        return RunSetupResponse(
-            success=False, message=f"Setup failed: {str(e)}"
-        )
+        return RunSetupResponse(success=False, message=f"Setup failed: {str(e)}")

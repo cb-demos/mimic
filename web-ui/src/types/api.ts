@@ -150,6 +150,7 @@ export interface EnvironmentInfo {
   endpoint_id: string;
   is_current: boolean;
   is_preset: boolean;
+  flag_api_type: 'org' | 'app';
   properties: Record<string, string>;
 }
 
@@ -162,7 +163,9 @@ export interface AddEnvironmentRequest {
   name: string;
   url: string;
   endpoint_id: string;
-  properties?: Record<string, string>;
+  pat?: string;
+  org_id?: string;
+  use_legacy_flags?: boolean;
 }
 
 export interface AddPropertyRequest {
@@ -172,6 +175,39 @@ export interface AddPropertyRequest {
 
 export interface PropertiesResponse {
   properties: Record<string, string>;
+}
+
+export interface PresetEnvironmentInfo {
+  name: string;
+  url: string;
+  endpoint_id: string;
+  description: string;
+  flag_api_type: 'org' | 'app';
+  default_properties: Record<string, string>;
+  is_configured: boolean;
+}
+
+export interface PresetEnvironmentListResponse {
+  presets: PresetEnvironmentInfo[];
+}
+
+export interface AddPresetEnvironmentRequest {
+  name: string;
+  pat: string;
+  org_id: string;
+  custom_properties?: Record<string, string>;
+}
+
+export interface ValidateCredentialsRequest {
+  pat: string;
+  org_id: string;
+  environment_url: string;
+}
+
+export interface ValidateCredentialsResponse {
+  valid: boolean;
+  error?: string;
+  org_name?: string;
 }
 
 // ==================== Cleanup Models ====================

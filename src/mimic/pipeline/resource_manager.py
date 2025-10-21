@@ -214,23 +214,43 @@ class ResourceManager:
                                 )
 
                         # Merge with existing environment IDs
-                        existing_env_ids = existing_application.get("linkedEnvironmentIds", [])
-                        all_environment_ids = list(set(existing_env_ids + new_environment_ids))
+                        existing_env_ids = existing_application.get(
+                            "linkedEnvironmentIds", []
+                        )
+                        all_environment_ids = list(
+                            set(existing_env_ids + new_environment_ids)
+                        )
 
                         # Update the application with new environments (don't modify components)
                         update_data = {
                             "service": {
                                 "id": existing_application["id"],
                                 "name": existing_application["name"],
-                                "description": existing_application.get("description", ""),
-                                "repositoryUrl": existing_application.get("repositoryUrl", ""),
-                                "repositoryHref": existing_application.get("repositoryHref", ""),
-                                "endpointId": existing_application.get("endpointId", ""),
-                                "defaultBranch": existing_application.get("defaultBranch", "main"),
-                                "linkedComponentIds": existing_application.get("linkedComponentIds", []),
+                                "description": existing_application.get(
+                                    "description", ""
+                                ),
+                                "repositoryUrl": existing_application.get(
+                                    "repositoryUrl", ""
+                                ),
+                                "repositoryHref": existing_application.get(
+                                    "repositoryHref", ""
+                                ),
+                                "endpointId": existing_application.get(
+                                    "endpointId", ""
+                                ),
+                                "defaultBranch": existing_application.get(
+                                    "defaultBranch", "main"
+                                ),
+                                "linkedComponentIds": existing_application.get(
+                                    "linkedComponentIds", []
+                                ),
                                 "linkedEnvironmentIds": all_environment_ids,
-                                "components": existing_application.get("components", []),
-                                "environments": existing_application.get("environments", []),
+                                "components": existing_application.get(
+                                    "components", []
+                                ),
+                                "environments": existing_application.get(
+                                    "environments", []
+                                ),
                                 "organizationId": self.organization_id,
                                 "serviceType": "APPLICATION",
                             }
@@ -239,11 +259,13 @@ class ResourceManager:
                         client.update_service(
                             self.organization_id,
                             existing_application["id"],
-                            update_data
+                            update_data,
                         )
 
                         self.created_applications[app_name] = existing_application
-                        print(f"   ✅ Added {len(new_environment_ids)} environment(s) to shared application: {app_name}")
+                        print(
+                            f"   ✅ Added {len(new_environment_ids)} environment(s) to shared application: {app_name}"
+                        )
                     else:
                         # Non-shared app exists - skip creation
                         print(
@@ -332,7 +354,7 @@ class ResourceManager:
         self,
         environments: list,
         use_legacy_flags: bool,
-        env_to_app_mapping: dict[str, str] | None = None
+        env_to_app_mapping: dict[str, str] | None = None,
     ) -> None:
         """
         Update environments with FM_TOKEN SDK keys after applications are created.
@@ -378,7 +400,11 @@ class ResourceManager:
                             )
                         else:
                             # New app-based API
-                            app_name = env_to_app_mapping.get(env_name) if env_to_app_mapping else None
+                            app_name = (
+                                env_to_app_mapping.get(env_name)
+                                if env_to_app_mapping
+                                else None
+                            )
                             if not app_name:
                                 print(
                                     f"   ⚠️  No application mapping found for environment {env_name}, skipping"

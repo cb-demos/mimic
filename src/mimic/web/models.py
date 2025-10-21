@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 # ==================== Common Models ====================
 
+
 class StatusResponse(BaseModel):
     """Generic status response."""
 
@@ -22,6 +23,7 @@ class ErrorResponse(BaseModel):
 
 
 # ==================== Scenario Models ====================
+
 
 class ScenarioListResponse(BaseModel):
     """Response for listing scenarios."""
@@ -68,6 +70,7 @@ class ValidateParametersResponse(BaseModel):
 
 
 # ==================== Configuration Models ====================
+
 
 class GitHubConfigResponse(BaseModel):
     """Response for GitHub configuration status."""
@@ -149,6 +152,7 @@ class FetchOrgNameResponse(BaseModel):
 
 # ==================== Environment Models ====================
 
+
 class EnvironmentInfo(BaseModel):
     """Information about a single environment."""
 
@@ -157,6 +161,7 @@ class EnvironmentInfo(BaseModel):
     endpoint_id: str
     is_current: bool
     is_preset: bool
+    flag_api_type: str  # "org" or "app"
     properties: dict[str, str] = Field(default_factory=dict)
 
 
@@ -173,6 +178,9 @@ class AddEnvironmentRequest(BaseModel):
     name: str
     url: str
     endpoint_id: str
+    pat: str | None = None
+    org_id: str | None = None
+    use_legacy_flags: bool = False
 
 
 class AddPropertyRequest(BaseModel):
@@ -188,7 +196,51 @@ class PropertiesResponse(BaseModel):
     properties: dict[str, str]
 
 
+class PresetEnvironmentInfo(BaseModel):
+    """Information about a preset environment."""
+
+    name: str
+    url: str
+    endpoint_id: str
+    description: str
+    flag_api_type: str  # "org" or "app"
+    default_properties: dict[str, str] = Field(default_factory=dict)
+    is_configured: bool  # Whether this preset has been added to config
+
+
+class PresetEnvironmentListResponse(BaseModel):
+    """Response for listing preset environments."""
+
+    presets: list[PresetEnvironmentInfo]
+
+
+class AddPresetEnvironmentRequest(BaseModel):
+    """Request to add a preset environment."""
+
+    name: str
+    pat: str
+    org_id: str
+    custom_properties: dict[str, str] = Field(default_factory=dict)
+
+
+class ValidateCredentialsRequest(BaseModel):
+    """Request to validate CloudBees credentials."""
+
+    pat: str
+    org_id: str
+    environment_url: str
+
+
+class ValidateCredentialsResponse(BaseModel):
+    """Response for credential validation."""
+
+    valid: bool
+    error: str | None = None
+    org_name: str | None = None
+
+
 # ==================== Cleanup Models ====================
+
 
 class SessionInfo(BaseModel):
     """Information about a session for cleanup."""
@@ -234,6 +286,7 @@ class CleanupResponse(BaseModel):
 
 # ==================== Scenario Pack Models ====================
 
+
 class ScenarioPackInfo(BaseModel):
     """Information about a scenario pack."""
 
@@ -276,6 +329,7 @@ class EnablePackRequest(BaseModel):
 
 
 # ==================== Setup Models ====================
+
 
 class SetupStatusResponse(BaseModel):
     """Response for setup status check."""

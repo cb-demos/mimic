@@ -99,7 +99,9 @@ class UnifyAPIClient:
             error_msg = f"HTTP {e.response.status_code} error for {method} {url}"
             try:
                 error_detail = e.response.json()
-                logger.error(f"API error response: {json.dumps(error_detail, indent=2)}")
+                logger.error(
+                    f"API error response: {json.dumps(error_detail, indent=2)}"
+                )
                 if "message" in error_detail:
                     error_msg += f": {error_detail['message']}"
                 elif "error" in error_detail:

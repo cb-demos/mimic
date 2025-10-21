@@ -30,7 +30,7 @@ def get_scenario_manager() -> ScenarioManager:
 
 
 def require_github_credentials(
-    config: Annotated[ConfigManager, Depends(get_config_manager)]
+    config: Annotated[ConfigManager, Depends(get_config_manager)],
 ) -> tuple[str, str]:
     """Require GitHub credentials to be configured.
 
@@ -56,7 +56,7 @@ def require_github_credentials(
 
 
 def require_cloudbees_credentials(
-    config: Annotated[ConfigManager, Depends(get_config_manager)]
+    config: Annotated[ConfigManager, Depends(get_config_manager)],
 ) -> tuple[str, str, str, str]:
     """Require CloudBees credentials for current environment.
 

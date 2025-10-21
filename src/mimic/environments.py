@@ -10,7 +10,9 @@ class EnvironmentConfig(NamedTuple):
     endpoint_id: str
     description: str
     properties: dict[str, str] = {}
-    use_legacy_flags: bool = False  # True for org-based flags (prod), False for app-based flags
+    use_legacy_flags: bool = (
+        False  # True for org-based flags (prod), False for app-based flags
+    )
 
 
 # Pre-defined CloudBees Unify environments
@@ -44,6 +46,16 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
             "FM_INSTANCE": "demo1.cloudbees.io",
         },
         use_legacy_flags=False,  # Demo uses app-based flag API
+    ),
+    "golden": EnvironmentConfig(
+        url="https://api.golden.beescloud.com",
+        endpoint_id="5848f60a-077d-438b-acad-842b64686797",
+        description="SE Golden Demo Env",
+        properties={
+            "USE_VPC": "false",
+            "FM_INSTANCE": "cloudbees.io",
+        },
+        use_legacy_flags=False,
     ),
 }
 
