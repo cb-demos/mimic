@@ -21,6 +21,8 @@ from ..models import (
     SetGitHubTokenRequest,
     SetGitHubUsernameRequest,
     StatusResponse,
+    ValidateAllCredentialsRequest,
+    ValidateAllCredentialsResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -238,3 +240,56 @@ async def fetch_org_name(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Failed to fetch organization name: {str(e)}",
         ) from e
+
+
+@router.post("/validate-all-credentials", response_model=ValidateAllCredentialsResponse)
+async def validate_all_credentials(request: ValidateAllCredentialsRequest):
+    """Validate both CloudBees and GitHub credentials.
+
+    Args:
+        request: Request with both CloudBees and GitHub credentials
+
+    Returns:
+        Validation results for both credentials
+    """
+    import asyncio
+
+    from mimic.gh import GitHubClient
+
+    cloudbees_valid = False
+    github_valid = False
+    cloudbees_error = None
+    github_error = None
+
+    # Validate CloudBees credentials
+    try:
+        with UnifyAPIClient(
+            base_url=request.cloudbees_url, api_key=request.cloudbees_pat
+        ) as client:
+            success, error = client.validate_credentials(request.organization_id)
+            if success:
+                cloudbees_valid = True
+            else:
+                cloudbees_error = error
+    except Exception as e:
+        logger.error(f"CloudBees credential validation error: {e}")
+        cloudbees_error = str(e)
+
+    # Validate GitHub credentials
+    github_client = GitHubClient(request.github_pat)
+    try:
+        success, error = asyncio.run(github_client.validate_credentials())
+        if success:
+            github_valid = True
+        else:
+            github_error = error
+    except Exception as e:
+        logger.error(f"GitHub credential validation error: {e}")
+        github_error = str(e)
+
+    return ValidateAllCredentialsResponse(
+        cloudbees_valid=cloudbees_valid,
+        github_valid=github_valid,
+        cloudbees_error=cloudbees_error,
+        github_error=github_error,
+    )

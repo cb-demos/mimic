@@ -86,6 +86,59 @@ export interface ValidateParametersResponse {
   errors: string[];
 }
 
+export interface CheckPropertiesRequest {
+  organization_id: string;
+}
+
+export interface PropertyInfo {
+  name: string;
+  type: 'property' | 'secret';
+  exists: boolean;
+}
+
+export interface CheckPropertiesResponse {
+  required_properties: string[];
+  required_secrets: string[];
+  missing_properties: string[];
+  missing_secrets: string[];
+  all_properties: PropertyInfo[];
+}
+
+export interface CreatePropertyRequest {
+  organization_id: string;
+  name: string;
+  value: string;
+  is_secret?: boolean;
+}
+
+export interface ScenarioPreviewRequest {
+  organization_id: string;
+  parameters?: Record<string, any>;
+}
+
+export interface ScenarioPreviewResponse {
+  preview: {
+    repositories: Array<{
+      name: string;
+      source: string;
+    }>;
+    components: string[];
+    environments: Array<{
+      name: string;
+    }>;
+    applications: Array<{
+      name: string;
+      components: string[];
+      environments: string[];
+    }>;
+    flags: Array<{
+      name: string;
+      type: string;
+      environments: string[];
+    }>;
+  };
+}
+
 // ==================== Configuration Models ====================
 
 export interface GitHubConfigResponse {
@@ -208,6 +261,25 @@ export interface ValidateCredentialsResponse {
   valid: boolean;
   error?: string;
   org_name?: string;
+}
+
+export interface ValidateAllCredentialsRequest {
+  cloudbees_pat: string;
+  cloudbees_url: string;
+  organization_id: string;
+  github_pat: string;
+}
+
+export interface CredentialValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+export interface ValidateAllCredentialsResponse {
+  cloudbees_valid: boolean;
+  github_valid: boolean;
+  cloudbees_error?: string;
+  github_error?: string;
 }
 
 // ==================== Cleanup Models ====================

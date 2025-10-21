@@ -15,6 +15,8 @@ import type {
   SetGitHubTokenRequest,
   SetGitHubUsernameRequest,
   StatusResponse,
+  ValidateAllCredentialsRequest,
+  ValidateAllCredentialsResponse,
 } from '../../types/api';
 
 // ==================== GitHub Configuration ====================
@@ -136,6 +138,21 @@ export async function fetchOrgName(orgId: string): Promise<FetchOrgNameResponse>
   const response = await apiClient.post<FetchOrgNameResponse>(
     '/api/config/cloudbees-orgs/fetch',
     { org_id: orgId } as FetchOrgNameRequest
+  );
+  return response.data;
+}
+
+// ==================== Credential Validation ====================
+
+/**
+ * Validate both CloudBees and GitHub credentials
+ */
+export async function validateAllCredentials(
+  request: ValidateAllCredentialsRequest
+): Promise<ValidateAllCredentialsResponse> {
+  const response = await apiClient.post<ValidateAllCredentialsResponse>(
+    '/api/config/validate-all-credentials',
+    request
   );
   return response.data;
 }

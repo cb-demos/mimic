@@ -10,6 +10,12 @@ import type {
   RunScenarioResponse,
   ValidateParametersRequest,
   ValidateParametersResponse,
+  CheckPropertiesRequest,
+  CheckPropertiesResponse,
+  CreatePropertyRequest,
+  ScenarioPreviewRequest,
+  ScenarioPreviewResponse,
+  StatusResponse,
 } from '../../types/api';
 
 /**
@@ -88,4 +94,45 @@ export async function run(
     dry_run,
     invitee_username,
   });
+}
+
+/**
+ * Check required properties/secrets for a scenario
+ */
+export async function checkProperties(
+  scenarioId: string,
+  request: CheckPropertiesRequest
+): Promise<CheckPropertiesResponse> {
+  const response = await apiClient.post<CheckPropertiesResponse>(
+    `/api/scenarios/${scenarioId}/check-properties`,
+    request
+  );
+  return response.data;
+}
+
+/**
+ * Create a property or secret in a CloudBees organization
+ */
+export async function createProperty(
+  request: CreatePropertyRequest
+): Promise<StatusResponse> {
+  const response = await apiClient.post<StatusResponse>(
+    '/api/scenarios/properties/create',
+    request
+  );
+  return response.data;
+}
+
+/**
+ * Generate a preview of what will be created for a scenario
+ */
+export async function previewScenario(
+  scenarioId: string,
+  request: ScenarioPreviewRequest
+): Promise<ScenarioPreviewResponse> {
+  const response = await apiClient.post<ScenarioPreviewResponse>(
+    `/api/scenarios/${scenarioId}/preview`,
+    request
+  );
+  return response.data;
 }

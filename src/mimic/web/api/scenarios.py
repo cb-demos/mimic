@@ -22,10 +22,17 @@ from ..dependencies import (
 )
 from ..events import broadcaster
 from ..models import (
+    CheckPropertiesRequest,
+    CheckPropertiesResponse,
+    CreatePropertyRequest,
+    PropertyInfo,
     RunScenarioRequest,
     RunScenarioResponse,
     ScenarioDetailResponse,
     ScenarioListResponse,
+    ScenarioPreviewRequest,
+    ScenarioPreviewResponse,
+    StatusResponse,
     ValidateParametersRequest,
     ValidateParametersResponse,
 )
@@ -121,6 +128,195 @@ async def validate_parameters(
         return ValidateParametersResponse(valid=True, errors=[])
     except ValidationError as e:
         return ValidateParametersResponse(valid=False, errors=[str(e)])
+
+
+@router.post("/{scenario_id}/check-properties", response_model=CheckPropertiesResponse)
+async def check_properties(
+    scenario_id: str,
+    request: CheckPropertiesRequest,
+    scenarios: ScenarioDep,
+    cloudbees_creds: CloudBeesCredentialsDep,
+):
+    """Check if required properties/secrets exist for a scenario.
+
+    Args:
+        scenario_id: The scenario ID
+        request: Request with organization_id
+        scenarios: Scenario manager dependency
+        cloudbees_creds: CloudBees credentials dependency
+
+    Returns:
+        List of required and missing properties/secrets
+    """
+    from mimic.unify import UnifyAPIClient
+
+    scenario = scenarios.get_scenario(scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario '{scenario_id}' not found",
+        )
+
+    # Extract CloudBees credentials
+    _, cloudbees_pat, cloudbees_url, _ = cloudbees_creds
+
+    try:
+        # Fetch existing properties from the organization
+        with UnifyAPIClient(base_url=cloudbees_url, api_key=cloudbees_pat) as client:
+            response = client.list_properties(request.organization_id)
+            existing_properties = response.get("properties", [])
+
+            # Build a set of existing property names
+            existing_names = {
+                prop.get("property", {}).get("name")
+                for prop in existing_properties
+                if prop.get("property", {}).get("name")
+            }
+
+        # Check required properties
+        required_properties = scenario.required_properties or []
+        required_secrets = scenario.required_secrets or []
+
+        missing_properties = [
+            name for name in required_properties if name not in existing_names
+        ]
+        missing_secrets = [
+            name for name in required_secrets if name not in existing_names
+        ]
+
+        # Build list of all properties with their status
+        all_properties = []
+        for name in required_properties:
+            all_properties.append(
+                PropertyInfo(name=name, type="property", exists=name in existing_names)
+            )
+        for name in required_secrets:
+            all_properties.append(
+                PropertyInfo(name=name, type="secret", exists=name in existing_names)
+            )
+
+        return CheckPropertiesResponse(
+            required_properties=required_properties,
+            required_secrets=required_secrets,
+            missing_properties=missing_properties,
+            missing_secrets=missing_secrets,
+            all_properties=all_properties,
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to check properties for scenario {scenario_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to check properties: {str(e)}",
+        ) from e
+
+
+@router.post("/properties/create", response_model=StatusResponse)
+async def create_property(
+    request: CreatePropertyRequest,
+    cloudbees_creds: CloudBeesCredentialsDep,
+):
+    """Create a property or secret in a CloudBees organization.
+
+    Args:
+        request: Request with property details
+        cloudbees_creds: CloudBees credentials dependency
+
+    Returns:
+        Status message
+    """
+    from mimic.unify import UnifyAPIClient
+
+    # Extract CloudBees credentials
+    _, cloudbees_pat, cloudbees_url, _ = cloudbees_creds
+
+    try:
+        with UnifyAPIClient(base_url=cloudbees_url, api_key=cloudbees_pat) as client:
+            client.create_property(
+                resource_id=request.organization_id,
+                name=request.name,
+                value=request.value,
+                is_secret=request.is_secret,
+            )
+
+        property_type = "secret" if request.is_secret else "property"
+        logger.info(
+            f"Created {property_type} '{request.name}' in org {request.organization_id}"
+        )
+
+        return StatusResponse(
+            status="success",
+            message=f"{'Secret' if request.is_secret else 'Property'} '{request.name}' created successfully",
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to create property '{request.name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create property: {str(e)}",
+        ) from e
+
+
+@router.post("/{scenario_id}/preview", response_model=ScenarioPreviewResponse)
+async def preview_scenario(
+    scenario_id: str,
+    request: ScenarioPreviewRequest,
+    scenarios: ScenarioDep,
+    config: ConfigDep,
+):
+    """Generate a preview of what will be created for a scenario.
+
+    Args:
+        scenario_id: The scenario ID
+        request: Request with parameters
+        scenarios: Scenario manager dependency
+        config: Config manager dependency
+
+    Returns:
+        Preview of resources that will be created
+    """
+    scenario = scenarios.get_scenario(scenario_id)
+    if not scenario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Scenario '{scenario_id}' not found",
+        )
+
+    try:
+        # Validate parameters
+        validated_params = scenario.validate_input(request.parameters)
+
+        # Get environment properties for template resolution
+        current_env = config.get_current_environment()
+        if not current_env:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No environment configured",
+            )
+
+        env_properties = config.get_environment_properties(current_env)
+
+        # Resolve template variables
+        resolved_scenario = scenario.resolve_template_variables(
+            validated_params, env_properties
+        )
+
+        # Generate preview
+        preview = CreationPipeline.preview_scenario(resolved_scenario)
+
+        return ScenarioPreviewResponse(preview=preview)
+
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid parameters: {str(e)}",
+        ) from e
+    except Exception as e:
+        logger.error(f"Failed to generate preview for scenario {scenario_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to generate preview: {str(e)}",
+        ) from e
 
 
 @router.post("/{scenario_id}/run", response_model=RunScenarioResponse)

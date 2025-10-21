@@ -69,6 +69,52 @@ class ValidateParametersResponse(BaseModel):
     errors: list[str] = Field(default_factory=list)
 
 
+class CheckPropertiesRequest(BaseModel):
+    """Request to check required properties/secrets for a scenario."""
+
+    organization_id: str
+
+
+class PropertyInfo(BaseModel):
+    """Information about a property or secret."""
+
+    name: str
+    type: str  # "property" or "secret"
+    exists: bool
+
+
+class CheckPropertiesResponse(BaseModel):
+    """Response for property check."""
+
+    required_properties: list[str] = Field(default_factory=list)
+    required_secrets: list[str] = Field(default_factory=list)
+    missing_properties: list[str] = Field(default_factory=list)
+    missing_secrets: list[str] = Field(default_factory=list)
+    all_properties: list[PropertyInfo] = Field(default_factory=list)
+
+
+class CreatePropertyRequest(BaseModel):
+    """Request to create a property or secret in CloudBees organization."""
+
+    organization_id: str
+    name: str
+    value: str
+    is_secret: bool = False
+
+
+class ScenarioPreviewRequest(BaseModel):
+    """Request to preview a scenario without executing it."""
+
+    organization_id: str
+    parameters: dict[str, Any] = Field(default_factory=dict)
+
+
+class ScenarioPreviewResponse(BaseModel):
+    """Response with scenario preview."""
+
+    preview: dict[str, Any]
+
+
 # ==================== Configuration Models ====================
 
 
@@ -237,6 +283,31 @@ class ValidateCredentialsResponse(BaseModel):
     valid: bool
     error: str | None = None
     org_name: str | None = None
+
+
+class ValidateAllCredentialsRequest(BaseModel):
+    """Request to validate both CloudBees and GitHub credentials."""
+
+    cloudbees_pat: str
+    cloudbees_url: str
+    organization_id: str
+    github_pat: str
+
+
+class CredentialValidationResult(BaseModel):
+    """Result of a single credential validation."""
+
+    valid: bool
+    error: str | None = None
+
+
+class ValidateAllCredentialsResponse(BaseModel):
+    """Response for validating all credentials."""
+
+    cloudbees_valid: bool
+    github_valid: bool
+    cloudbees_error: str | None = None
+    github_error: str | None = None
 
 
 # ==================== Cleanup Models ====================

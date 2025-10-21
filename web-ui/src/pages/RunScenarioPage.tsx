@@ -1,5 +1,6 @@
 /**
  * Run scenario page - execute a scenario with parameters
+ * Implements CLI-parity flow: credentials → properties → preview → execution
  */
 
 import { useState, useEffect } from 'react';
@@ -32,8 +33,16 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { configApi, scenariosApi } from '../api/endpoints';
 import { ParameterForm } from '../components/ParameterForm';
 import { ProgressDisplay } from '../components/ProgressDisplay';
+import { PropertyCheckDialog } from '../components/PropertyCheckDialog';
+import { PreviewDialog } from '../components/PreviewDialog';
+import { CredentialValidationStatus } from '../components/CredentialValidationStatus';
 import { useProgress } from '../hooks/useProgress';
-import type { CachedOrg } from '../types/api';
+import type {
+  CachedOrg,
+  CheckPropertiesResponse,
+  ScenarioPreviewResponse,
+  ValidateAllCredentialsResponse,
+} from '../types/api';
 
 const EXPIRATION_OPTIONS = [
   { value: 1, label: '1 day' },
@@ -46,15 +55,37 @@ const EXPIRATION_OPTIONS = [
 export function RunScenarioPage() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
   const navigate = useNavigate();
+
+  // Form state
   const [organizationId, setOrganizationId] = useState('');
   const [inviteeUsername, setInviteeUsername] = useState('');
   const [ttlDays, setTtlDays] = useState(7);
   const [dryRun, setDryRun] = useState(false);
-  const [previewMode, setPreviewMode] = useState(false);
+  const [parameters, setParameters] = useState<Record<string, any>>({});
+
+  // Execution state
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [runName, setRunName] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Credential validation state
+  const [isValidatingCredentials, setIsValidatingCredentials] = useState(false);
+  const [credentialValidation, setCredentialValidation] =
+    useState<ValidateAllCredentialsResponse | null>(null);
+
+  // Property check state
+  const [showPropertyDialog, setShowPropertyDialog] = useState(false);
+  const [propertyCheckResult, setPropertyCheckResult] = useState<CheckPropertiesResponse | null>(
+    null
+  );
+
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewData, setPreviewData] = useState<ScenarioPreviewResponse | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+
+  // Cached data
   const [cachedOrgs, setCachedOrgs] = useState<CachedOrg[]>([]);
   const [expirationOptions, setExpirationOptions] = useState<Array<{ value: number; label: string }>>(
     EXPIRATION_OPTIONS
@@ -78,7 +109,6 @@ export function RunScenarioPage() {
     const loadRecentExpirations = async () => {
       try {
         const response = await configApi.getRecentValues('expiration_days');
-        // Build expiration options from recent values + defaults
         const recentOptions = response.values
           .map((v) => {
             const days = parseInt(v, 10);
@@ -86,7 +116,6 @@ export function RunScenarioPage() {
           })
           .filter((opt): opt is { value: number; label: string } => opt !== null);
 
-        // Deduplicate and merge with defaults
         const allOptions = [...recentOptions, ...EXPIRATION_OPTIONS];
         const seen = new Set<number>();
         const uniqueOptions = allOptions.filter((opt) => {
@@ -103,6 +132,13 @@ export function RunScenarioPage() {
     loadRecentExpirations();
   }, []);
 
+  // Validate credentials on organization selection
+  useEffect(() => {
+    if (organizationId && !isValidatingCredentials) {
+      validateCredentials();
+    }
+  }, [organizationId]);
+
   // Fetch scenario details
   const { data: scenario, isLoading: loadingScenario } = useQuery({
     queryKey: ['scenario', scenarioId],
@@ -113,28 +149,105 @@ export function RunScenarioPage() {
   // Use progress hook for SSE
   const { isConnected, isComplete } = useProgress(sessionId);
 
+  // Validate credentials
+  const validateCredentials = async () => {
+    if (!organizationId.trim()) return;
+
+    setIsValidatingCredentials(true);
+    setCredentialValidation(null);
+    setError(null);
+
+    try {
+      // Get credentials from config
+      const githubConfig = await configApi.getGitHubConfig();
+      const cloudbeesConfig = await configApi.getCloudBeesConfig();
+
+      if (!githubConfig.has_token) {
+        setError('GitHub token not configured. Please configure it in the Config page.');
+        setIsValidatingCredentials(false);
+        return;
+      }
+
+      const currentEnv = localStorage.getItem('current_environment') || 'prod';
+      const envCredentials = cloudbeesConfig.environments.find((env) => env.name === currentEnv);
+
+      if (!envCredentials?.has_token) {
+        setError(
+          `CloudBees token not configured for environment '${currentEnv}'. Please configure it in the Config page.`
+        );
+        setIsValidatingCredentials(false);
+        return;
+      }
+
+      // For now, we can't validate without actual tokens (they're in keyring)
+      // So we'll skip validation and let the backend handle it
+      // TODO: Add a way to get tokens from backend for validation
+      setIsValidatingCredentials(false);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to validate credentials');
+      setIsValidatingCredentials(false);
+    }
+  };
+
+  // Check properties
+  const checkProperties = async () => {
+    if (!organizationId.trim() || !scenarioId) return null;
+
+    try {
+      const result = await scenariosApi.checkProperties(scenarioId, {
+        organization_id: organizationId,
+      });
+
+      setPropertyCheckResult(result);
+
+      // If there are missing properties, show the dialog
+      if (result.missing_properties.length > 0 || result.missing_secrets.length > 0) {
+        setShowPropertyDialog(true);
+        return null;
+      }
+
+      return result;
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to check properties');
+      return null;
+    }
+  };
+
+  // Load preview
+  const loadPreview = async () => {
+    if (!scenarioId) return null;
+
+    setIsLoadingPreview(true);
+    setError(null);
+
+    try {
+      const preview = await scenariosApi.previewScenario(scenarioId, {
+        organization_id: organizationId,
+        parameters,
+      });
+
+      setPreviewData(preview);
+      return preview;
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to load preview');
+      return null;
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
   // Run scenario mutation
   const runMutation = useMutation({
-    mutationFn: (data: {
-      organization_id: string;
-      parameters: Record<string, any>;
-      ttl_days: number;
-      dry_run: boolean;
-      invitee_username?: string;
-    }) =>
-      scenariosApi.run(
-        scenarioId!,
-        data.organization_id,
-        data.parameters,
-        data.ttl_days,
-        data.dry_run,
-        data.invitee_username
-      ),
+    mutationFn: async () => {
+      return scenariosApi.run(scenarioId!, organizationId, parameters, ttlDays, dryRun, inviteeUsername || undefined);
+    },
     onSuccess: (result) => {
       setSessionId(result.session_id);
       setRunName(result.session_id);
       setIsRunning(true);
       setError(null);
+      setShowPreview(false);
+
       // Save organization ID and expiration to recent values
       if (organizationId) {
         configApi.addRecentValue('expiration_days', ttlDays.toString()).catch(console.error);
@@ -146,33 +259,60 @@ export function RunScenarioPage() {
     },
   });
 
-  // Handle parameter form submission
-  const handleParametersSubmit = (parameters: Record<string, any>) => {
+  // Handle parameter form submission - starts the execution flow
+  const handleParametersSubmit = async (params: Record<string, any>) => {
     if (!organizationId.trim()) {
       setError('CloudBees Organization ID is required');
       return;
     }
 
-    runMutation.mutate({
-      organization_id: organizationId,
-      parameters,
-      ttl_days: ttlDays,
-      dry_run: dryRun,
-      invitee_username: inviteeUsername || undefined,
-    });
+    setParameters(params);
+    setError(null);
+
+    // For dry run mode, skip all checks and go straight to execution
+    if (dryRun) {
+      runMutation.mutate();
+      return;
+    }
+
+    // Step 1: Check properties
+    const propertyCheckPassed = await checkProperties();
+    if (propertyCheckPassed === null) {
+      // Properties dialog is showing, wait for user to create them
+      return;
+    }
+
+    // Step 2: Load and show preview
+    const preview = await loadPreview();
+    if (preview) {
+      setShowPreview(true);
+    }
+  };
+
+  // Handle properties created - continue to preview
+  const handlePropertiesCreated = async () => {
+    setShowPropertyDialog(false);
+
+    // Load and show preview
+    const preview = await loadPreview();
+    if (preview) {
+      setShowPreview(true);
+    }
+  };
+
+  // Handle preview confirmation - execute the scenario
+  const handlePreviewConfirm = () => {
+    runMutation.mutate();
   };
 
   // Handle organization autocomplete change
   const handleOrgChange = async (_event: any, value: string | CachedOrg | null) => {
     if (typeof value === 'string') {
-      // User typed a new org ID
       setOrganizationId(value);
 
-      // Try to fetch org name and cache it
       if (value && value.trim().length > 0) {
         try {
           const response = await configApi.fetchOrgName(value);
-          // Update cached orgs list
           setCachedOrgs((prev) => [
             ...prev.filter((org) => org.org_id !== response.org_id),
             { org_id: response.org_id, display_name: response.display_name },
@@ -182,7 +322,6 @@ export function RunScenarioPage() {
         }
       }
     } else if (value) {
-      // User selected from cached list
       setOrganizationId(value.org_id);
     } else {
       setOrganizationId('');
@@ -194,6 +333,9 @@ export function RunScenarioPage() {
     setRunName(null);
     setIsRunning(false);
     setError(null);
+    setCredentialValidation(null);
+    setPropertyCheckResult(null);
+    setPreviewData(null);
   };
 
   const handleViewCleanup = () => {
@@ -217,6 +359,9 @@ export function RunScenarioPage() {
       </Container>
     );
   }
+
+  const expirationLabel =
+    ttlDays === 0 ? 'Never' : `${ttlDays} day${ttlDays > 1 ? 's' : ''}`;
 
   return (
     <Container maxWidth="lg">
@@ -272,6 +417,15 @@ export function RunScenarioPage() {
               sx={{ mb: 2 }}
             />
 
+            {/* Credential validation status */}
+            {credentialValidation && (
+              <CredentialValidationStatus
+                isValidating={isValidatingCredentials}
+                validationResult={credentialValidation}
+                error={null}
+              />
+            )}
+
             <TextField
               fullWidth
               label="Invitee Username (Optional)"
@@ -287,11 +441,12 @@ export function RunScenarioPage() {
               Scenario Parameters
             </Typography>
 
-            {scenario.scenario.parameter_schema && Object.keys(scenario.scenario.parameter_schema.properties || {}).length > 0 ? (
+            {scenario.scenario.parameter_schema &&
+            Object.keys(scenario.scenario.parameter_schema.properties || {}).length > 0 ? (
               <ParameterForm
                 schema={scenario.scenario.parameter_schema}
                 onSubmit={handleParametersSubmit}
-                submitLabel="Run Scenario"
+                submitLabel={dryRun ? 'Show Preview (Dry Run)' : 'Run Scenario'}
               />
             ) : (
               <Typography variant="body2" color="text.secondary">
@@ -321,15 +476,8 @@ export function RunScenarioPage() {
             </FormControl>
 
             <FormControlLabel
-              control={
-                <Checkbox checked={previewMode} onChange={(e) => setPreviewMode(e.target.checked)} />
-              }
-              label="Preview mode (show what will be created without creating)"
-            />
-
-            <FormControlLabel
               control={<Checkbox checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />}
-              label="Dry run (test API calls without creating resources)"
+              label="Dry run (show preview without creating resources)"
             />
 
             {error && (
@@ -338,7 +486,8 @@ export function RunScenarioPage() {
               </Alert>
             )}
 
-            {(!scenario.scenario.parameter_schema || Object.keys(scenario.scenario.parameter_schema.properties || {}).length === 0) && (
+            {(!scenario.scenario.parameter_schema ||
+              Object.keys(scenario.scenario.parameter_schema.properties || {}).length === 0) && (
               <Box sx={{ display: 'flex', gap: 2, justifyContent: 'flex-end', mt: 3 }}>
                 <Button variant="outlined" onClick={() => navigate('/scenarios')}>
                   Cancel
@@ -347,13 +496,15 @@ export function RunScenarioPage() {
                   variant="contained"
                   size="large"
                   onClick={() => handleParametersSubmit({})}
-                  disabled={runMutation.isPending}
+                  disabled={runMutation.isPending || isLoadingPreview}
                 >
-                  {runMutation.isPending ? (
+                  {runMutation.isPending || isLoadingPreview ? (
                     <>
                       <CircularProgress size={24} sx={{ mr: 1 }} />
-                      Starting...
+                      {isLoadingPreview ? 'Loading Preview...' : 'Starting...'}
                     </>
+                  ) : dryRun ? (
+                    'Show Preview (Dry Run)'
                   ) : (
                     'Run Scenario'
                   )}
@@ -363,7 +514,8 @@ export function RunScenarioPage() {
           </Paper>
 
           {/* Actions */}
-          {(!scenario.scenario.parameter_schema || Object.keys(scenario.scenario.parameter_schema.properties || {}).length === 0) ? null : (
+          {(!scenario.scenario.parameter_schema ||
+            Object.keys(scenario.scenario.parameter_schema.properties || {}).length === 0) ? null : (
             <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button variant="outlined" onClick={() => navigate('/scenarios')}>
                 Cancel
@@ -446,6 +598,32 @@ export function RunScenarioPage() {
             </Box>
           )}
         </>
+      )}
+
+      {/* Property Check Dialog */}
+      {propertyCheckResult && (
+        <PropertyCheckDialog
+          open={showPropertyDialog}
+          onClose={() => setShowPropertyDialog(false)}
+          organizationId={organizationId}
+          missingProperties={propertyCheckResult.missing_properties}
+          missingSecrets={propertyCheckResult.missing_secrets}
+          onPropertiesCreated={handlePropertiesCreated}
+        />
+      )}
+
+      {/* Preview Dialog */}
+      {previewData && (
+        <PreviewDialog
+          open={showPreview}
+          onClose={() => setShowPreview(false)}
+          onConfirm={handlePreviewConfirm}
+          preview={previewData}
+          scenarioName={scenario.scenario.name}
+          environment={localStorage.getItem('current_environment') || 'prod'}
+          expirationLabel={expirationLabel}
+          isSubmitting={runMutation.isPending}
+        />
       )}
     </Container>
   );
