@@ -289,6 +289,7 @@ export interface Resource {
   id: string;
   name: string;
   org_id?: string;
+  url?: string;
 }
 
 export interface SessionInfo {

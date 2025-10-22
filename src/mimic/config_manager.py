@@ -39,7 +39,12 @@ class ConfigManager:
             return self._get_default_config()
 
         with open(self.config_file) as f:
-            return yaml.safe_load(f) or self._get_default_config()
+            config = yaml.safe_load(f) or self._get_default_config()
+
+        # Run auto-migration to add missing fields
+        config = self._migrate_config(config)
+
+        return config
 
     def save_config(self, config: dict[str, Any]) -> None:
         """Save configuration to file.
@@ -49,6 +54,43 @@ class ConfigManager:
         """
         with open(self.config_file, "w") as f:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+    def _migrate_config(self, config: dict[str, Any]) -> dict[str, Any]:
+        """Auto-migrate config to add missing fields from preset environments.
+
+        This ensures existing users get new fields (like org_slug) populated automatically
+        from preset definitions without needing to reconfigure.
+
+        Args:
+            config: Configuration dictionary to migrate
+
+        Returns:
+            Migrated configuration dictionary
+        """
+        from mimic.environments import PRESET_ENVIRONMENTS
+
+        environments = config.get("environments", {})
+        needs_save = False
+
+        for env_name, env_config in environments.items():
+            # Check if this environment is missing org_slug or ui_url
+            if "org_slug" not in env_config or "ui_url" not in env_config:
+                # Check if it matches a preset environment
+                preset = PRESET_ENVIRONMENTS.get(env_name)
+                if preset:
+                    # Populate missing fields from preset
+                    if "org_slug" not in env_config:
+                        env_config["org_slug"] = preset.org_slug
+                        needs_save = True
+                    if "ui_url" not in env_config:
+                        env_config["ui_url"] = preset.ui_url
+                        needs_save = True
+
+        # Save config if we made changes
+        if needs_save:
+            self.save_config(config)
+
+        return config
 
     def _get_default_config(self) -> dict[str, Any]:
         """Get default configuration structure."""
@@ -71,6 +113,8 @@ class ConfigManager:
         url: str,
         pat: str,
         endpoint_id: str,
+        org_slug: str | None = None,
+        ui_url: str | None = None,
         properties: dict[str, str] | None = None,
         use_legacy_flags: bool = False,
     ) -> None:
@@ -81,6 +125,8 @@ class ConfigManager:
             url: CloudBees Unify API URL.
             pat: Personal Access Token (stored securely in keyring).
             endpoint_id: CloudBees endpoint ID for the environment.
+            org_slug: Organization slug for UI URLs (e.g., 'cloudbees', 'demo').
+            ui_url: Optional custom UI URL (if different from url without 'api.').
             properties: Optional custom properties for this environment.
             use_legacy_flags: Whether to use org-based flag API (True) or app-based (False).
         """
@@ -95,6 +141,10 @@ class ConfigManager:
             "endpoint_id": endpoint_id,
             "use_legacy_flags": use_legacy_flags,
         }
+        if org_slug:
+            env_config["org_slug"] = org_slug
+        if ui_url:
+            env_config["ui_url"] = ui_url
         if properties:
             env_config["properties"] = properties
 
@@ -181,6 +231,44 @@ class ConfigManager:
         config = self.load_config()
         env = config.get("environments", {}).get(name)
         return env.get("url") if env else None
+
+    def get_environment_org_slug(self, name: str | None = None) -> str | None:
+        """Get the organization slug for an environment.
+
+        Args:
+            name: Environment name. If None, uses current environment.
+
+        Returns:
+            Organization slug, or None if environment not found or not configured.
+        """
+        if name is None:
+            name = self.get_current_environment()
+
+        if not name:
+            return None
+
+        config = self.load_config()
+        env = config.get("environments", {}).get(name)
+        return env.get("org_slug") if env else None
+
+    def get_environment_ui_url(self, name: str | None = None) -> str | None:
+        """Get the UI URL for an environment.
+
+        Args:
+            name: Environment name. If None, uses current environment.
+
+        Returns:
+            Custom UI URL, or None if using default (API URL without 'api.' subdomain).
+        """
+        if name is None:
+            name = self.get_current_environment()
+
+        if not name:
+            return None
+
+        config = self.load_config()
+        env = config.get("environments", {}).get(name)
+        return env.get("ui_url") if env else None
 
     def get_endpoint_id(self, name: str | None = None) -> str | None:
         """Get the endpoint ID for an environment.

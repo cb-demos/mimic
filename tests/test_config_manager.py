@@ -106,13 +106,22 @@ class TestEnvironmentManagement:
     def test_add_multiple_environments(self, config_manager):
         """Test adding multiple environments."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "preprod", "https://preprod.api.cloudbees.io", "pat2", "endpoint2"
+            name="preprod",
+            url="https://preprod.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat3", "endpoint3"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat3",
+            endpoint_id="endpoint3",
         )
 
         environments = config_manager.list_environments()
@@ -127,10 +136,16 @@ class TestEnvironmentManagement:
     def test_remove_environment(self, config_manager):
         """Test removing an environment."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
 
         config_manager.remove_environment("demo")
@@ -143,10 +158,16 @@ class TestEnvironmentManagement:
     def test_remove_current_environment_switches_to_another(self, config_manager):
         """Test that removing current environment switches to another."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
 
         # Current should be "prod" (first added)
@@ -161,7 +182,10 @@ class TestEnvironmentManagement:
     def test_remove_last_environment_sets_current_to_none(self, config_manager):
         """Test that removing the last environment sets current to None."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
 
         config_manager.remove_environment("prod")
@@ -172,10 +196,16 @@ class TestEnvironmentManagement:
     def test_set_current_environment(self, config_manager):
         """Test switching current environment."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
 
         config_manager.set_current_environment("demo")
@@ -187,10 +217,16 @@ class TestEnvironmentManagement:
     def test_get_environment_url(self, config_manager):
         """Test retrieving environment URL."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
 
         # Get specific environment URL
@@ -206,7 +242,10 @@ class TestEnvironmentManagement:
     def test_get_endpoint_id(self, config_manager):
         """Test retrieving endpoint ID."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint-prod-123"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint-prod-123",
         )
 
         assert config_manager.get_endpoint_id("prod") == "endpoint-prod-123"
@@ -224,7 +263,10 @@ class TestCredentialManagement:
     def test_store_and_retrieve_cloudbees_pat(self, config_manager, mock_keyring):
         """Test storing and retrieving CloudBees PAT."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "test-pat-123", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="test-pat-123",
+            endpoint_id="endpoint1",
         )
 
         # Verify keyring was called to store the PAT
@@ -239,10 +281,16 @@ class TestCredentialManagement:
     def test_get_cloudbees_pat_for_current_environment(self, config_manager):
         """Test retrieving PAT for current environment."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat-prod", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat-prod",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat-demo", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat-demo",
+            endpoint_id="endpoint2",
         )
 
         config_manager.set_current_environment("demo")
@@ -254,7 +302,10 @@ class TestCredentialManagement:
     def test_delete_cloudbees_pat(self, config_manager, mock_keyring):
         """Test deleting CloudBees PAT from keyring."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "test-pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint1",
         )
 
         # Delete the PAT
@@ -269,7 +320,10 @@ class TestCredentialManagement:
     def test_remove_environment_deletes_pat(self, config_manager, mock_keyring):
         """Test that removing environment also deletes its PAT."""
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "demo-pat", "endpoint1"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="demo-pat",
+            endpoint_id="endpoint1",
         )
 
         config_manager.remove_environment("demo")
@@ -341,7 +395,10 @@ class TestConfigPersistence:
         assert not config_manager.config_file.exists()
 
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         assert config_manager.config_file.exists()
@@ -349,10 +406,16 @@ class TestConfigPersistence:
     def test_config_persists_across_instances(self, config_manager, mock_keyring):
         """Test that config persists when creating new manager instance."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
 
         # Create new manager pointing to same directory
@@ -392,7 +455,10 @@ class TestFirstRunDetection:
         """Test that is_first_run returns False after config is created."""
         # Create config by adding environment
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         # Config file should now exist
@@ -463,7 +529,10 @@ class TestRecentValuesManagement:
         """Test caching CloudBees organization name."""
         # Set up environment first
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         config_manager.cache_org_name("abc-123-def", "Acme Corporation", "prod")
@@ -474,7 +543,10 @@ class TestRecentValuesManagement:
     def test_cache_multiple_org_names(self, config_manager):
         """Test caching multiple organization names."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         config_manager.cache_org_name("abc-123-def", "Acme Corporation", "prod")
@@ -493,7 +565,10 @@ class TestRecentValuesManagement:
     def test_get_cached_org_name_nonexistent(self, config_manager):
         """Test getting cached org name that doesn't exist."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         name = config_manager.get_cached_org_name("nonexistent-id", "prod")
@@ -502,7 +577,10 @@ class TestRecentValuesManagement:
     def test_cache_org_name_overwrites_existing(self, config_manager):
         """Test that caching org name overwrites existing entry."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         config_manager.cache_org_name("abc-123-def", "Old Name", "prod")
@@ -514,10 +592,16 @@ class TestRecentValuesManagement:
     def test_cache_org_name_environment_specific(self, config_manager):
         """Test that cached org names are environment-specific."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat1", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat1",
+            endpoint_id="endpoint1",
         )
         config_manager.add_environment(
-            "demo", "https://demo.api.cloudbees.io", "pat2", "endpoint2"
+            name="demo",
+            url="https://demo.api.cloudbees.io",
+            pat="pat2",
+            endpoint_id="endpoint2",
         )
 
         # Same org ID, different names in different environments
@@ -531,7 +615,10 @@ class TestRecentValuesManagement:
     def test_get_cached_orgs_for_env(self, config_manager):
         """Test getting all cached orgs for an environment."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         config_manager.cache_org_name("abc-123", "Acme Corp", "prod")
@@ -546,7 +633,10 @@ class TestRecentValuesManagement:
     def test_get_cached_orgs_for_env_empty(self, config_manager):
         """Test getting cached orgs for environment with no cached orgs."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
 
         cached_orgs = config_manager.get_cached_orgs_for_env("prod")
@@ -555,7 +645,10 @@ class TestRecentValuesManagement:
     def test_recent_values_persist(self, config_manager):
         """Test that recent values persist across config loads."""
         config_manager.add_environment(
-            "prod", "https://api.cloudbees.io", "pat", "endpoint1"
+            name="prod",
+            url="https://api.cloudbees.io",
+            pat="pat",
+            endpoint_id="endpoint1",
         )
         config_manager.add_recent_value("github_orgs", "acme-corp")
         config_manager.cache_org_name("abc-123", "Acme Corp", "prod")
@@ -592,11 +685,11 @@ class TestEnvironmentPropertiesManagement:
         properties = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
         env_config_manager.add_environment(
-            "demo",
-            "https://api.demo1.cloudbees.io",
-            "test-pat",
-            "endpoint-123",
-            properties,
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
+            properties=properties,
         )
 
         # Verify properties were saved
@@ -607,10 +700,10 @@ class TestEnvironmentPropertiesManagement:
     def test_get_environment_properties_built_in(self, env_config_manager):
         """Test that built-in properties are automatically exposed."""
         env_config_manager.add_environment(
-            "demo",
-            "https://api.demo1.cloudbees.io",
-            "test-pat",
-            "endpoint-123",
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
         )
 
         props = env_config_manager.get_environment_properties("demo")
@@ -626,11 +719,11 @@ class TestEnvironmentPropertiesManagement:
         custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
         env_config_manager.add_environment(
-            "demo",
-            "https://api.demo1.cloudbees.io",
-            "test-pat",
-            "endpoint-123",
-            custom_props,
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
+            properties=custom_props,
         )
 
         props = env_config_manager.get_environment_properties("demo")
@@ -644,7 +737,10 @@ class TestEnvironmentPropertiesManagement:
     def test_set_environment_property(self, env_config_manager):
         """Test setting a property on an existing environment."""
         env_config_manager.add_environment(
-            "demo", "https://api.demo1.cloudbees.io", "test-pat", "endpoint-123"
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
         )
 
         env_config_manager.set_environment_property(
@@ -666,11 +762,11 @@ class TestEnvironmentPropertiesManagement:
         custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
         env_config_manager.add_environment(
-            "demo",
-            "https://api.demo1.cloudbees.io",
-            "test-pat",
-            "endpoint-123",
-            custom_props,
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
+            properties=custom_props,
         )
 
         # Verify property exists
@@ -705,11 +801,11 @@ class TestEnvironmentPropertiesManagement:
         custom_props = {"USE_VPC": "true"}
 
         env_config_manager.add_environment(
-            "demo",
-            "https://api.demo1.cloudbees.io",
-            "test-pat",
-            "endpoint-123",
-            custom_props,
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
+            properties=custom_props,
         )
         env_config_manager.set_current_environment("demo")
 
@@ -723,11 +819,11 @@ class TestEnvironmentPropertiesManagement:
         custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
         env_config_manager.add_environment(
-            "demo",
-            "https://api.demo1.cloudbees.io",
-            "test-pat",
-            "endpoint-123",
-            custom_props,
+            name="demo",
+            url="https://api.demo1.cloudbees.io",
+            pat="test-pat",
+            endpoint_id="endpoint-123",
+            properties=custom_props,
         )
 
         # Create new manager instance pointing to same config

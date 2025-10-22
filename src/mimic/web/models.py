@@ -320,6 +320,7 @@ class Resource(BaseModel):
     id: str
     name: str
     org_id: str | None = None
+    url: str | None = None  # URL to view the resource in its respective UI
 
 
 class SessionInfo(BaseModel):

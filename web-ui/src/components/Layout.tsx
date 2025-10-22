@@ -49,7 +49,7 @@ export function Layout() {
     { id: 'scenarios', label: 'Scenarios', icon: <PlayArrow />, path: '/scenarios' },
     { id: 'environments', label: 'Environments', icon: <Storage />, path: '/environments' },
     { id: 'config', label: 'Configuration', icon: <Settings />, path: '/config' },
-    { id: 'cleanup', label: 'Cleanup', icon: <CleaningServices />, path: '/cleanup' },
+    { id: 'instances', label: 'Instances', icon: <CleaningServices />, path: '/cleanup' },
     { id: 'packs', label: 'Scenario Packs', icon: <Inventory />, path: '/packs' },
   ];
 

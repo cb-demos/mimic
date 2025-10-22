@@ -1,5 +1,5 @@
 /**
- * Cleanup page - manage and clean up sessions
+ * Instances page - manage and clean up scenario instances
  */
 
 import { useState, useMemo } from 'react';
@@ -36,8 +36,16 @@ import {
   List,
   ListItem,
   ListItemText,
+  Link,
 } from '@mui/material';
-import { Search, Delete, ExpandMore, ExpandLess, Warning } from '@mui/icons-material';
+import {
+  Search,
+  Delete,
+  ExpandMore,
+  ExpandLess,
+  Warning,
+  OpenInNew,
+} from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cleanupApi, environmentsApi } from '../api/endpoints';
 import type { Session } from '../types/api';
@@ -175,10 +183,10 @@ export function CleanupPage() {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" gutterBottom>
-            Cleanup
+            Instances
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage and clean up scenario sessions
+            View and manage scenario instances
           </Typography>
         </Box>
         <Button
@@ -382,12 +390,37 @@ export function CleanupPage() {
                               <List dense>
                                 {session.resources.map((resource, idx: number) => (
                                   <ListItem key={idx}>
-                                  <ListItemText
-                                    primary={resource.name}
-                                    secondary={`${resource.type} • ID: ${resource.id}${resource.org_id ? ` • Org: ${resource.org_id}` : ''}`}
-                                    primaryTypographyProps={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
-                                  />
-                                </ListItem>
+                                    <ListItemText
+                                      primary={
+                                        resource.url ? (
+                                          <Link
+                                            href={resource.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            underline="hover"
+                                            sx={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              gap: 0.5,
+                                              fontFamily: 'monospace',
+                                              fontSize: '0.875rem',
+                                            }}
+                                          >
+                                            {resource.name}
+                                            <OpenInNew sx={{ fontSize: '0.875rem' }} />
+                                          </Link>
+                                        ) : (
+                                          <Typography
+                                            component="span"
+                                            sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
+                                          >
+                                            {resource.name}
+                                          </Typography>
+                                        )
+                                      }
+                                      secondary={`${resource.type} • ID: ${resource.id}${resource.org_id ? ` • Org: ${resource.org_id}` : ''}`}
+                                    />
+                                  </ListItem>
                                 ))}
                               </List>
                             ) : (

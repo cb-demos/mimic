@@ -293,7 +293,12 @@ def env_add(
     # Add environment
     try:
         config_manager.add_environment(
-            name, url, pat, endpoint_id, properties, resolved_use_legacy_flags
+            name=name,
+            url=url,
+            pat=pat,
+            endpoint_id=endpoint_id,
+            properties=properties,
+            use_legacy_flags=resolved_use_legacy_flags,
         )
         console.print()
 

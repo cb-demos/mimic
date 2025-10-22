@@ -54,8 +54,23 @@ async def list_sessions(
     # Convert to SessionInfo
     now = datetime.now()
     sessions = []
+
     for instance in instances:
         is_expired = instance.expires_at is not None and instance.expires_at < now
+
+        # Get base URL and org slug for this instance's environment
+        api_url = config.get_environment_url(instance.environment)
+        ui_url = config.get_environment_ui_url(instance.environment)
+        org_slug = config.get_environment_org_slug(instance.environment)
+
+        # Determine the base URL to use (custom UI URL or derived from API URL)
+        base_url = None
+        if ui_url:
+            # Use custom UI URL (e.g., https://ui.demo1.cloudbees.io)
+            base_url = ui_url
+        elif api_url:
+            # Convert API URL to UI URL: https://api.cloudbees.io -> https://cloudbees.io
+            base_url = api_url.replace("//api.", "//")
 
         # Build resources list
         resources = []
@@ -63,14 +78,26 @@ async def list_sessions(
         # Add repositories
         for repo in instance.repositories:
             resources.append(
-                Resource(type="repository", id=repo.id, name=repo.name, org_id=None)
+                Resource(
+                    type="repository",
+                    id=repo.id,
+                    name=repo.name,
+                    org_id=None,
+                    url=repo.get_url(),
+                )
             )
 
         # Add components
         for comp in instance.components:
             resources.append(
                 Resource(
-                    type="component", id=comp.id, name=comp.name, org_id=comp.org_id
+                    type="component",
+                    id=comp.id,
+                    name=comp.name,
+                    org_id=comp.org_id,
+                    url=comp.get_url(base_url, org_slug)
+                    if (base_url and org_slug)
+                    else None,
                 )
             )
 
@@ -78,21 +105,41 @@ async def list_sessions(
         for env in instance.environments:
             resources.append(
                 Resource(
-                    type="environment", id=env.id, name=env.name, org_id=env.org_id
+                    type="environment",
+                    id=env.id,
+                    name=env.name,
+                    org_id=env.org_id,
+                    url=env.get_url(base_url, org_slug)
+                    if (base_url and org_slug)
+                    else None,
                 )
             )
 
         # Add flags
         for flag in instance.flags:
             resources.append(
-                Resource(type="flag", id=flag.id, name=flag.name, org_id=flag.org_id)
+                Resource(
+                    type="flag",
+                    id=flag.id,
+                    name=flag.name,
+                    org_id=flag.org_id,
+                    url=flag.get_url(base_url, org_slug)
+                    if (base_url and org_slug)
+                    else None,
+                )
             )
 
         # Add applications
         for app in instance.applications:
             resources.append(
                 Resource(
-                    type="application", id=app.id, name=app.name, org_id=app.org_id
+                    type="application",
+                    id=app.id,
+                    name=app.name,
+                    org_id=app.org_id,
+                    url=app.get_url(base_url, org_slug)
+                    if (base_url and org_slug)
+                    else None,
                 )
             )
 

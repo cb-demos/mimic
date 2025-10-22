@@ -56,6 +56,14 @@ class GitHubRepository(BaseModel):
     # collaborators: list[str] = Field(default_factory=list)  # Invited users
     # default_branch: str = "main"
 
+    def get_url(self) -> str:
+        """Get the URL to view this repository in GitHub.
+
+        Returns:
+            Full HTTPS URL to the GitHub repository
+        """
+        return self.url
+
 
 class CloudBeesComponent(BaseModel):
     """A CloudBees component.
@@ -80,6 +88,20 @@ class CloudBeesComponent(BaseModel):
     org_id: str
     repository_url: str | None = None  # Link to GitHub repo
     created_at: datetime
+
+    def get_url(self, base_url: str, org_slug: str) -> str:
+        """Get the URL to view this component in CloudBees UI.
+
+        Args:
+            base_url: Base URL like "https://cloudbees.io" or "https://ui.demo1.cloudbees.io"
+            org_slug: Organization slug in URL (e.g., "cloudbees", "demo", "unify-golden-demos")
+
+        Returns:
+            Full URL to the component page
+        """
+        # Remove any trailing slashes
+        base = base_url.rstrip("/")
+        return f"{base}/{org_slug}/{self.org_id}/components/{self.id}"
 
 
 class CloudBeesEnvironment(BaseModel):
@@ -110,6 +132,22 @@ class CloudBeesEnvironment(BaseModel):
     flag_ids: list[str] = Field(default_factory=list)  # Associated feature flags
     created_at: datetime
 
+    def get_url(self, base_url: str, org_slug: str) -> str:
+        """Get the URL to view this environment in CloudBees UI.
+
+        Args:
+            base_url: Base URL like "https://cloudbees.io" or "https://ui.demo1.cloudbees.io"
+            org_slug: Organization slug in URL (e.g., "cloudbees", "demo", "unify-golden-demos")
+
+        Returns:
+            Full URL to the environments list page filtered by this environment's name
+        """
+        base = base_url.rstrip("/")
+        # Environments don't have dedicated pages, use list view with search query
+        return (
+            f"{base}/{org_slug}/{self.org_id}/configurations/environments?q={self.name}"
+        )
+
 
 class CloudBeesFlag(BaseModel):
     """A CloudBees feature flag.
@@ -139,6 +177,19 @@ class CloudBeesFlag(BaseModel):
 
     # Future extensions (commented for now):
     # default_value: Any
+
+    def get_url(self, base_url: str, org_slug: str) -> str:
+        """Get the URL to view this feature flag in CloudBees UI.
+
+        Args:
+            base_url: Base URL like "https://cloudbees.io" or "https://ui.demo1.cloudbees.io"
+            org_slug: Organization slug in URL (e.g., "cloudbees", "demo", "unify-golden-demos")
+
+        Returns:
+            Full URL to the flag page
+        """
+        base = base_url.rstrip("/")
+        return f"{base}/{org_slug}/{self.org_id}/feature-management/flags/{self.id}"
 
 
 class CloudBeesApplication(BaseModel):
@@ -172,6 +223,19 @@ class CloudBeesApplication(BaseModel):
     )  # References to environments
     is_shared: bool = False  # If True, reuse existing app; don't delete on cleanup
     created_at: datetime
+
+    def get_url(self, base_url: str, org_slug: str) -> str:
+        """Get the URL to view this application in CloudBees UI.
+
+        Args:
+            base_url: Base URL like "https://cloudbees.io" or "https://ui.demo1.cloudbees.io"
+            org_slug: Organization slug in URL (e.g., "cloudbees", "demo", "unify-golden-demos")
+
+        Returns:
+            Full URL to the application page
+        """
+        base = base_url.rstrip("/")
+        return f"{base}/{org_slug}/{self.org_id}/applications/{self.id}"
 
 
 class Instance(BaseModel):

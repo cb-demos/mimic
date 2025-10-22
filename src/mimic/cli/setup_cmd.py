@@ -198,7 +198,12 @@ def setup(
     # Save environment
     try:
         config_manager.add_environment(
-            env_name, env_url, pat, endpoint_id, env_properties, use_legacy_flags
+            name=env_name,
+            url=env_url,
+            pat=pat,
+            endpoint_id=endpoint_id,
+            properties=env_properties,
+            use_legacy_flags=use_legacy_flags,
         )
         console.print(f"[green]✓[/green] Environment '[cyan]{env_name}[/cyan]' saved\n")
     except Exception as e:
