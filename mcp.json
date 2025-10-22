@@ -1,12 +1,10 @@
 {
   "mcpServers": {
     "mimic": {
-      "command": "uvx",
-      "args": ["mimic", "mcp"],
-      "env": {
-        "MIMIC_GITHUB_PAT": "your_github_token_here",
-        "MIMIC_CLOUDBEES_PAT": "your_cloudbees_pat_here"
-      }
+      "command": "mimic",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

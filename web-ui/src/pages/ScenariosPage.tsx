@@ -354,6 +354,17 @@ export function ScenariosPage() {
                 <Typography variant="body1">{selectedScenario.summary}</Typography>
               </Box>
 
+              {selectedScenario.details && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="body2" color="text.secondary" gutterBottom>
+                    Description
+                  </Typography>
+                  <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {selectedScenario.details}
+                  </Typography>
+                </Box>
+              )}
+
               <Box sx={{ mb: 2 }}>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
                   Scenario Pack
