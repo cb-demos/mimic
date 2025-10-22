@@ -30,3 +30,8 @@ RETRY_BACKOFF_BASE = 5  # Base seconds for exponential backoff on retries
 
 # Default CloudBees endpoint ID (can be overridden in environment config)
 DEFAULT_CLOUDBEES_ENDPOINT_ID = "9a3942be-0e86-415e-94c5-52512be1138d"
+
+# Official scenario pack configuration
+OFFICIAL_PACK_NAME = "official"
+OFFICIAL_PACK_URL = "https://github.com/cb-demos/mimic-scenarios"
+OFFICIAL_PACK_BRANCH = "main"

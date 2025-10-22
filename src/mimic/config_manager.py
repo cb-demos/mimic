@@ -704,3 +704,35 @@ class ConfigManager:
         return (
             config.get("recent_values", {}).get("cloudbees_orgs", {}).get(env_name, {})
         )
+
+    def ensure_official_pack_exists(self) -> bool:
+        """Ensure the official scenario pack is configured.
+
+        If the official pack doesn't exist in the config, it will be added automatically.
+        Users can disable it later if they prefer.
+
+        Returns:
+            True if the official pack was added, False if it already existed.
+        """
+        from .settings import (
+            OFFICIAL_PACK_BRANCH,
+            OFFICIAL_PACK_NAME,
+            OFFICIAL_PACK_URL,
+        )
+
+        config = self.load_config()
+        packs = config.get("scenario_packs", {})
+
+        # Check if official pack already exists
+        if OFFICIAL_PACK_NAME in packs:
+            return False
+
+        # Add the official pack
+        self.add_scenario_pack(
+            name=OFFICIAL_PACK_NAME,
+            url=OFFICIAL_PACK_URL,
+            branch=OFFICIAL_PACK_BRANCH,
+            enabled=True,
+        )
+
+        return True

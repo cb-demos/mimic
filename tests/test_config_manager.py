@@ -835,3 +835,109 @@ class TestEnvironmentPropertiesManagement:
         props = manager2.get_environment_properties("demo")
         assert props["USE_VPC"] == "true"
         assert props["FM_INSTANCE"] == "demo1.cloudbees.io"
+
+
+class TestScenarioPackManagement:
+    """Test scenario pack configuration management."""
+
+    def test_ensure_official_pack_exists_adds_pack_when_missing(self, config_manager):
+        """Test that ensure_official_pack_exists adds the pack when it doesn't exist."""
+        from mimic.settings import (
+            OFFICIAL_PACK_BRANCH,
+            OFFICIAL_PACK_NAME,
+            OFFICIAL_PACK_URL,
+        )
+
+        # Verify pack doesn't exist yet
+        packs = config_manager.list_scenario_packs()
+        assert OFFICIAL_PACK_NAME not in packs
+
+        # Call ensure_official_pack_exists
+        was_added = config_manager.ensure_official_pack_exists()
+
+        # Should return True (pack was added)
+        assert was_added is True
+
+        # Verify pack was added to config
+        packs = config_manager.list_scenario_packs()
+        assert OFFICIAL_PACK_NAME in packs
+        assert packs[OFFICIAL_PACK_NAME]["url"] == OFFICIAL_PACK_URL
+        assert packs[OFFICIAL_PACK_NAME]["branch"] == OFFICIAL_PACK_BRANCH
+        assert packs[OFFICIAL_PACK_NAME]["enabled"] is True
+
+    def test_ensure_official_pack_exists_returns_false_when_already_exists(
+        self, config_manager
+    ):
+        """Test that ensure_official_pack_exists returns False when pack already exists."""
+        from mimic.settings import (
+            OFFICIAL_PACK_BRANCH,
+            OFFICIAL_PACK_NAME,
+            OFFICIAL_PACK_URL,
+        )
+
+        # Add the official pack manually
+        config_manager.add_scenario_pack(
+            name=OFFICIAL_PACK_NAME,
+            url=OFFICIAL_PACK_URL,
+            branch=OFFICIAL_PACK_BRANCH,
+            enabled=True,
+        )
+
+        # Call ensure_official_pack_exists
+        was_added = config_manager.ensure_official_pack_exists()
+
+        # Should return False (pack already existed)
+        assert was_added is False
+
+        # Verify pack still exists with same config
+        packs = config_manager.list_scenario_packs()
+        assert OFFICIAL_PACK_NAME in packs
+        assert packs[OFFICIAL_PACK_NAME]["url"] == OFFICIAL_PACK_URL
+
+    def test_ensure_official_pack_exists_doesnt_modify_existing_pack(
+        self, config_manager
+    ):
+        """Test that ensure_official_pack_exists doesn't modify an existing pack config."""
+        from mimic.settings import OFFICIAL_PACK_NAME
+
+        # Add the official pack with modified configuration
+        config_manager.add_scenario_pack(
+            name=OFFICIAL_PACK_NAME,
+            url="https://github.com/custom/repo",
+            branch="custom-branch",
+            enabled=False,
+        )
+
+        # Call ensure_official_pack_exists
+        was_added = config_manager.ensure_official_pack_exists()
+
+        # Should return False (didn't add)
+        assert was_added is False
+
+        # Verify pack config wasn't modified
+        packs = config_manager.list_scenario_packs()
+        assert packs[OFFICIAL_PACK_NAME]["url"] == "https://github.com/custom/repo"
+        assert packs[OFFICIAL_PACK_NAME]["branch"] == "custom-branch"
+        assert packs[OFFICIAL_PACK_NAME]["enabled"] is False
+
+    def test_ensure_official_pack_exists_idempotent(self, config_manager):
+        """Test that calling ensure_official_pack_exists multiple times is safe."""
+        from mimic.settings import OFFICIAL_PACK_NAME, OFFICIAL_PACK_URL
+
+        # First call should add the pack
+        was_added_1 = config_manager.ensure_official_pack_exists()
+        assert was_added_1 is True
+
+        # Second call should not modify anything
+        was_added_2 = config_manager.ensure_official_pack_exists()
+        assert was_added_2 is False
+
+        # Third call should also not modify anything
+        was_added_3 = config_manager.ensure_official_pack_exists()
+        assert was_added_3 is False
+
+        # Verify pack exists with correct config
+        packs = config_manager.list_scenario_packs()
+        assert len(packs) == 1
+        assert OFFICIAL_PACK_NAME in packs
+        assert packs[OFFICIAL_PACK_NAME]["url"] == OFFICIAL_PACK_URL

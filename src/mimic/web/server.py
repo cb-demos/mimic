@@ -1,6 +1,7 @@
 """FastAPI server for Mimic web UI."""
 
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -8,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from mimic.config_manager import ConfigManager
 from mimic.exceptions import PipelineError, ValidationError
 
 from .api import cleanup, config, environments, packs, scenarios, setup
@@ -17,11 +19,31 @@ logger = logging.getLogger(__name__)
 # Static files path
 STATIC_DIR = Path(__file__).parent / "static"
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler for startup/shutdown tasks."""
+    # Startup: Ensure official scenario pack is configured
+    try:
+        config_manager = ConfigManager()
+        was_added = config_manager.ensure_official_pack_exists()
+        if was_added:
+            logger.info("Official scenario pack automatically added to configuration")
+    except Exception as e:
+        logger.warning(f"Failed to ensure official pack exists: {e}")
+
+    yield
+
+    # Shutdown: cleanup tasks if needed
+    pass
+
+
 # Create FastAPI app
 app = FastAPI(
     title="Mimic API",
     description="API for CloudBees demo scenario orchestration",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Add CORS middleware for local development

@@ -8,6 +8,7 @@ from rich.panel import Panel
 
 from ..config_manager import ConfigManager
 from ..environments import list_preset_environments
+from ..settings import OFFICIAL_PACK_BRANCH, OFFICIAL_PACK_NAME, OFFICIAL_PACK_URL
 from .env import prepare_environment_config
 
 # Shared instances
@@ -73,40 +74,41 @@ def setup(
     console.print("[bold cyan]Step 1: Scenario Pack[/bold cyan]\n")
 
     packs = config_manager.list_scenario_packs()
-    if "official" in packs:
+    if OFFICIAL_PACK_NAME in packs:
         console.print("[green]✓[/green] Official scenario pack already configured\n")
     else:
         console.print("Add official CloudBees scenario pack?\n")
         add_pack = typer.confirm(
-            "Add from github.com/cb-demos/mimic-scenarios", default=True
+            f"Add from {OFFICIAL_PACK_URL.replace('https://github.com/', 'github.com/')}",
+            default=True,
         )
 
         if add_pack:
             try:
                 console.print("\n[dim]Cloning scenario pack...[/dim]")
                 config_manager.add_scenario_pack(
-                    "official",
-                    "https://github.com/cb-demos/mimic-scenarios",
-                    "main",
+                    OFFICIAL_PACK_NAME,
+                    OFFICIAL_PACK_URL,
+                    OFFICIAL_PACK_BRANCH,
                     enabled=True,
                 )
 
                 pack_manager = ScenarioPackManager(config_manager.packs_dir)
                 pack_manager.clone_pack(
-                    "official",
-                    "https://github.com/cb-demos/mimic-scenarios",
-                    "main",
+                    OFFICIAL_PACK_NAME,
+                    OFFICIAL_PACK_URL,
+                    OFFICIAL_PACK_BRANCH,
                 )
 
                 console.print("[green]✓[/green] Scenario pack added\n")
             except Exception as e:
                 console.print(f"[yellow]⚠[/yellow] Could not add scenario pack: {e}")
                 console.print(
-                    "[dim]You can add it later with: mimic scenario-pack add official https://github.com/cb-demos/mimic-scenarios[/dim]\n"
+                    f"[dim]You can add it later with: mimic scenario-pack add {OFFICIAL_PACK_NAME} {OFFICIAL_PACK_URL}[/dim]\n"
                 )
         else:
             console.print(
-                "[dim]Skipped. Add later with: mimic scenario-pack add official https://github.com/cb-demos/mimic-scenarios[/dim]\n"
+                f"[dim]Skipped. Add later with: mimic scenario-pack add {OFFICIAL_PACK_NAME} {OFFICIAL_PACK_URL}[/dim]\n"
             )
 
     # Step 1: CloudBees Environment Setup
