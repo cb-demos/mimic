@@ -58,16 +58,8 @@ export function EnvironmentSwitcher() {
       // Call API to switch environment
       await selectEnvironment(newEnv);
 
-      // Update local state
-      setCurrentEnv(newEnv);
-
-      // Update environments list to reflect new current
-      setEnvironments(prev =>
-        prev.map(env => ({
-          ...env,
-          is_current: env.name === newEnv,
-        }))
-      );
+      // Reload the page to refresh all state with new environment
+      window.location.reload();
     } catch (err) {
       console.error('Failed to switch environment:', err);
       setError('Failed to switch environment');
