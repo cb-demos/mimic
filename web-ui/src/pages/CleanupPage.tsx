@@ -50,7 +50,6 @@ export function CleanupPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedEnv, setSelectedEnv] = useState('all');
   const [expiredOnly, setExpiredOnly] = useState(false);
-  const [dryRun, setDryRun] = useState(true);
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -77,7 +76,7 @@ export function CleanupPage() {
 
   // Cleanup individual session
   const cleanupMutation = useMutation({
-    mutationFn: (sessionId: string) => cleanupApi.cleanup(sessionId, { dry_run: dryRun }),
+    mutationFn: (sessionId: string) => cleanupApi.cleanup(sessionId, { dry_run: false }),
     onSuccess: (results) => {
       setCleanupResults(results);
       queryClient.invalidateQueries({ queryKey: ['cleanup-sessions'] });
@@ -91,7 +90,7 @@ export function CleanupPage() {
 
   // Bulk cleanup expired
   const bulkCleanupMutation = useMutation({
-    mutationFn: () => cleanupApi.cleanupExpired({ dry_run: dryRun }),
+    mutationFn: () => cleanupApi.cleanupExpired({ dry_run: false }),
     onSuccess: (results) => {
       setCleanupResults(results);
       queryClient.invalidateQueries({ queryKey: ['cleanup-sessions'] });
@@ -200,13 +199,9 @@ export function CleanupPage() {
       )}
 
       {cleanupResults && (
-        <Alert
-          severity={dryRun ? 'info' : 'success'}
-          sx={{ mb: 3 }}
-          onClose={() => setCleanupResults(null)}
-        >
-          {dryRun ? 'Dry run complete' : 'Cleanup complete'}:{' '}
-          {cleanupResults.cleaned_count || cleanupResults.results?.length || 0} resource(s) processed
+        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setCleanupResults(null)}>
+          Cleanup complete: {cleanupResults.cleaned_count || cleanupResults.results?.length || 0}{' '}
+          resource(s) deleted
         </Alert>
       )}
 
@@ -249,11 +244,6 @@ export function CleanupPage() {
               <Switch checked={expiredOnly} onChange={(e) => setExpiredOnly(e.target.checked)} />
             }
             label="Expired only"
-          />
-
-          <FormControlLabel
-            control={<Switch checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />}
-            label="Dry run"
           />
         </Box>
       </Paper>
@@ -437,11 +427,6 @@ export function CleanupPage() {
               <Typography variant="body2" color="text.secondary">
                 <strong>Resources:</strong> {selectedSession.resources?.length || 0}
               </Typography>
-              {dryRun && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  Dry run mode is enabled. No resources will be deleted.
-                </Alert>
-              )}
             </>
           )}
         </DialogContent>
@@ -453,7 +438,7 @@ export function CleanupPage() {
             onClick={handleConfirmCleanup}
             disabled={cleanupMutation.isPending}
           >
-            {cleanupMutation.isPending ? <CircularProgress size={24} /> : dryRun ? 'Preview' : 'Clean Up'}
+            {cleanupMutation.isPending ? <CircularProgress size={24} /> : 'Clean Up'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -473,11 +458,6 @@ export function CleanupPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             <strong>Sessions to clean:</strong> {expiredCount}
           </Typography>
-          {dryRun && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Dry run mode is enabled. No resources will be deleted.
-            </Alert>
-          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBulkCleanupDialogOpen(false)}>Cancel</Button>
@@ -487,13 +467,7 @@ export function CleanupPage() {
             onClick={handleConfirmBulkCleanup}
             disabled={bulkCleanupMutation.isPending}
           >
-            {bulkCleanupMutation.isPending ? (
-              <CircularProgress size={24} />
-            ) : dryRun ? (
-              'Preview'
-            ) : (
-              'Clean Up All'
-            )}
+            {bulkCleanupMutation.isPending ? <CircularProgress size={24} /> : 'Clean Up All'}
           </Button>
         </DialogActions>
       </Dialog>

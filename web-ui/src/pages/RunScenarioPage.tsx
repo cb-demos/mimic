@@ -356,13 +356,7 @@ export function RunScenarioPage() {
   };
 
   const handleRunAnother = () => {
-    setSessionId(null);
-    setRunName(null);
-    setIsRunning(false);
-    setError(null);
-    setCredentialValidation(null);
-    setPropertyCheckResult(null);
-    setPreviewData(null);
+    navigate('/scenarios');
   };
 
   const handleViewCleanup = () => {
