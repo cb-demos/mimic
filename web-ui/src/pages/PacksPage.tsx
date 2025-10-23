@@ -135,13 +135,49 @@ export function PacksPage() {
     updateMutation.mutate(packName);
   };
 
-  const isValidGitUrl = (url: string) => {
+  const isGitUrl = (url: string) => {
     return (
       url.startsWith('https://') ||
       url.startsWith('http://') ||
       url.startsWith('git@') ||
-      url.startsWith('ssh://')
+      url.startsWith('ssh://') ||
+      url.startsWith('git://')
     );
+  };
+
+  const isLocalPath = (path: string) => {
+    return (
+      path.startsWith('/') || // Absolute path
+      path.startsWith('~/') || // Home directory
+      path.startsWith('./') || // Relative path
+      path.startsWith('../') ||// Parent directory
+      path.startsWith('file://') // Explicit file:// scheme
+    );
+  };
+
+  const isValidLocation = (location: string) => {
+    return isGitUrl(location) || isLocalPath(location);
+  };
+
+  const getLocationType = (location: string) => {
+    if (location.startsWith('file://')) {
+      return 'local';
+    }
+    if (isGitUrl(location)) {
+      return 'git';
+    }
+    if (isLocalPath(location)) {
+      return 'local';
+    }
+    return 'unknown';
+  };
+
+  const getLocationLabel = (location: string) => {
+    const type = getLocationType(location);
+    if (type === 'local') {
+      return location.replace('file://', '');
+    }
+    return location;
   };
 
   return (
@@ -208,7 +244,7 @@ export function PacksPage() {
                 <TableRow>
                   <TableCell>Enabled</TableCell>
                   <TableCell>Name</TableCell>
-                  <TableCell>Git URL</TableCell>
+                  <TableCell>Location</TableCell>
                   <TableCell>Scenarios</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -231,19 +267,27 @@ export function PacksPage() {
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <LinkIcon fontSize="small" color="action" />
-                        <Typography
-                          variant="body2"
-                          fontFamily="monospace"
-                          fontSize="0.875rem"
-                          sx={{
-                            maxWidth: 400,
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          {pack.git_url}
-                        </Typography>
+                        <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                          <Typography
+                            variant="body2"
+                            fontFamily="monospace"
+                            fontSize="0.875rem"
+                            sx={{
+                              maxWidth: 400,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {getLocationLabel(pack.git_url)}
+                          </Typography>
+                          <Chip
+                            label={getLocationType(pack.git_url)}
+                            size="small"
+                            variant="outlined"
+                            sx={{ maxWidth: 'fit-content', mt: 0.5, textTransform: 'capitalize' }}
+                          />
+                        </Box>
                       </Box>
                     </TableCell>
                     <TableCell>
@@ -281,7 +325,8 @@ export function PacksPage() {
         <DialogTitle>Add Scenario Pack</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Add a scenario pack from a Git repository. The pack will be cloned to your local machine.
+            Add a scenario pack from a Git repository or local directory.
+            Git packs will be cloned, while local packs use symlinks for instant access.
           </Typography>
 
           <TextField
@@ -296,12 +341,16 @@ export function PacksPage() {
 
           <TextField
             fullWidth
-            label="Git URL"
+            label="Location"
             value={newPackUrl}
             onChange={(e) => setNewPackUrl(e.target.value)}
-            placeholder="e.g., https://github.com/username/scenarios.git"
-            helperText="HTTPS, SSH, or Git protocol URL"
-            error={!!newPackUrl && !isValidGitUrl(newPackUrl)}
+            placeholder="e.g., https://github.com/user/repo.git or /Users/me/scenarios"
+            helperText={
+              newPackUrl
+                ? `Type: ${getLocationType(newPackUrl)} ${!isValidLocation(newPackUrl) ? '(invalid)' : ''}`
+                : 'Git URL (https://, ssh://) or local directory path (/, ~/, ./)'
+            }
+            error={!!newPackUrl && !isValidLocation(newPackUrl)}
           />
 
           {error && (
@@ -318,7 +367,7 @@ export function PacksPage() {
             disabled={
               !newPackName ||
               !newPackUrl ||
-              !isValidGitUrl(newPackUrl) ||
+              !isValidLocation(newPackUrl) ||
               addMutation.isPending
             }
           >

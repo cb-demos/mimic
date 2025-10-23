@@ -409,7 +409,7 @@ class ScenarioManager:
             [(Path(d), name) for d, name in scenarios_dirs] if scenarios_dirs else []
         )
         self.local_dir = Path(local_dir) if local_dir else None
-        self.scenarios: dict[str, Scenario] = {}
+        self.scenarios: list[Scenario] = []
         self.load_scenarios()
 
     def load_scenarios(self) -> None:
@@ -419,7 +419,8 @@ class ScenarioManager:
         1. Scenario packs (from scenarios_dirs)
         2. Local scenarios directory (lowest priority)
 
-        If there are ID conflicts, the last loaded scenario wins.
+        Scenarios with duplicate IDs from different packs are all kept,
+        allowing users to choose which pack's version to use.
         """
         # Load from scenario packs first (higher priority)
         for scenarios_dir, pack_name in self.scenarios_dirs:
@@ -512,15 +513,8 @@ class ScenarioManager:
                 scenario = Scenario(**data)
                 scenario.pack_source = pack_name
 
-                # Check for ID conflicts
-                if scenario.id in self.scenarios:
-                    existing_source = self.scenarios[scenario.id].pack_source
-                    logger.warning(
-                        f"Scenario ID conflict: '{scenario.id}' from '{pack_name}' "
-                        f"overrides existing from '{existing_source}'"
-                    )
-
-                self.scenarios[scenario.id] = scenario
+                # Add scenario to list (duplicates are allowed)
+                self.scenarios.append(scenario)
 
             except yaml.YAMLError as e:
                 error_msg = f"YAML parsing error in {yaml_file.name}: {e}"
@@ -531,20 +525,46 @@ class ScenarioManager:
                 logger.error(error_msg)
                 raise ScenarioError(error_msg) from e
 
-    def get_scenario(self, scenario_id: str) -> Scenario | None:
-        """Get a scenario by ID."""
-        return self.scenarios.get(scenario_id)
+    def get_scenario(
+        self, scenario_id: str, pack_source: str | None = None
+    ) -> Scenario | None:
+        """Get a scenario by ID.
+
+        If multiple scenarios exist with the same ID from different packs,
+        returns the first matching scenario (or the one from specified pack_source if provided).
+
+        Args:
+            scenario_id: The scenario ID to search for.
+            pack_source: Optional pack name to filter by. If specified, only returns
+                        scenarios from that pack.
+
+        Returns:
+            The matching scenario, or None if not found.
+        """
+        for scenario in self.scenarios:
+            if scenario.id == scenario_id:
+                if pack_source is None or scenario.pack_source == pack_source:
+                    return scenario
+        return None
 
     def list_scenarios(self) -> list[dict[str, Any]]:
-        """List all available scenarios with their schemas."""
+        """List all available scenarios with their schemas.
+
+        Returns all scenarios, including duplicates with the same ID from different packs.
+        Each scenario includes its pack_source to distinguish between duplicates.
+        """
         result: list[dict[str, Any]] = []
-        for scenario in self.scenarios.values():
+        for scenario in self.scenarios:
             scenario_info: dict[str, Any] = {
                 "id": scenario.id,
                 "name": scenario.name,
                 "summary": scenario.summary,
                 "details": scenario.details,
                 "pack_source": scenario.pack_source,
+                "scenario_pack": scenario.pack_source,  # For frontend compatibility
+                "wip": scenario.wip,
+                "required_properties": scenario.required_properties,
+                "required_secrets": scenario.required_secrets,
             }
 
             # Include parameter schema if present

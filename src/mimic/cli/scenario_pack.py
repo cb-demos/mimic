@@ -6,7 +6,12 @@ from rich.panel import Panel
 from rich.table import Table
 
 from ..config_manager import ConfigManager
-from ..scenario_pack_manager import ScenarioPackManager
+from ..scenario_pack_manager import (
+    ScenarioPackManager,
+    is_git_url,
+    is_local_path,
+    normalize_local_path,
+)
 
 # Shared instances
 console = Console()
@@ -22,10 +27,18 @@ scenario_pack_app = typer.Typer(
 @scenario_pack_app.command("add")
 def pack_add(
     name: str = typer.Argument(..., help="Pack name (used as directory name)"),
-    url: str = typer.Argument(..., help="Git URL (supports HTTPS and SSH)"),
-    branch: str = typer.Option("main", "--branch", "-b", help="Git branch to use"),
+    location: str = typer.Argument(..., help="Git URL or local directory path"),
+    branch: str = typer.Option(
+        "main", "--branch", "-b", help="Git branch to use (Git URLs only)"
+    ),
 ):
-    """Add a scenario pack from a git repository."""
+    """Add a scenario pack from a git repository or local directory.
+
+    Examples:
+      mimic scenario-pack add official https://github.com/cb-demos/mimic-scenarios
+      mimic scenario-pack add my-pack /Users/me/dev/my-scenarios
+      mimic scenario-pack add my-pack ~/dev/my-scenarios
+    """
     try:
         # Check if pack already exists in config
         existing_pack = config_manager.get_scenario_pack(name)
@@ -38,28 +51,57 @@ def pack_add(
             )
             raise typer.Exit(1)
 
-        # Add pack to config
-        config_manager.add_scenario_pack(name, url, branch, enabled=True)
+        # Detect if this is a Git URL or local path
+        is_local = is_local_path(location)
+        is_git = is_git_url(location)
 
-        # Clone the pack
+        if not is_local and not is_git:
+            console.print(
+                f"[red]Error:[/red] Invalid location: {location}\n"
+                "Provide a Git URL (https://, git@, ssh://) or a local directory path"
+            )
+            raise typer.Exit(1)
+
+        # Normalize location for storage
+        if is_local:
+            normalized_url = normalize_local_path(location)
+            pack_type = "local"
+            location_label = "Local Path"
+        else:
+            normalized_url = location
+            pack_type = "git"
+            location_label = "Git URL"
+
+        # Add pack to config
+        config_manager.add_scenario_pack(name, normalized_url, branch, enabled=True)
+
+        # Clone/register the pack
         console.print(f"\n[bold]Adding scenario pack:[/bold] {name}")
-        console.print(f"[dim]Git URL:[/dim] {url}")
-        console.print(f"[dim]Branch:[/dim] {branch}")
+        console.print(f"[dim]{location_label}:[/dim] {location}")
+        if pack_type == "git":
+            console.print(f"[dim]Branch:[/dim] {branch}")
         console.print()
 
         pack_manager = ScenarioPackManager(config_manager.packs_dir)
-        pack_path = pack_manager.clone_pack(name, url, branch)
+        pack_path = pack_manager.clone_pack(name, normalized_url, branch)
 
         console.print()
         console.print(
             Panel(
                 f"[green]✓[/green] Scenario pack '{name}' added successfully\n\n"
-                f"[dim]• Cloned to: {pack_path}\n"
+                f"[dim]• Type: {pack_type.capitalize()}\n"
+                f"• Path: {pack_path}\n"
                 f"• Enabled: Yes[/dim]",
                 title="Success",
                 border_style="green",
             )
         )
+
+        if pack_type == "local":
+            console.print(
+                "[dim]Note: Local packs use symlinks - changes in your local directory "
+                "are instantly reflected.[/dim]\n"
+            )
 
     except Exception as e:
         console.print(f"\n[red]Error adding scenario pack:[/red] {e}")
@@ -78,8 +120,8 @@ def pack_list():
                 "[yellow]No scenario packs configured[/yellow]\n\n"
                 "Add the official pack:\n"
                 "[dim]mimic scenario-pack add official https://github.com/cb-demos/mimic-scenarios[/dim]\n\n"
-                "Or add a custom pack:\n"
-                "[dim]mimic scenario-pack add <name> <git-url>[/dim]",
+                "Or add a custom pack (Git or local):\n"
+                "[dim]mimic scenario-pack add <name> <git-url-or-path>[/dim]",
                 title="Scenario Packs",
                 border_style="yellow",
             )
@@ -89,7 +131,8 @@ def pack_list():
     # Create table
     table = Table(title="Configured Scenario Packs", show_header=True, expand=True)
     table.add_column("Name", style="cyan")
-    table.add_column("URL", style="white", overflow="fold")
+    table.add_column("Type", style="magenta", justify="center")
+    table.add_column("Location", style="white", overflow="fold")
     table.add_column("Branch", style="dim")
     table.add_column("Installed", justify="center")
     table.add_column("Enabled", justify="center")
@@ -97,11 +140,23 @@ def pack_list():
     for name, pack_config in packs.items():
         is_installed = pack_manager.get_pack_path(name) is not None
         is_enabled = pack_config.get("enabled", True)
+        url = pack_config.get("url", "")
+
+        # Determine pack type
+        pack_type = "Local" if url.startswith("file://") else "Git"
+        pack_type_display = f"[dim]{pack_type}[/dim]"
+
+        # For local packs, show the actual path instead of file:// URL
+        if pack_type == "Local":
+            display_url = url.replace("file://", "")
+        else:
+            display_url = url
 
         table.add_row(
             name,
-            pack_config.get("url", ""),
-            pack_config.get("branch", "main"),
+            pack_type_display,
+            display_url,
+            pack_config.get("branch", "main") if pack_type == "Git" else "[dim]—[/dim]",
             "[green]✓[/green]" if is_installed else "[red]✗[/red]",
             "[green]✓[/green]" if is_enabled else "[dim]✗[/dim]",
         )
@@ -111,8 +166,9 @@ def pack_list():
     console.print()
 
     console.print(
-        "[dim]Update packs with:[/dim] mimic scenario-pack update [pack-name]"
+        "[dim]Update Git packs with:[/dim] mimic scenario-pack update [pack-name]"
     )
+    console.print("[dim]Local packs always reflect current directory state[/dim]")
     console.print()
 
 

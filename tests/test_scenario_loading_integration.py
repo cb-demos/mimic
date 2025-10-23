@@ -100,11 +100,13 @@ class TestScenarioLoadingIntegration:
             manager = initialize_scenarios_from_config()
 
             # Should load pack scenario
-            assert "pack-scenario" in manager.scenarios
-            assert manager.scenarios["pack-scenario"].pack_source == "test-pack"
+            scenario = manager.get_scenario("pack-scenario")
+            assert scenario is not None
+            assert scenario.pack_source == "test-pack"
 
             # Should NOT load local scenarios (local_dir=None)
-            assert "test-scenario" not in manager.scenarios
+            local_scenario = manager.get_scenario("test-scenario")
+            assert local_scenario is None
 
     def test_explicit_local_loading_still_works(self, temp_scenarios_dir):
         """Test that explicit local loading still works for tests."""
@@ -114,8 +116,9 @@ class TestScenarioLoadingIntegration:
         manager = initialize_scenarios(local_dir=temp_scenarios_dir)
 
         # Should load local scenario
-        assert "test-scenario" in manager.scenarios
-        assert manager.scenarios["test-scenario"].pack_source == "local"
+        scenario = manager.get_scenario("test-scenario")
+        assert scenario is not None
+        assert scenario.pack_source == "local"
 
     def test_pack_scenarios_loaded_from_config(self, temp_pack_dir):
         """Test that pack scenarios are properly loaded from config."""
@@ -149,8 +152,9 @@ class TestScenarioLoadingIntegration:
             manager = initialize_scenarios_from_config()
 
             # Should load from enabled pack
-            assert "pack-scenario" in manager.scenarios
-            assert manager.scenarios["pack-scenario"].pack_source == "official"
+            scenario = manager.get_scenario("pack-scenario")
+            assert scenario is not None
+            assert scenario.pack_source == "official"
 
             # Verify get_pack_path was called only for enabled pack
             assert mock_pack_manager.get_pack_path.call_count == 1
@@ -210,10 +214,13 @@ class TestScenarioLoadingIntegration:
                 manager = initialize_scenarios_from_config()
 
                 # Should load from both packs
-                assert "pack-scenario" in manager.scenarios
-                assert manager.scenarios["pack-scenario"].pack_source == "pack1"
-                assert "another-scenario" in manager.scenarios
-                assert manager.scenarios["another-scenario"].pack_source == "pack2"
+                scenario1 = manager.get_scenario("pack-scenario")
+                assert scenario1 is not None
+                assert scenario1.pack_source == "pack1"
+
+                scenario2 = manager.get_scenario("another-scenario")
+                assert scenario2 is not None
+                assert scenario2.pack_source == "pack2"
 
     def test_scenario_manager_with_no_packs(self):
         """Test scenario loading when no packs are configured."""
