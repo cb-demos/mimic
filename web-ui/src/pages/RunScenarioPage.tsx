@@ -31,6 +31,7 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { configApi, scenariosApi } from '../api/endpoints';
+import { listEnvironments } from '../api/endpoints/environments';
 import { ParameterForm } from '../components/ParameterForm';
 import { ProgressDisplay } from '../components/ProgressDisplay';
 import { PropertyCheckDialog } from '../components/PropertyCheckDialog';
@@ -148,6 +149,14 @@ export function RunScenarioPage() {
     enabled: !!scenarioId,
   });
 
+  // Fetch current environment from backend
+  const { data: environmentsData, isLoading: loadingEnvironments } = useQuery({
+    queryKey: ['environments'],
+    queryFn: listEnvironments,
+  });
+
+  const currentEnv = environmentsData?.current || 'prod';
+
   // Use progress hook for SSE
   const { isConnected, isComplete } = useProgress(sessionId);
 
@@ -170,7 +179,6 @@ export function RunScenarioPage() {
         return;
       }
 
-      const currentEnv = localStorage.getItem('current_environment') || 'prod';
       const envCredentials = cloudbeesConfig.environments.find((env) => env.name === currentEnv);
 
       if (!envCredentials?.has_token) {
@@ -363,7 +371,7 @@ export function RunScenarioPage() {
     navigate('/cleanup');
   };
 
-  if (loadingScenario) {
+  if (loadingScenario || loadingEnvironments) {
     return (
       <Container maxWidth="lg">
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -651,7 +659,7 @@ export function RunScenarioPage() {
           onConfirm={handlePreviewConfirm}
           preview={previewData}
           scenarioName={scenario.scenario.name}
-          environment={localStorage.getItem('current_environment') || 'prod'}
+          environment={currentEnv}
           expirationLabel={expirationLabel}
           isSubmitting={runMutation.isPending}
         />
