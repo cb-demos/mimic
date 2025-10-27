@@ -134,18 +134,19 @@ async def add_preset_environment(
                     or "Invalid CloudBees credentials for this environment",
                 )
 
-        # Add the environment with proper configuration
+        # Merge preset properties with custom properties (custom overrides preset)
+        properties = preset_config.properties.copy()
+        properties.update(request.custom_properties)
+
+        # Add the environment with proper configuration including all properties
         config.add_environment(
             name=request.name,
             url=preset_config.url,
             pat=request.pat,
             endpoint_id=preset_config.endpoint_id,
             use_legacy_flags=preset_config.use_legacy_flags,
+            properties=properties,
         )
-
-        # Add any custom properties provided by user
-        for key, value in request.custom_properties.items():
-            config.set_environment_property(request.name, key, value)
 
         logger.info(f"Added preset environment: {request.name}")
         return StatusResponse(
