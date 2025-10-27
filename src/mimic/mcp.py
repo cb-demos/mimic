@@ -258,6 +258,28 @@ async def cleanup_session(
 
 def run_mcp_server():
     """Run the MCP server in stdio mode."""
+    import sys
+
+    from .keyring_health import test_keyring_available
+
+    # Check keyring availability before starting server
+    logger.info("Checking keyring availability...")
+    success, error_msg = test_keyring_available(timeout=3)
+    if not success:
+        logger.error("Keyring backend is not available")
+        print("Error: Keyring backend is not available\n", file=sys.stderr)
+        print(error_msg, file=sys.stderr)
+        print(
+            "\nThe MCP server requires a functioning keyring to store credentials securely.",
+            file=sys.stderr,
+        )
+        print(
+            "Please fix the keyring setup before starting the MCP server.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    logger.info("Keyring backend is available")
     logger.info("Starting Mimic MCP server in stdio mode")
     mcp.run()
 

@@ -79,3 +79,18 @@ class CredentialError(MimicError):
         super().__init__(message)
         self.credential_type = credential_type
         self.details = details
+
+
+class KeyringUnavailableError(MimicError):
+    """Keyring backend is not available or not functioning.
+
+    This error is raised when the system keyring cannot be used to store
+    or retrieve credentials. Common causes include:
+    - No keyring backend installed (e.g., gnome-keyring on Linux)
+    - D-Bus session not configured (headless/SSH sessions)
+    - Keyring daemon not running
+    """
+
+    def __init__(self, message: str, instructions: str | None = None):
+        super().__init__(message)
+        self.instructions = instructions

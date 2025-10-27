@@ -5,6 +5,8 @@ from typing import Any
 import keyring
 import yaml
 
+from .exceptions import KeyringUnavailableError
+from .keyring_health import get_keyring_setup_instructions
 from .paths import get_config_dir
 
 
@@ -401,8 +403,18 @@ class ConfigManager:
         Args:
             env_name: Environment name.
             pat: Personal Access Token.
+
+        Raises:
+            KeyringUnavailableError: If keyring backend is not available.
         """
-        keyring.set_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}", pat)
+        try:
+            keyring.set_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}", pat)
+        except Exception as e:
+            instructions = get_keyring_setup_instructions()
+            raise KeyringUnavailableError(
+                f"Failed to store CloudBees PAT in keyring: {e}",
+                instructions=instructions,
+            ) from e
 
     def get_cloudbees_pat(self, env_name: str | None = None) -> str | None:
         """Retrieve CloudBees PAT from keyring.
@@ -412,6 +424,9 @@ class ConfigManager:
 
         Returns:
             PAT, or None if not found.
+
+        Raises:
+            KeyringUnavailableError: If keyring backend is not available.
         """
         if env_name is None:
             env_name = self.get_current_environment()
@@ -419,7 +434,14 @@ class ConfigManager:
         if not env_name:
             return None
 
-        return keyring.get_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}")
+        try:
+            return keyring.get_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}")
+        except Exception as e:
+            instructions = get_keyring_setup_instructions()
+            raise KeyringUnavailableError(
+                f"Failed to retrieve CloudBees PAT from keyring: {e}",
+                instructions=instructions,
+            ) from e
 
     def delete_cloudbees_pat(self, env_name: str) -> None:
         """Delete CloudBees PAT from keyring.
@@ -437,16 +459,36 @@ class ConfigManager:
 
         Args:
             pat: GitHub Personal Access Token.
+
+        Raises:
+            KeyringUnavailableError: If keyring backend is not available.
         """
-        keyring.set_password(self.KEYRING_SERVICE, "github", pat)
+        try:
+            keyring.set_password(self.KEYRING_SERVICE, "github", pat)
+        except Exception as e:
+            instructions = get_keyring_setup_instructions()
+            raise KeyringUnavailableError(
+                f"Failed to store GitHub PAT in keyring: {e}",
+                instructions=instructions,
+            ) from e
 
     def get_github_pat(self) -> str | None:
         """Retrieve GitHub PAT from keyring.
 
         Returns:
             PAT, or None if not found.
+
+        Raises:
+            KeyringUnavailableError: If keyring backend is not available.
         """
-        return keyring.get_password(self.KEYRING_SERVICE, "github")
+        try:
+            return keyring.get_password(self.KEYRING_SERVICE, "github")
+        except Exception as e:
+            instructions = get_keyring_setup_instructions()
+            raise KeyringUnavailableError(
+                f"Failed to retrieve GitHub PAT from keyring: {e}",
+                instructions=instructions,
+            ) from e
 
     def delete_github_pat(self) -> None:
         """Delete GitHub PAT from keyring."""

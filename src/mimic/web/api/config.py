@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, status
 
+from mimic.exceptions import KeyringUnavailableError
 from mimic.unify import UnifyAPIClient
 
 from ..dependencies import CloudBeesCredentialsDep, ConfigDep
@@ -37,10 +38,22 @@ async def get_github_config(config: ConfigDep):
     Returns:
         GitHub username and token status
     """
-    username = config.get_github_username()
-    has_token = config.get_github_pat() is not None
+    try:
+        username = config.get_github_username()
+        has_token = config.get_github_pat() is not None
 
-    return GitHubConfigResponse(username=username, has_token=has_token)
+        return GitHubConfigResponse(username=username, has_token=has_token)
+
+    except KeyringUnavailableError as e:
+        logger.error(f"Keyring unavailable: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Keyring backend is not available",
+                "message": str(e),
+                "instructions": e.instructions,
+            },
+        ) from e
 
 
 @router.post("/github/token", response_model=StatusResponse)
@@ -60,6 +73,18 @@ async def set_github_token(request: SetGitHubTokenRequest, config: ConfigDep):
         config.set_github_pat(request.token)
         logger.info("GitHub PAT updated via web API")
         return StatusResponse(status="success", message="GitHub token saved securely")
+
+    except KeyringUnavailableError as e:
+        logger.error(f"Keyring unavailable: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Keyring backend is not available",
+                "message": str(e),
+                "instructions": e.instructions,
+            },
+        ) from e
+
     except Exception as e:
         logger.error(f"Failed to save GitHub token: {e}")
         return StatusResponse(status="error", message=f"Failed to save token: {str(e)}")
@@ -96,16 +121,28 @@ async def get_cloudbees_config(config: ConfigDep):
     Returns:
         List of environments with their credential status
     """
-    environments = config.list_environments()
-    env_credentials = []
+    try:
+        environments = config.list_environments()
+        env_credentials = []
 
-    for env_name in environments:
-        has_token = config.get_cloudbees_pat(env_name) is not None
-        env_credentials.append(
-            CloudBeesEnvCredentials(name=env_name, has_token=has_token)
-        )
+        for env_name in environments:
+            has_token = config.get_cloudbees_pat(env_name) is not None
+            env_credentials.append(
+                CloudBeesEnvCredentials(name=env_name, has_token=has_token)
+            )
 
-    return CloudBeesConfigResponse(environments=env_credentials)
+        return CloudBeesConfigResponse(environments=env_credentials)
+
+    except KeyringUnavailableError as e:
+        logger.error(f"Keyring unavailable: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Keyring backend is not available",
+                "message": str(e),
+                "instructions": e.instructions,
+            },
+        ) from e
 
 
 @router.post("/cloudbees/token", response_model=StatusResponse)
@@ -136,6 +173,18 @@ async def set_cloudbees_token(request: SetCloudBeesTokenRequest, config: ConfigD
             status="success",
             message=f"CloudBees token saved securely for {request.environment}",
         )
+
+    except KeyringUnavailableError as e:
+        logger.error(f"Keyring unavailable: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Keyring backend is not available",
+                "message": str(e),
+                "instructions": e.instructions,
+            },
+        ) from e
+
     except Exception as e:
         logger.error(f"Failed to save CloudBees token for {request.environment}: {e}")
         return StatusResponse(status="error", message=f"Failed to save token: {str(e)}")

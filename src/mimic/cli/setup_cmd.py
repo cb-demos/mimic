@@ -111,7 +111,25 @@ def setup(
                 f"[dim]Skipped. Add later with: mimic scenario-pack add {OFFICIAL_PACK_NAME} {OFFICIAL_PACK_URL}[/dim]\n"
             )
 
-    # Step 1: CloudBees Environment Setup
+    # Step 1.5: Keyring Health Check
+    console.print("[bold cyan]Checking keyring availability...[/bold cyan]")
+    from ..keyring_health import test_keyring_available
+
+    success, error_msg = test_keyring_available(timeout=3)
+    if not success:
+        console.print()
+        console.print(
+            Panel(
+                f"[red]✗ Keyring backend is not available[/red]\n\n{error_msg}",
+                title="Keyring Error",
+                border_style="red",
+            )
+        )
+        raise typer.Exit(1)
+
+    console.print("[green]✓[/green] Keyring backend is available\n")
+
+    # Step 2: CloudBees Environment Setup
     console.print("[bold cyan]Step 2: CloudBees Environment[/bold cyan]\n")
     console.print("Choose a CloudBees Unify environment to connect to:\n")
 
@@ -209,7 +227,19 @@ def setup(
         )
         console.print(f"[green]✓[/green] Environment '[cyan]{env_name}[/cyan]' saved\n")
     except Exception as e:
-        console.print(f"[red]Error saving environment:[/red] {e}")
+        from ..exceptions import KeyringUnavailableError
+
+        if isinstance(e, KeyringUnavailableError):
+            console.print()
+            console.print(
+                Panel(
+                    f"[red]✗ Failed to save credentials[/red]\n\n{e.instructions}",
+                    title="Keyring Error",
+                    border_style="red",
+                )
+            )
+        else:
+            console.print(f"[red]Error saving environment:[/red] {e}")
         raise typer.Exit(1) from e
 
     # Step 2: GitHub Setup
@@ -256,8 +286,24 @@ def setup(
             raise typer.Exit(1) from None
 
     if github_configured:
-        config_manager.set_github_pat(github_pat)
-        console.print("[green]✓[/green] GitHub token saved\n")
+        try:
+            config_manager.set_github_pat(github_pat)
+            console.print("[green]✓[/green] GitHub token saved\n")
+        except Exception as e:
+            from ..exceptions import KeyringUnavailableError
+
+            if isinstance(e, KeyringUnavailableError):
+                console.print()
+                console.print(
+                    Panel(
+                        f"[red]✗ Failed to save GitHub token[/red]\n\n{e.instructions}",
+                        title="Keyring Error",
+                        border_style="red",
+                    )
+                )
+            else:
+                console.print(f"[red]Error saving GitHub token:[/red] {e}")
+            raise typer.Exit(1) from e
 
         # Prompt for GitHub username
         console.print("[bold]GitHub Username:[/bold]")
