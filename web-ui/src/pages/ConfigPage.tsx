@@ -3,6 +3,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import {
   Box,
   Container,
@@ -10,24 +11,20 @@ import {
   Paper,
   TextField,
   Button,
-  Divider,
   Alert,
   CircularProgress,
   InputAdornment,
   IconButton,
   Grid,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Chip,
 } from '@mui/material';
-import { Visibility, VisibilityOff, CheckCircle, Error } from '@mui/icons-material';
+import { Visibility, VisibilityOff, CheckCircle, Error, Settings } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { configApi, environmentsApi } from '../api/endpoints';
+import { configApi } from '../api/endpoints';
 
 export function ConfigPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   // GitHub state
   const [githubUsername, setGithubUsername] = useState('');
@@ -36,14 +33,6 @@ export function ConfigPage() {
   const [githubError, setGithubError] = useState<string | null>(null);
   const [githubSuccess, setGithubSuccess] = useState<string | null>(null);
   const [testingGithub, setTestingGithub] = useState(false);
-
-  // CloudBees state
-  const [selectedEnv, setSelectedEnv] = useState('');
-  const [cloudbeesToken, setCloudbeesToken] = useState('');
-  const [showCloudbeesToken, setShowCloudbeesToken] = useState(false);
-  const [cloudbeesError, setCloudbeesError] = useState<string | null>(null);
-  const [cloudbeesSuccess, setCloudbeesSuccess] = useState<string | null>(null);
-  const [testingCloudbees, setTestingCloudbees] = useState(false);
 
   // Fetch GitHub config
   const { data: githubConfig, isLoading: loadingGithub } = useQuery({
@@ -57,25 +46,12 @@ export function ConfigPage() {
     queryFn: configApi.getCloudbees,
   });
 
-  // Fetch environments for selection
-  const { data: environmentsData } = useQuery({
-    queryKey: ['environments'],
-    queryFn: environmentsApi.list,
-  });
-
   // Initialize GitHub username from config
   useEffect(() => {
     if (githubConfig?.username) {
       setGithubUsername(githubConfig.username);
     }
   }, [githubConfig]);
-
-  // Initialize selected environment
-  useEffect(() => {
-    if (environmentsData && !selectedEnv) {
-      setSelectedEnv(environmentsData.current || '');
-    }
-  }, [environmentsData, selectedEnv]);
 
   // Save GitHub username
   const saveUsernameMutation = useMutation({
@@ -103,22 +79,6 @@ export function ConfigPage() {
     onError: (err: any) => {
       setGithubError(err.response?.data?.detail || 'Failed to save GitHub token');
       setGithubSuccess(null);
-    },
-  });
-
-  // Save CloudBees token
-  const saveCloudbeesMutation = useMutation({
-    mutationFn: (data: { environment: string; token: string }) =>
-      configApi.setCloubeesToken(data.environment, data.token),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cloudbees-config'] });
-      setCloudbeesSuccess('CloudBees token saved successfully');
-      setCloudbeesError(null);
-      setCloudbeesToken(''); // Clear token input after save
-    },
-    onError: (err: any) => {
-      setCloudbeesError(err.response?.data?.detail || 'Failed to save CloudBees token');
-      setCloudbeesSuccess(null);
     },
   });
 
@@ -161,41 +121,6 @@ export function ConfigPage() {
     }
   };
 
-  const handleSaveCloudbeesToken = () => {
-    if (selectedEnv && cloudbeesToken) {
-      saveCloudbeesMutation.mutate({ environment: selectedEnv, token: cloudbeesToken });
-    }
-  };
-
-  const handleTestCloudbeesConnection = async () => {
-    setTestingCloudbees(true);
-    setCloudbeesError(null);
-    setCloudbeesSuccess(null);
-    try {
-      // Save token if provided
-      if (cloudbeesToken && selectedEnv) {
-        await configApi.setCloubeesToken(selectedEnv, cloudbeesToken);
-      }
-
-      const result = await configApi.getCloudbees();
-      const env = result.environments.find((e) => e.name === selectedEnv);
-      if (env?.has_token) {
-        setCloudbeesSuccess('CloudBees connection successful!');
-        queryClient.invalidateQueries({ queryKey: ['cloudbees-config'] });
-      } else {
-        setCloudbeesError('CloudBees token not set for this environment');
-      }
-    } catch (err: any) {
-      setCloudbeesError(err.response?.data?.detail || 'Failed to test CloudBees connection');
-    } finally {
-      setTestingCloudbees(false);
-    }
-  };
-
-  const getEnvStatus = (envName: string) => {
-    const env = cloudbeesConfig?.environments.find((e) => e.name === envName);
-    return env?.has_token;
-  };
 
   return (
     <Container maxWidth="md">
@@ -298,116 +223,44 @@ export function ConfigPage() {
 
       {/* CloudBees Section */}
       <Paper sx={{ p: 3 }}>
-        <Typography variant="h5" sx={{ mb: 2 }}>
-          CloudBees
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+          <Typography variant="h5">
+            CloudBees
+          </Typography>
+          <Button
+            variant="contained"
+            startIcon={<Settings />}
+            onClick={() => navigate('/environments')}
+          >
+            Manage in Environments
+          </Button>
+        </Box>
 
-        {cloudbeesSuccess && (
-          <Alert severity="success" sx={{ mb: 2 }} onClose={() => setCloudbeesSuccess(null)}>
-            {cloudbeesSuccess}
-          </Alert>
-        )}
-
-        {cloudbeesError && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setCloudbeesError(null)}>
-            {cloudbeesError}
-          </Alert>
-        )}
+        <Alert severity="info" sx={{ mb: 2 }}>
+          CloudBees credentials are now managed in the Environments page where you can update tokens directly for each environment.
+        </Alert>
 
         {loadingCloudbees ? (
           <CircularProgress />
-        ) : (
-          <Grid container spacing={2}>
-            <Grid size={12}>
-              <FormControl fullWidth>
-                <InputLabel>Environment</InputLabel>
-                <Select
-                  value={selectedEnv}
-                  label="Environment"
-                  onChange={(e) => {
-                    setSelectedEnv(e.target.value);
-                    setCloudbeesToken('');
-                    setCloudbeesError(null);
-                    setCloudbeesSuccess(null);
-                  }}
-                >
-                  {environmentsData?.environments.map((env) => (
-                    <MenuItem key={env.name} value={env.name}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                        {env.name}
-                        {getEnvStatus(env.name) ? (
-                          <CheckCircle color="success" fontSize="small" />
-                        ) : (
-                          <Error color="error" fontSize="small" />
-                        )}
-                      </Box>
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                label="CloudBees Personal Access Token"
-                type={showCloudbeesToken ? 'text' : 'password'}
-                value={cloudbeesToken}
-                onChange={(e) => setCloudbeesToken(e.target.value)}
-                helperText={`Token for ${selectedEnv} environment`}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        onClick={() => setShowCloudbeesToken(!showCloudbeesToken)}
-                        edge="end"
-                      >
-                        {showCloudbeesToken ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-              <Button
-                variant="outlined"
-                sx={{ mt: 1, mr: 1 }}
-                onClick={handleSaveCloudbeesToken}
-                disabled={!cloudbeesToken || !selectedEnv || saveCloudbeesMutation.isPending}
-              >
-                {saveCloudbeesMutation.isPending ? <CircularProgress size={24} /> : 'Save Token'}
-              </Button>
-              <Button
-                variant="contained"
-                sx={{ mt: 1 }}
-                onClick={handleTestCloudbeesConnection}
-                disabled={testingCloudbees}
-              >
-                {testingCloudbees ? <CircularProgress size={24} /> : 'Test Connection'}
-              </Button>
-            </Grid>
-
-            {cloudbeesConfig && (
-              <Grid size={12}>
-                <Divider sx={{ my: 2 }} />
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Environment Status
+        ) : cloudbeesConfig ? (
+          <Box>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Credential Status
+            </Typography>
+            {cloudbeesConfig.environments.map((env) => (
+              <Box key={env.name} sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
+                {env.has_token ? (
+                  <CheckCircle color="success" fontSize="small" sx={{ mr: 1 }} />
+                ) : (
+                  <Error color="error" fontSize="small" sx={{ mr: 1 }} />
+                )}
+                <Typography variant="body2">
+                  {env.name}: {env.has_token ? 'Token configured' : 'No token'}
                 </Typography>
-                {cloudbeesConfig.environments.map((env) => (
-                  <Box key={env.name} sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                    {env.has_token ? (
-                      <CheckCircle color="success" fontSize="small" sx={{ mr: 1 }} />
-                    ) : (
-                      <Error color="error" fontSize="small" sx={{ mr: 1 }} />
-                    )}
-                    <Typography variant="body2">
-                      {env.name}: {env.has_token ? 'Token configured' : 'No token'}
-                    </Typography>
-                  </Box>
-                ))}
-              </Grid>
-            )}
-          </Grid>
-        )}
+              </Box>
+            ))}
+          </Box>
+        ) : null}
       </Paper>
     </Container>
   );

@@ -254,9 +254,7 @@ async def add_environment(request: AddEnvironmentRequest, config: ConfigDep):
 
 @router.delete("/{env_name}", response_model=StatusResponse)
 async def remove_environment(env_name: str, config: ConfigDep):
-    """Remove a custom environment.
-
-    Preset environments cannot be removed.
+    """Remove an environment.
 
     Args:
         env_name: Environment name to remove
@@ -265,13 +263,6 @@ async def remove_environment(env_name: str, config: ConfigDep):
     Returns:
         Status message
     """
-    # Check if it's a preset environment
-    if env_name in PRESET_ENVIRONMENTS:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot remove preset environments",
-        )
-
     try:
         config.remove_environment(env_name)
         logger.info(f"Removed environment: {env_name}")

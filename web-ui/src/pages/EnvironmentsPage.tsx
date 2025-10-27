@@ -34,10 +34,11 @@ import {
   MenuItem,
   MenuList,
   Popper,
+  InputAdornment,
 } from '@mui/material';
-import { Add, Delete, Settings, CheckCircle, ArrowDropDown, DeleteOutline } from '@mui/icons-material';
+import { Add, Delete, Settings, CheckCircle, ArrowDropDown, DeleteOutline, VpnKey, Visibility, VisibilityOff, Error as ErrorIcon } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { environmentsApi } from '../api/endpoints';
+import { environmentsApi, configApi } from '../api/endpoints';
 import type { Environment } from '../types/api';
 import { AddPresetEnvironmentDialog } from '../components/AddPresetEnvironmentDialog';
 
@@ -52,6 +53,18 @@ export function EnvironmentsPage() {
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addButtonRef = useRef<HTMLDivElement | null>(null);
+
+  // Credential update dialog state
+  const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
+  const [selectedEnvForCreds, setSelectedEnvForCreds] = useState<string | null>(null);
+  const [newToken, setNewToken] = useState('');
+  const [showToken, setShowToken] = useState(false);
+  const [credentialError, setCredentialError] = useState<string | null>(null);
+  const [credentialSuccess, setCredentialSuccess] = useState<string | null>(null);
+
+  // Environment deletion confirmation state
+  const [deleteEnvConfirmOpen, setDeleteEnvConfirmOpen] = useState(false);
+  const [envToDelete, setEnvToDelete] = useState<Environment | null>(null);
 
   // Add environment form
   const [newEnv, setNewEnv] = useState({
@@ -70,6 +83,12 @@ export function EnvironmentsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['environments'],
     queryFn: environmentsApi.list,
+  });
+
+  // Fetch CloudBees config for credential status
+  const { data: cloudbeesConfig } = useQuery({
+    queryKey: ['cloudbees-config'],
+    queryFn: configApi.getCloudbees,
   });
 
   // Fetch properties for selected environment
@@ -111,9 +130,33 @@ export function EnvironmentsPage() {
     mutationFn: (envName: string) => environmentsApi.remove(envName),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['environments'] });
+      setDeleteEnvConfirmOpen(false);
+      setEnvToDelete(null);
     },
     onError: (err: any) => {
       setError(err.response?.data?.detail || 'Failed to remove environment');
+    },
+  });
+
+  // Update credentials mutation
+  const updateCredentialsMutation = useMutation({
+    mutationFn: (data: { environment: string; token: string }) =>
+      configApi.setCloubeesToken(data.environment, data.token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['environments'] });
+      queryClient.invalidateQueries({ queryKey: ['cloudbees-config'] });
+      setCredentialSuccess('Credentials updated successfully');
+      setCredentialError(null);
+      setNewToken('');
+      setTimeout(() => {
+        setCredentialsDialogOpen(false);
+        setSelectedEnvForCreds(null);
+        setCredentialSuccess(null);
+      }, 1500);
+    },
+    onError: (err: any) => {
+      setCredentialError(err.response?.data?.detail || 'Failed to update credentials');
+      setCredentialSuccess(null);
     },
   });
 
@@ -187,8 +230,51 @@ export function EnvironmentsPage() {
     queryClient.invalidateQueries({ queryKey: ['preset-environments'] });
   };
 
+  const handleUpdateCredentials = (envName: string) => {
+    setSelectedEnvForCreds(envName);
+    setCredentialsDialogOpen(true);
+    setNewToken('');
+    setShowToken(false);
+    setCredentialError(null);
+    setCredentialSuccess(null);
+  };
+
+  const handleCloseCredentialsDialog = () => {
+    setCredentialsDialogOpen(false);
+    setSelectedEnvForCreds(null);
+    setNewToken('');
+    setShowToken(false);
+    setCredentialError(null);
+    setCredentialSuccess(null);
+  };
+
+  const handleSaveCredentials = () => {
+    if (selectedEnvForCreds && newToken) {
+      updateCredentialsMutation.mutate({
+        environment: selectedEnvForCreds,
+        token: newToken,
+      });
+    }
+  };
+
+  const handleDeleteEnvironment = (env: Environment) => {
+    setEnvToDelete(env);
+    setDeleteEnvConfirmOpen(true);
+  };
+
+  const confirmDeleteEnvironment = () => {
+    if (envToDelete) {
+      removeMutation.mutate(envToDelete.name);
+    }
+  };
+
   const isBuiltInProperty = (key: string) => {
     return key === 'UNIFY_API' || key === 'ENDPOINT_ID';
+  };
+
+  const hasCredentials = (envName: string): boolean => {
+    const env = cloudbeesConfig?.environments.find((e) => e.name === envName);
+    return env?.has_token ?? false;
   };
 
   if (isLoading) {
@@ -283,6 +369,7 @@ export function EnvironmentsPage() {
                   <TableCell>URL</TableCell>
                   <TableCell>Endpoint ID</TableCell>
                   <TableCell>Flag API</TableCell>
+                  <TableCell width="120">Credentials</TableCell>
                   <TableCell>Properties</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -323,6 +410,25 @@ export function EnvironmentsPage() {
                       />
                     </TableCell>
                     <TableCell>
+                      {hasCredentials(env.name) ? (
+                        <Chip
+                          icon={<CheckCircle />}
+                          label="Configured"
+                          size="small"
+                          color="success"
+                          variant="outlined"
+                        />
+                      ) : (
+                        <Chip
+                          icon={<ErrorIcon />}
+                          label="Not set"
+                          size="small"
+                          color="error"
+                          variant="outlined"
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Button
                         size="small"
                         startIcon={<Settings />}
@@ -332,6 +438,15 @@ export function EnvironmentsPage() {
                       </Button>
                     </TableCell>
                     <TableCell align="right">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => handleUpdateCredentials(env.name)}
+                        title="Update credentials"
+                        sx={{ mr: 1 }}
+                      >
+                        <VpnKey />
+                      </IconButton>
                       <Button
                         size="small"
                         variant={env.name === data.current ? 'outlined' : 'contained'}
@@ -340,17 +455,16 @@ export function EnvironmentsPage() {
                       >
                         {env.name === data.current ? 'Selected' : 'Select'}
                       </Button>
-                      {!env.is_preset && (
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => removeMutation.mutate(env.name)}
-                          disabled={removeMutation.isPending}
-                          sx={{ ml: 1 }}
-                        >
-                          <Delete />
-                        </IconButton>
-                      )}
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => handleDeleteEnvironment(env)}
+                        disabled={removeMutation.isPending}
+                        title="Delete environment"
+                        sx={{ ml: 1 }}
+                      >
+                        <Delete />
+                      </IconButton>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -543,6 +657,90 @@ export function EnvironmentsPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClosePropsDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Update Credentials Dialog */}
+      <Dialog
+        open={credentialsDialogOpen}
+        onClose={handleCloseCredentialsDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Update Credentials: {selectedEnvForCreds}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 1 }}>
+            Update the CloudBees Personal Access Token for this environment
+          </Typography>
+
+          {credentialSuccess && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {credentialSuccess}
+            </Alert>
+          )}
+
+          {credentialError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {credentialError}
+            </Alert>
+          )}
+
+          <TextField
+            fullWidth
+            label="CloudBees Personal Access Token"
+            type={showToken ? 'text' : 'password'}
+            value={newToken}
+            onChange={(e) => setNewToken(e.target.value)}
+            placeholder="Enter new PAT"
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setShowToken(!showToken)} edge="end">
+                    {showToken ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseCredentialsDialog}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveCredentials}
+            disabled={!newToken || updateCredentialsMutation.isPending}
+          >
+            {updateCredentialsMutation.isPending ? <CircularProgress size={24} /> : 'Save'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Environment Confirmation Dialog */}
+      <Dialog open={deleteEnvConfirmOpen} onClose={() => setDeleteEnvConfirmOpen(false)}>
+        <DialogTitle>Delete Environment</DialogTitle>
+        <DialogContent>
+          <Typography gutterBottom>
+            Are you sure you want to delete the environment <strong>{envToDelete?.name}</strong>?
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            This will remove the environment configuration and stored credentials.
+          </Typography>
+          {envToDelete?.is_preset && (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              This is a preset environment. You can re-add it later from the preset list if needed.
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteEnvConfirmOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={confirmDeleteEnvironment}
+            disabled={removeMutation.isPending}
+          >
+            {removeMutation.isPending ? <CircularProgress size={24} /> : 'Delete'}
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>
