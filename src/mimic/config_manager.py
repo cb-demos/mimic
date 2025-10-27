@@ -1,5 +1,6 @@
 """Configuration and credential management for Mimic."""
 
+import logging
 from typing import Any
 
 import keyring
@@ -8,6 +9,8 @@ import yaml
 from .exceptions import KeyringUnavailableError
 from .keyring_health import get_keyring_setup_instructions
 from .paths import get_config_dir
+
+logger = logging.getLogger(__name__)
 
 
 class ConfigManager:
@@ -748,14 +751,15 @@ class ConfigManager:
         )
 
     def ensure_official_pack_exists(self) -> bool:
-        """Ensure the official scenario pack is configured.
+        """Ensure the official scenario pack is configured and installed.
 
-        If the official pack doesn't exist in the config, it will be added automatically.
-        Users can disable it later if they prefer.
+        If the official pack doesn't exist in the config, it will be added automatically
+        and cloned from the repository. Users can disable it later if they prefer.
 
         Returns:
             True if the official pack was added, False if it already existed.
         """
+        from .scenario_pack_manager import ScenarioPackManager
         from .settings import (
             OFFICIAL_PACK_BRANCH,
             OFFICIAL_PACK_NAME,
@@ -765,16 +769,34 @@ class ConfigManager:
         config = self.load_config()
         packs = config.get("scenario_packs", {})
 
-        # Check if official pack already exists
+        # Check if official pack already exists in config
         if OFFICIAL_PACK_NAME in packs:
             return False
 
-        # Add the official pack
+        # Add the official pack to config
         self.add_scenario_pack(
             name=OFFICIAL_PACK_NAME,
             url=OFFICIAL_PACK_URL,
             branch=OFFICIAL_PACK_BRANCH,
             enabled=True,
         )
+
+        # Also clone the pack so it's actually installed
+        try:
+            pack_manager = ScenarioPackManager(self.packs_dir)
+            pack_manager.clone_pack(
+                name=OFFICIAL_PACK_NAME,
+                url=OFFICIAL_PACK_URL,
+                branch=OFFICIAL_PACK_BRANCH,
+            )
+            logger.info(
+                f"Successfully cloned official scenario pack from {OFFICIAL_PACK_URL}"
+            )
+        except Exception as e:
+            # Non-fatal: config is already saved, user can manually clone later
+            logger.warning(
+                f"Failed to clone official scenario pack: {e}. "
+                f"Run 'mimic scenario-pack update {OFFICIAL_PACK_NAME}' to install it."
+            )
 
         return True
