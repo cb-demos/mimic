@@ -79,3 +79,5 @@ test.md
 *.db
 *.db-shm
 *.db-wal
+
+.mcp.json
