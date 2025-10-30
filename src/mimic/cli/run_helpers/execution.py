@@ -57,7 +57,11 @@ def execute_scenario(
 
     # Calculate expiration datetime
     now = datetime.now()
-    expires_at = None if no_expiration else now + timedelta(days=expiration_days)
+    expires_at = (
+        None
+        if (no_expiration or expiration_days == 0)
+        else now + timedelta(days=expiration_days)
+    )
 
     # Create and run pipeline
     console.print("[bold green]Starting scenario execution...[/bold green]")

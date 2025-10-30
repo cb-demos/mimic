@@ -61,7 +61,7 @@ def handle_expiration_selection(
         Tuple of (expiration_days, expiration_label).
     """
     if no_expiration:
-        expiration_days = 365 * 10  # 10 years (effectively never expires)
+        expiration_days = 0  # 0 means never expires
         expiration_label = "Never"
         return expiration_days, expiration_label
 
@@ -132,7 +132,7 @@ def handle_expiration_selection(
         selected_value = str(default_expiration)
 
     if selected_value == "never":
-        expiration_days = 365 * 10
+        expiration_days = 0  # 0 means never expires
         expiration_label = "Never"
     elif selected_value == "custom":
         custom_days = typer.prompt("Enter custom expiration days", type=int)

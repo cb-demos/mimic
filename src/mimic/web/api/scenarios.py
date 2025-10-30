@@ -391,7 +391,7 @@ async def run_scenario(
 
     # Calculate expiration
     expires_at = None
-    if request.ttl_days is not None:
+    if request.ttl_days is not None and request.ttl_days > 0:
         expires_at = datetime.now() + timedelta(days=request.ttl_days)
 
     # Resolve instance name
