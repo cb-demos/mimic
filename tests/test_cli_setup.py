@@ -74,6 +74,7 @@ class TestSetupCommand:
         assert result.exit_code == 0
         assert "setup" in result.stdout
 
+    @patch("mimic.keyring_health.test_keyring_available")
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
     @patch("mimic.gh.GitHubClient")
@@ -82,10 +83,14 @@ class TestSetupCommand:
         mock_github_client,
         mock_unify_client,
         mock_pack_manager,
+        mock_keyring_available,
         setup_config_manager,
         monkeypatch,
     ):
         """Test setup wizard with preset environment and GitHub configuration."""
+        # Mock keyring availability check
+        mock_keyring_available.return_value = (True, None)
+
         # Mock ScenarioPackManager
         mock_pack_instance = MagicMock()
         mock_pack_instance.clone_pack = MagicMock()
@@ -132,6 +137,7 @@ class TestSetupCommand:
         # Verify credentials were stored (via mock)
         # The actual keyring calls would have been made through the setup_config_manager fixture
 
+    @patch("mimic.keyring_health.test_keyring_available")
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
     @patch("mimic.gh.GitHubClient")
@@ -140,9 +146,13 @@ class TestSetupCommand:
         mock_github_client,
         mock_unify_client,
         mock_pack_manager,
+        mock_keyring_available,
         setup_config_manager,
     ):
         """Test setup wizard with GitHub configuration (now mandatory)."""
+        # Mock keyring availability check
+        mock_keyring_available.return_value = (True, None)
+
         # Mock ScenarioPackManager
         mock_pack_instance = MagicMock()
         mock_pack_instance.clone_pack = MagicMock()
@@ -178,6 +188,7 @@ class TestSetupCommand:
         # Verify output
         assert "Setup Complete!" in result.stdout or "Setup complete" in result.stdout
 
+    @patch("mimic.keyring_health.test_keyring_available")
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
     @patch("mimic.gh.GitHubClient")
@@ -186,9 +197,13 @@ class TestSetupCommand:
         mock_github_client,
         mock_unify_client,
         mock_pack_manager,
+        mock_keyring_available,
         setup_config_manager,
     ):
         """Test setup wizard with custom environment."""
+        # Mock keyring availability check
+        mock_keyring_available.return_value = (True, None)
+
         # Mock ScenarioPackManager
         mock_pack_instance = MagicMock()
         mock_pack_instance.clone_pack = MagicMock()
@@ -239,12 +254,20 @@ class TestSetupCommand:
             config["environments"]["custom-env"]["endpoint_id"] == "custom-endpoint-123"
         )
 
+    @patch("mimic.keyring_health.test_keyring_available")
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
     def test_setup_credential_validation_failure(
-        self, mock_unify_client, mock_pack_manager, setup_config_manager
+        self,
+        mock_unify_client,
+        mock_pack_manager,
+        mock_keyring_available,
+        setup_config_manager,
     ):
         """Test setup wizard with credential validation failure."""
+        # Mock keyring availability check
+        mock_keyring_available.return_value = (True, None)
+
         # Mock ScenarioPackManager
         mock_pack_instance = MagicMock()
         mock_pack_instance.clone_pack = MagicMock()
@@ -291,6 +314,7 @@ class TestSetupCommand:
         )
         assert "mimic setup --force" in result.stdout or "--force" in result.stdout
 
+    @patch("mimic.keyring_health.test_keyring_available")
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
     @patch("mimic.unify.UnifyAPIClient")
     @patch("mimic.gh.GitHubClient")
@@ -299,9 +323,13 @@ class TestSetupCommand:
         mock_github_client,
         mock_unify_client,
         mock_pack_manager,
+        mock_keyring_available,
         setup_config_manager,
     ):
         """Test setup with --force flag allows reconfiguration."""
+        # Mock keyring availability check
+        mock_keyring_available.return_value = (True, None)
+
         # Mock ScenarioPackManager
         mock_pack_instance = MagicMock()
         mock_pack_instance.clone_pack = MagicMock()
