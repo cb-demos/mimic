@@ -127,6 +127,7 @@ class RetryHandler:
         unify_client: Any,  # UnifyAPIClient
         org_id: str,
         repo_urls: list[str],
+        event_callback: Any | None = None,
     ) -> None:
         """
         Wait for repositories to be synced to CloudBees Unify using intelligent polling.
@@ -138,6 +139,7 @@ class RetryHandler:
             unify_client: UnifyAPIClient instance for making API calls
             org_id: CloudBees organization ID
             repo_urls: List of repository URLs to wait for (e.g., "https://github.com/org/repo.git")
+            event_callback: Optional callback for emitting SSE progress events
 
         Raises:
             UnifyAPIError: If repositories are not synced within the timeout period
@@ -145,8 +147,24 @@ class RetryHandler:
         if not repo_urls:
             return  # Nothing to wait for
 
+        # Helper to emit events
+        async def emit_event(event_type: str, data: dict[str, Any]) -> None:
+            if event_callback:
+                try:
+                    await event_callback({"event": event_type, "data": data})
+                except Exception as e:
+                    logger.error(f"Error emitting event {event_type}: {e}")
+
         print(
             f"   ⏳ Waiting for {len(repo_urls)} repository(ies) to sync to CloudBees..."
+        )
+        await emit_event(
+            "task_progress",
+            {
+                "task_id": "repositories",
+                "message": f"Waiting for {len(repo_urls)} repository(ies) to sync to CloudBees...",
+                "repo_count": len(repo_urls),
+            },
         )
 
         start_time = asyncio.get_event_loop().time()
@@ -189,15 +207,36 @@ class RetryHandler:
                     print(
                         f"   ✅ All repositories synced after {elapsed:.1f}s ({attempts} checks)"
                     )
+                    await emit_event(
+                        "task_progress",
+                        {
+                            "task_id": "repositories",
+                            "message": f"All repositories synced after {elapsed:.1f}s",
+                        },
+                    )
                     return
 
                 # Calculate next wait time with exponential backoff (capped)
                 next_interval = min(interval, settings.REPO_SYNC_MAX_INTERVAL)
                 remaining_time = settings.REPO_SYNC_TIMEOUT - elapsed
 
-                print(
-                    f"     Waiting for {len(missing_repos)} repo(s) to sync... "
+                # Extract repo names from URLs for better display
+                missing_repo_names = [
+                    url.split("/")[-1].replace(".git", "") for url in missing_repos
+                ]
+                sync_message = (
+                    f"Waiting for {len(missing_repos)} repo(s) to sync... "
                     f"(checking again in {next_interval}s, {remaining_time:.0f}s remaining)"
+                )
+                print(f"     {sync_message}")
+                await emit_event(
+                    "task_progress",
+                    {
+                        "task_id": "repositories",
+                        "message": sync_message,
+                        "missing_repos": missing_repo_names,
+                        "remaining_time": int(remaining_time),
+                    },
                 )
 
                 await asyncio.sleep(next_interval)

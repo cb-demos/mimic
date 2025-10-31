@@ -26,6 +26,7 @@ class RepositoryManager:
         organization_id: str | None = None,
         unify_base_url: str | None = None,
         unify_pat: str | None = None,
+        event_callback: Any | None = None,
     ):
         """
         Initialize the repository manager.
@@ -36,13 +37,28 @@ class RepositoryManager:
             organization_id: Optional CloudBees organization ID for repository sync polling
             unify_base_url: Optional CloudBees Unify API base URL
             unify_pat: Optional CloudBees Unify API personal access token
+            event_callback: Optional callback for emitting SSE progress events
         """
         self.github = github_client
         self.invitee_username = invitee_username
         self.organization_id = organization_id
         self.unify_base_url = unify_base_url
         self.unify_pat = unify_pat
+        self.event_callback = event_callback
         self.created_repositories: dict[str, dict[str, Any]] = {}
+
+    async def _emit_event(self, event_type: str, data: dict[str, Any]) -> None:
+        """Emit an event if callback is configured.
+
+        Args:
+            event_type: Type of event (e.g., "repo_create_start", "task_progress")
+            data: Event data dictionary
+        """
+        if self.event_callback:
+            try:
+                await self.event_callback({"event": event_type, "data": data})
+            except Exception as e:
+                logger.error(f"Error emitting event {event_type}: {e}")
 
     async def create_repositories(
         self,
@@ -75,6 +91,13 @@ class RepositoryManager:
                 print(
                     f"   ⏭️  Repository {target_org}/{repo_name} already exists, skipping creation"
                 )
+                await self._emit_event(
+                    "task_progress",
+                    {
+                        "task_id": "repositories",
+                        "message": f"Repository {target_org}/{repo_name} already exists, skipping",
+                    },
+                )
                 # Still track existing repo for summary
                 self.created_repositories[repo_name] = {
                     "name": repo_name,
@@ -85,6 +108,13 @@ class RepositoryManager:
             else:
                 print(
                     f"   Creating {target_org}/{repo_name} from {repo_config.source}..."
+                )
+                await self._emit_event(
+                    "task_progress",
+                    {
+                        "task_id": "repositories",
+                        "message": f"Creating {target_org}/{repo_name} from {repo_config.source}...",
+                    },
                 )
 
                 # Create repo from template
@@ -97,6 +127,14 @@ class RepositoryManager:
                 )
 
                 print(f"   ✅ Repository created: {new_repo['html_url']}")
+                await self._emit_event(
+                    "task_progress",
+                    {
+                        "task_id": "repositories",
+                        "message": f"Repository created: {target_org}/{repo_name}",
+                        "url": new_repo.get("html_url", ""),
+                    },
+                )
 
                 # Track created repo for summary
                 self.created_repositories[repo_name] = {
@@ -153,7 +191,10 @@ class RepositoryManager:
                         base_url=self.unify_base_url, api_key=self.unify_pat
                     ) as unify_client:
                         await RetryHandler.wait_for_repository_sync(
-                            unify_client, self.organization_id, repo_urls
+                            unify_client,
+                            self.organization_id,
+                            repo_urls,
+                            self.event_callback,
                         )
                 else:
                     print("   ⏭️  All repositories already existed, no sync needed")
@@ -176,6 +217,13 @@ class RepositoryManager:
     ):
         """Apply content replacements to a file in the repository."""
         print(f"     Applying replacements to {file_path}...")
+        await self._emit_event(
+            "task_progress",
+            {
+                "task_id": "repositories",
+                "message": f"Applying replacements to {file_path} in {owner}/{repo}...",
+            },
+        )
 
         # Get file content from GitHub
         file_data = await self.github.get_file_in_repo(owner, repo, file_path)
@@ -201,6 +249,13 @@ class RepositoryManager:
                 sha=file_data["sha"],
             )
             print(f"     ✅ Updated {file_path}")
+            await self._emit_event(
+                "task_progress",
+                {
+                    "task_id": "repositories",
+                    "message": f"Updated {file_path} in {owner}/{repo}",
+                },
+            )
         else:
             print(f"     No changes needed for {file_path}")
 

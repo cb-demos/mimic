@@ -618,3 +618,7 @@ async def _execute_scenario_background(
                 },
             }
         )
+    finally:
+        # Clean up event buffers after scenario completes (give clients time to receive final events)
+        await asyncio.sleep(5)
+        await broadcaster.clear_session(session_id)

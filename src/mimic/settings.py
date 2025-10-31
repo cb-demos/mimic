@@ -22,7 +22,7 @@ REPO_BASIC_DELAY = 3  # Seconds to wait for basic repo availability
 # Repository sync polling configuration
 REPO_SYNC_INITIAL_INTERVAL = 5  # Initial interval between sync checks (seconds)
 REPO_SYNC_MAX_INTERVAL = 30  # Maximum interval between sync checks (seconds)
-REPO_SYNC_TIMEOUT = 300  # Maximum time to wait for repository sync (5 minutes)
+REPO_SYNC_TIMEOUT = 900  # Maximum time to wait for repository sync (15 minutes)
 
 # Retry configuration
 MAX_RETRY_ATTEMPTS = 3  # Maximum retry attempts for component creation

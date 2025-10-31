@@ -29,7 +29,9 @@ class EventBroadcaster:
 
     def __init__(self):
         self._subscribers: dict[str, list[asyncio.Queue]] = defaultdict(list)
+        self._event_buffer: dict[str, list[dict[str, Any]]] = defaultdict(list)
         self._lock = asyncio.Lock()
+        self._max_buffer_size = 1000  # Maximum events to buffer per session
 
     async def subscribe(self, session_id: str) -> asyncio.Queue:
         """Subscribe to events for a specific session.
@@ -43,6 +45,24 @@ class EventBroadcaster:
         queue: asyncio.Queue = asyncio.Queue(maxsize=100)
         async with self._lock:
             self._subscribers[session_id].append(queue)
+
+            # Replay buffered events to the new subscriber
+            buffered_events = self._event_buffer.get(session_id, [])
+            if buffered_events:
+                logger.debug(
+                    f"Replaying {len(buffered_events)} buffered events for session {session_id}"
+                )
+                for event in buffered_events:
+                    try:
+                        queue.put_nowait(event)
+                    except asyncio.QueueFull:
+                        logger.warning(
+                            f"Queue full while replaying events for {session_id}"
+                        )
+                        break
+                # Clear buffer after replay
+                del self._event_buffer[session_id]
+
         logger.debug(f"New subscription for session {session_id}")
         return queue
 
@@ -66,6 +86,8 @@ class EventBroadcaster:
     async def broadcast(self, session_id: str, event: dict[str, Any]):
         """Broadcast an event to all subscribers of a session.
 
+        If no subscribers are connected, events are buffered for later replay.
+
         Args:
             session_id: The session ID to broadcast to
             event: The event dictionary with 'event' and 'data' keys
@@ -73,7 +95,18 @@ class EventBroadcaster:
         async with self._lock:
             subscribers = self._subscribers.get(session_id, [])
             if not subscribers:
-                logger.debug(f"No subscribers for session {session_id}, event dropped")
+                # Buffer events for later replay when client connects
+                buffer = self._event_buffer[session_id]
+                if len(buffer) < self._max_buffer_size:
+                    buffer.append(event)
+                    logger.debug(
+                        f"No subscribers for session {session_id}, buffering event "
+                        f"({len(buffer)} buffered)"
+                    )
+                else:
+                    logger.warning(
+                        f"Event buffer full for session {session_id}, dropping event"
+                    )
                 return
 
             logger.debug(
@@ -100,6 +133,19 @@ class EventBroadcaster:
             Number of active subscribers
         """
         return len(self._subscribers.get(session_id, []))
+
+    async def clear_session(self, session_id: str):
+        """Clear all subscribers and buffered events for a session.
+
+        Args:
+            session_id: The session ID to clear
+        """
+        async with self._lock:
+            if session_id in self._subscribers:
+                del self._subscribers[session_id]
+            if session_id in self._event_buffer:
+                del self._event_buffer[session_id]
+        logger.debug(f"Cleared session {session_id}")
 
 
 # Global broadcaster instance

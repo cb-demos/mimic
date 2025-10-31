@@ -86,6 +86,7 @@ class CreationPipeline:
             organization_id,
             unify_base_url,
             unify_pat,
+            event_callback,
         )
         self.resource_manager = ResourceManager(
             organization_id, endpoint_id, unify_base_url, unify_pat
@@ -420,6 +421,15 @@ class CreationPipeline:
                 console.print(
                     f"\n[red]✗ Pipeline failed at {self.current_step}:[/red] {str(e)}"
                 )
+                # Emit error event for SSE clients
+                await self._emit_event(
+                    "task_error",
+                    {
+                        "task_id": self.current_step,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
+                )
                 raise PipelineError(
                     f"Pipeline failed at {self.current_step}: {str(e)}",
                     self.current_step,
@@ -429,6 +439,15 @@ class CreationPipeline:
                 logger.error(f"Unexpected error during {self.current_step}: {e}")
                 console.print(
                     f"\n[red]✗ Unexpected error at {self.current_step}:[/red] {str(e)}"
+                )
+                # Emit error event for SSE clients
+                await self._emit_event(
+                    "task_error",
+                    {
+                        "task_id": self.current_step,
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                    },
                 )
                 raise PipelineError(
                     f"Unexpected error at {self.current_step}: {str(e)}",
