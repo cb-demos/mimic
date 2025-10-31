@@ -150,8 +150,15 @@ class CreationPipeline:
 
         # Validate and resolve template variables
         processed_parameters = scenario.validate_input(parameters)
+
+        # Inject runtime values that should be available in templates
+        runtime_values = {
+            **processed_parameters,
+            "organization_id": self.organization_id,
+        }
+
         resolved_scenario = scenario.resolve_template_variables(
-            processed_parameters, self.env_properties
+            runtime_values, self.env_properties
         )
 
         # Create progress bar

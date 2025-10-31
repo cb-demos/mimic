@@ -873,6 +873,96 @@ class TestEnvironmentProperties:
         assert resolved.repositories[0].repo_name_template == "my-project"
 
 
+class TestRuntimeVariables:
+    """Test runtime variables in template resolution."""
+
+    def test_runtime_organization_id_substitution(self):
+        """Test that organization_id runtime variable is substituted."""
+        scenario = Scenario(
+            id="test-runtime",
+            name="Test Runtime Variables",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    replacements={
+                        "ORG_ID": "${organization_id}",
+                        "PROJECT": "${project_name}",
+                    },
+                    files_to_modify=["config.yaml"],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        # Runtime values include both user params and runtime-injected values
+        runtime_values = {
+            "project_name": "my-project",
+            "target_org": "my-org",
+            "organization_id": "abc-123-def-456",
+        }
+
+        resolved = scenario.resolve_template_variables(runtime_values)
+        repo = resolved.repositories[0]
+
+        assert repo.replacements["ORG_ID"] == "abc-123-def-456"
+        assert repo.replacements["PROJECT"] == "my-project"
+
+    def test_runtime_variables_with_env_properties(self):
+        """Test that runtime variables work alongside environment properties."""
+        scenario = Scenario(
+            id="test-runtime-and-env",
+            name="Test Runtime and Env",
+            summary="Test scenario",
+            repositories=[
+                RepositoryConfig(
+                    source="org/repo",
+                    target_org="${target_org}",
+                    repo_name_template="${project_name}",
+                    replacements={
+                        "ORG_ID": "${organization_id}",
+                        "API_URL": "${env.UNIFY_API}",
+                        "ENDPOINT": "${env.ENDPOINT_ID}",
+                    },
+                    files_to_modify=["config.yaml"],
+                )
+            ],
+            parameter_schema=ParameterSchema(
+                properties={
+                    "project_name": ParameterProperty(type="string"),
+                    "target_org": ParameterProperty(type="string"),
+                },
+                required=["project_name", "target_org"],
+            ),
+        )
+
+        runtime_values = {
+            "project_name": "my-project",
+            "target_org": "my-org",
+            "organization_id": "org-uuid-123",
+        }
+
+        env_props = {
+            "UNIFY_API": "https://api.cloudbees.io",
+            "ENDPOINT_ID": "endpoint-abc",
+        }
+
+        resolved = scenario.resolve_template_variables(runtime_values, env_props)
+        repo = resolved.repositories[0]
+
+        assert repo.replacements["ORG_ID"] == "org-uuid-123"
+        assert repo.replacements["API_URL"] == "https://api.cloudbees.io"
+        assert repo.replacements["ENDPOINT"] == "endpoint-abc"
+
+
 class TestRequiredPropertiesAndSecrets:
     """Test required_properties and required_secrets fields."""
 

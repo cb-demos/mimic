@@ -16,7 +16,13 @@ wip: true                         # Optional: Mark as work-in-progress
 Use `${variable_name}` syntax for dynamic substitution throughout any YAML value:
 - Parameters from `parameter_schema`
 - Computed variables from `computed_variables`
+- Runtime variables (automatically injected)
 - Environment properties via `${env.property_name}`
+
+### Runtime Variables
+
+Runtime variables are automatically injected by Mimic at execution time:
+- `${organization_id}` - The CloudBees organization UUID selected at runtime
 
 ### Environment Properties
 
@@ -186,15 +192,17 @@ computed_variables:
 ## Template Variable Resolution Order
 
 1. User-provided parameters (from `parameter_schema`)
-2. Computed variables (processed in definition order)
-3. Environment properties (from current environment configuration)
-4. Template substitution using `${variable_name}` and `${env.property}` syntax
-5. Type conversion (string booleans → actual booleans)
+2. Runtime variables (automatically injected by Mimic)
+3. Computed variables (processed in definition order)
+4. Environment properties (from current environment configuration)
+5. Template substitution using `${variable_name}` and `${env.property}` syntax
+6. Type conversion (string booleans → actual booleans)
 
 **Variable Precedence:**
 - User parameters: `${parameter_name}` - from user input
+- Runtime variables: `${organization_id}` - runtime-selected values
 - Environment properties: `${env.property_name}` - from environment config
-- If a property exists in both namespaces, they remain separate (no conflicts)
+- If a property exists in multiple namespaces, they remain separate (no conflicts)
 
 ## File Operations
 
