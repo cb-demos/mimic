@@ -9,6 +9,9 @@ help: ## Show this help message
 install: ## Install dependencies
 	uv sync
 
+generate-version: ## Generate version.json with git commit info
+	python scripts/generate-version.py
+
 test: ## Run tests
 	uv run pytest tests/ -v
 

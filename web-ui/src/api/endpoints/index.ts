@@ -8,3 +8,4 @@ export * as environmentsApi from './environments';
 export * as cleanupApi from './cleanup';
 export * as packsApi from './packs';
 export * as setupApi from './setup';
+export * as versionApi from './version';

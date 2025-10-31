@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from mimic.config_manager import ConfigManager
 from mimic.exceptions import PipelineError, ValidationError
 
-from .api import cleanup, config, environments, packs, scenarios, setup
+from .api import cleanup, config, environments, packs, scenarios, setup, version
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,7 @@ app.include_router(environments.router, prefix="/api")
 app.include_router(cleanup.router, prefix="/api")
 app.include_router(packs.router, prefix="/api")
 app.include_router(setup.router, prefix="/api")
+app.include_router(version.router, prefix="/api")
 
 
 # Static file serving for production builds

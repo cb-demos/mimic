@@ -28,6 +28,7 @@ import {
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { EnvironmentSwitcher } from './EnvironmentSwitcher';
+import { UpdateBanner } from './UpdateBanner';
 
 const drawerWidth = 240;
 
@@ -134,6 +135,7 @@ export function Layout() {
         }}
       >
         <Toolbar /> {/* Spacer for app bar */}
+        <UpdateBanner />
         <Outlet />
       </Box>
     </Box>
