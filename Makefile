@@ -12,6 +12,17 @@ install: ## Install dependencies
 generate-version: ## Generate version.json with git commit info
 	python scripts/generate-version.py
 
+install-git-hooks: ## Install git hooks for code quality and version generation
+	@echo "Installing git hooks..."
+	@cp scripts/pre-commit .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "✓ Pre-commit hook installed (format, lint, typecheck, test, build-ui)"
+	@cp scripts/post-commit .git/hooks/post-commit
+	@chmod +x .git/hooks/post-commit
+	@echo "✓ Post-commit hook installed (auto-update version.json)"
+	@echo ""
+	@echo "Git hooks installed successfully!"
+
 test: ## Run tests
 	uv run pytest tests/ -v
 

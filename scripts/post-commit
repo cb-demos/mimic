@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Post-commit hook to automatically update version.json with the latest commit SHA
+# Note: This hook will amend the commit to include version.json
+
+# Check if we're in an amend operation to avoid infinite loop
+if [ -f ".git/COMMIT_EDITMSG" ]; then
+    if git diff --cached --name-only | grep -q "src/mimic/version.json"; then
+        # version.json is already staged, we're in the amend, skip
+        exit 0
+    fi
+fi
+
+# Generate version.json with the current commit SHA
+python scripts/generate-version.py || exit 0
+
+# Check if version.json actually changed
+if git diff --quiet src/mimic/version.json; then
+    # No changes, skip amend
+    exit 0
+fi
+
+# Add version.json and amend the commit
+git add src/mimic/version.json
+GIT_COMMITTER_DATE="$(git log -1 --format=%cD)" git commit --amend --no-edit --no-verify

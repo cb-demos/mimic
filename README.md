@@ -395,6 +395,19 @@ make typecheck
 make format
 ```
 
+### Git Hooks
+
+Install git hooks to automatically ensure code quality and keep version.json up to date:
+
+```bash
+# Install both pre-commit and post-commit hooks
+make install-git-hooks
+```
+
+This installs:
+- **Pre-commit hook**: Runs format, lint, typecheck, test, and build-ui before each commit
+- **Post-commit hook**: Automatically updates `version.json` with the current commit SHA
+
 ### Frontend (Web UI)
 
 ```bash

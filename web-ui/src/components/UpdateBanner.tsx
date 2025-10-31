@@ -164,7 +164,9 @@ export function UpdateBanner() {
               sx={{
                 mt: 2,
                 p: 2,
-                backgroundColor: '#f5f5f5',
+                backgroundColor: 'background.default',
+                border: 1,
+                borderColor: 'divider',
                 borderRadius: 1,
                 fontFamily: 'monospace',
                 fontSize: '0.875rem',

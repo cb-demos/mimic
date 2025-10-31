@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
-"""Generate version.json file with git commit information."""
+"""Generate version.json file with git commit information.
+
+This script can be run manually or automatically via git hooks.
+To set up automatic generation on every commit, run: make install-git-hooks
+"""
 import json
 import subprocess
+import sys
 import tomllib
 from datetime import datetime, timezone
 from pathlib import Path

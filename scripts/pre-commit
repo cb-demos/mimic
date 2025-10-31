@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Pre-commit hook to ensure code quality before committing
+
+set -e
+
+echo "Running pre-commit checks..."
+
+# Format code
+echo "Formatting code..."
+make format || {
+    echo "❌ Code formatting failed"
+    exit 1
+}
+
+# Lint code
+echo "Linting code..."
+make lint || {
+    echo "❌ Linting failed"
+    exit 1
+}
+
+# Type check
+echo "Type checking..."
+make typecheck || {
+    echo "❌ Type checking failed"
+    exit 1
+}
+
+# Run tests
+echo "Running tests..."
+make test || {
+    echo "❌ Tests failed"
+    exit 1
+}
+
+# Build UI
+echo "Building UI..."
+make build-ui || {
+    echo "❌ UI build failed"
+    exit 1
+}
+
+# Add any modified files from formatting
+git add -u
+
+echo "All pre-commit checks passed!"
