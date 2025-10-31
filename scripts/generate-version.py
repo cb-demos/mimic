@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
 """Generate version.json file with git commit information.
 
-This script can be run manually or automatically via git hooks.
+This script captures the current commit SHA, which will be latest-1 after
+the commit completes (since it runs in pre-commit hook).
+
+The update checker compares against GitHub's latest-1 commit to account for this offset.
+
 To set up automatic generation on every commit, run: make install-git-hooks
 """
 import json

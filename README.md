@@ -400,13 +400,12 @@ make format
 Install git hooks to automatically ensure code quality and keep version.json up to date:
 
 ```bash
-# Install both pre-commit and post-commit hooks
+# Install pre-commit hook
 make install-git-hooks
 ```
 
 This installs:
-- **Pre-commit hook**: Runs format, lint, typecheck, test, and build-ui before each commit
-- **Post-commit hook**: Automatically updates `version.json` with the current commit SHA
+- **Pre-commit hook**: Runs format, lint, typecheck, test, build-ui, and generates version.json before each commit
 
 ### Frontend (Web UI)
 

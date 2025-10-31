@@ -40,7 +40,13 @@ make build-ui || {
     exit 1
 }
 
-# Add any modified files from formatting
+# Generate version.json with current commit SHA (will be latest-1 after this commit)
+echo "Updating version.json..."
+make generate-version || {
+    echo "⚠️  Warning: Failed to generate version.json"
+}
+
+# Add any modified files from formatting and version generation
 git add -u
 
 echo "All pre-commit checks passed!"

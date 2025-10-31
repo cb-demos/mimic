@@ -93,10 +93,13 @@ def _get_version_info() -> VersionInfo:
 
 
 async def _get_latest_commit_from_github() -> dict:
-    """Fetch latest commit from GitHub API with caching.
+    """Fetch second-to-latest commit from GitHub API with caching.
+
+    We fetch latest-1 because version.json is generated in pre-commit hook,
+    so it contains the previous commit's SHA, not the current one.
 
     Returns:
-        Dict with commit information from GitHub API
+        Dict with commit information from GitHub API (second-to-latest commit)
 
     Raises:
         HTTPException: If GitHub API request fails
@@ -110,18 +113,30 @@ async def _get_latest_commit_from_github() -> dict:
             logger.debug("Using cached GitHub API response")
             return cached_data
 
-    # Fetch from GitHub
-    url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/commits/{GITHUB_BRANCH}"
+    # Fetch recent commits from GitHub (get 2 commits, return the second one)
+    url = f"https://api.github.com/repos/{GITHUB_REPO_OWNER}/{GITHUB_REPO_NAME}/commits"
+    params = {"sha": GITHUB_BRANCH, "per_page": 2}
 
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 url,
+                params=params,
                 headers={"Accept": "application/vnd.github.v3+json"},
                 timeout=10.0,
             )
             response.raise_for_status()
-            data = response.json()
+            commits = response.json()
+
+            if len(commits) < 2:
+                # If there's only one commit, use it (edge case for new repos)
+                data = commits[0] if commits else None
+            else:
+                # Use the second-to-latest commit (latest-1)
+                data = commits[1]
+
+            if not data:
+                raise Exception("No commits found in repository")
 
             # Cache the result
             _github_cache[cache_key] = (data, datetime.now(UTC))
