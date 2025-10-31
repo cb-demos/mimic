@@ -29,8 +29,13 @@ export async function listScenarios(): Promise<ScenarioListResponse> {
 /**
  * Get scenario details with parameter schema
  */
-export async function getScenario(scenarioId: string): Promise<ScenarioDetailResponse> {
-  const response = await apiClient.get<ScenarioDetailResponse>(`/api/scenarios/${scenarioId}`);
+export async function getScenario(
+  scenarioId: string,
+  packSource?: string
+): Promise<ScenarioDetailResponse> {
+  const response = await apiClient.get<ScenarioDetailResponse>(`/api/scenarios/${scenarioId}`, {
+    params: packSource ? { pack_source: packSource } : undefined,
+  });
   return response.data;
 }
 
@@ -39,12 +44,16 @@ export async function getScenario(scenarioId: string): Promise<ScenarioDetailRes
  */
 export async function validateParameters(
   scenarioId: string,
-  request: ValidateParametersRequest
+  request: ValidateParametersRequest,
+  packSource?: string
 ): Promise<ValidateParametersResponse> {
   const response = await apiClient.get<ValidateParametersResponse>(
     `/api/scenarios/${scenarioId}/validate`,
     {
-      params: { parameters: JSON.stringify(request.parameters) },
+      params: {
+        parameters: JSON.stringify(request.parameters),
+        ...(packSource && { pack_source: packSource }),
+      },
     }
   );
   return response.data;
@@ -55,11 +64,15 @@ export async function validateParameters(
  */
 export async function runScenario(
   scenarioId: string,
-  request: RunScenarioRequest
+  request: RunScenarioRequest,
+  packSource?: string
 ): Promise<RunScenarioResponse> {
   const response = await apiClient.post<RunScenarioResponse>(
     `/api/scenarios/${scenarioId}/run`,
-    request
+    request,
+    {
+      params: packSource ? { pack_source: packSource } : undefined,
+    }
   );
   return response.data;
 }
@@ -85,15 +98,20 @@ export async function run(
   parameters: Record<string, any>,
   ttl_days?: number,
   dry_run?: boolean,
-  invitee_username?: string
+  invitee_username?: string,
+  packSource?: string
 ): Promise<RunScenarioResponse> {
-  return runScenario(scenarioId, {
-    organization_id: organizationId,
-    parameters,
-    ttl_days,
-    dry_run,
-    invitee_username,
-  });
+  return runScenario(
+    scenarioId,
+    {
+      organization_id: organizationId,
+      parameters,
+      ttl_days,
+      dry_run,
+      invitee_username,
+    },
+    packSource
+  );
 }
 
 /**
@@ -101,11 +119,15 @@ export async function run(
  */
 export async function checkProperties(
   scenarioId: string,
-  request: CheckPropertiesRequest
+  request: CheckPropertiesRequest,
+  packSource?: string
 ): Promise<CheckPropertiesResponse> {
   const response = await apiClient.post<CheckPropertiesResponse>(
     `/api/scenarios/${scenarioId}/check-properties`,
-    request
+    request,
+    {
+      params: packSource ? { pack_source: packSource } : undefined,
+    }
   );
   return response.data;
 }
@@ -128,11 +150,15 @@ export async function createProperty(
  */
 export async function previewScenario(
   scenarioId: string,
-  request: ScenarioPreviewRequest
+  request: ScenarioPreviewRequest,
+  packSource?: string
 ): Promise<ScenarioPreviewResponse> {
   const response = await apiClient.post<ScenarioPreviewResponse>(
     `/api/scenarios/${scenarioId}/preview`,
-    request
+    request,
+    {
+      params: packSource ? { pack_source: packSource } : undefined,
+    }
   );
   return response.data;
 }

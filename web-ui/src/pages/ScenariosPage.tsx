@@ -101,8 +101,11 @@ export function ScenariosPage() {
     setDetailsDialogOpen(true);
   };
 
-  const handleRun = (scenarioId: string) => {
-    navigate(`/scenarios/${scenarioId}/run`);
+  const handleRun = (scenarioId: string, packSource?: string) => {
+    const url = packSource
+      ? `/scenarios/${scenarioId}/run?pack=${encodeURIComponent(packSource)}`
+      : `/scenarios/${scenarioId}/run`;
+    navigate(url);
   };
 
   const renderCardView = () => (
@@ -138,7 +141,7 @@ export function ScenariosPage() {
               <Button
                 size="small"
                 variant="contained"
-                onClick={() => handleRun(scenario.id)}
+                onClick={() => handleRun(scenario.id, scenario.pack_source)}
               >
                 Run
               </Button>
@@ -190,7 +193,7 @@ export function ScenariosPage() {
                 <Button
                   size="small"
                   variant="contained"
-                  onClick={() => handleRun(scenario.id)}
+                  onClick={() => handleRun(scenario.id, scenario.pack_source)}
                   sx={{ ml: 1 }}
                 >
                   Run
@@ -412,7 +415,7 @@ export function ScenariosPage() {
                 variant="contained"
                 onClick={() => {
                   setDetailsDialogOpen(false);
-                  handleRun(selectedScenario.id);
+                  handleRun(selectedScenario.id, selectedScenario.pack_source);
                 }}
               >
                 Run Scenario

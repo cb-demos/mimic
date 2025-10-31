@@ -87,16 +87,18 @@ async def list_scenarios(
 async def get_scenario(
     scenario_id: str,
     scenarios: ScenarioDep,
+    pack_source: str | None = None,
 ):
     """Get detailed information about a specific scenario.
 
     Args:
         scenario_id: The scenario ID to retrieve
+        pack_source: Optional pack name to disambiguate scenarios with same ID
 
     Returns:
         Scenario details including parameter schema
     """
-    scenario = scenarios.get_scenario(scenario_id)
+    scenario = scenarios.get_scenario(scenario_id, pack_source)
     if not scenario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -111,6 +113,7 @@ async def get_scenario(
         "details": scenario.details,
         "wip": scenario.wip,
         "pack_source": scenario.pack_source,
+        "scenario_pack": scenario.pack_source,  # For frontend compatibility
         "parameter_schema": (
             scenario.parameter_schema.model_dump()
             if scenario.parameter_schema
@@ -128,17 +131,19 @@ async def validate_parameters(
     scenario_id: str,
     request: ValidateParametersRequest,
     scenarios: ScenarioDep,
+    pack_source: str | None = None,
 ):
     """Validate parameters for a scenario without running it.
 
     Args:
         scenario_id: The scenario ID
         request: Parameters to validate
+        pack_source: Optional pack name to disambiguate scenarios with same ID
 
     Returns:
         Validation result with any errors
     """
-    scenario = scenarios.get_scenario(scenario_id)
+    scenario = scenarios.get_scenario(scenario_id, pack_source)
     if not scenario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -159,6 +164,7 @@ async def check_properties(
     request: CheckPropertiesRequest,
     scenarios: ScenarioDep,
     cloudbees_creds: CloudBeesCredentialsDep,
+    pack_source: str | None = None,
 ):
     """Check if required properties/secrets exist for a scenario.
 
@@ -167,13 +173,14 @@ async def check_properties(
         request: Request with organization_id
         scenarios: Scenario manager dependency
         cloudbees_creds: CloudBees credentials dependency
+        pack_source: Optional pack name to disambiguate scenarios with same ID
 
     Returns:
         List of required and missing properties/secrets
     """
     from mimic.unify import UnifyAPIClient
 
-    scenario = scenarios.get_scenario(scenario_id)
+    scenario = scenarios.get_scenario(scenario_id, pack_source)
     if not scenario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -286,6 +293,7 @@ async def preview_scenario(
     request: ScenarioPreviewRequest,
     scenarios: ScenarioDep,
     config: ConfigDep,
+    pack_source: str | None = None,
 ):
     """Generate a preview of what will be created for a scenario.
 
@@ -294,11 +302,12 @@ async def preview_scenario(
         request: Request with parameters
         scenarios: Scenario manager dependency
         config: Config manager dependency
+        pack_source: Optional pack name to disambiguate scenarios with same ID
 
     Returns:
         Preview of resources that will be created
     """
-    scenario = scenarios.get_scenario(scenario_id)
+    scenario = scenarios.get_scenario(scenario_id, pack_source)
     if not scenario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -351,6 +360,7 @@ async def run_scenario(
     config: ConfigDep,
     github_creds: GitHubCredentialsDep,
     cloudbees_creds: CloudBeesCredentialsDep,
+    pack_source: str | None = None,
 ):
     """Execute a scenario with the provided parameters.
 
@@ -366,11 +376,12 @@ async def run_scenario(
         config: Config manager dependency
         github_creds: GitHub credentials dependency
         cloudbees_creds: CloudBees credentials dependency
+        pack_source: Optional pack name to disambiguate scenarios with same ID
 
     Returns:
         Session ID and status for tracking execution
     """
-    scenario = scenarios.get_scenario(scenario_id)
+    scenario = scenarios.get_scenario(scenario_id, pack_source)
     if not scenario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Autocomplete,
   Box,
@@ -55,6 +55,8 @@ const EXPIRATION_OPTIONS = [
 
 export function RunScenarioPage() {
   const { scenarioId } = useParams<{ scenarioId: string }>();
+  const [searchParams] = useSearchParams();
+  const packSource = searchParams.get('pack') || undefined;
   const navigate = useNavigate();
 
   // Form state
@@ -144,8 +146,8 @@ export function RunScenarioPage() {
 
   // Fetch scenario details
   const { data: scenario, isLoading: loadingScenario } = useQuery({
-    queryKey: ['scenario', scenarioId],
-    queryFn: () => scenariosApi.get(scenarioId!),
+    queryKey: ['scenario', scenarioId, packSource],
+    queryFn: () => scenariosApi.get(scenarioId!, packSource),
     enabled: !!scenarioId,
   });
 
@@ -204,9 +206,13 @@ export function RunScenarioPage() {
     if (!organizationId.trim() || !scenarioId) return null;
 
     try {
-      const result = await scenariosApi.checkProperties(scenarioId, {
-        organization_id: organizationId,
-      });
+      const result = await scenariosApi.checkProperties(
+        scenarioId,
+        {
+          organization_id: organizationId,
+        },
+        packSource
+      );
 
       setPropertyCheckResult(result);
 
@@ -231,10 +237,14 @@ export function RunScenarioPage() {
     setError(null);
 
     try {
-      const preview = await scenariosApi.previewScenario(scenarioId, {
-        organization_id: organizationId,
-        parameters: params,
-      });
+      const preview = await scenariosApi.previewScenario(
+        scenarioId,
+        {
+          organization_id: organizationId,
+          parameters: params,
+        },
+        packSource
+      );
 
       setPreviewData(preview);
       return preview;
@@ -249,7 +259,15 @@ export function RunScenarioPage() {
   // Run scenario mutation
   const runMutation = useMutation({
     mutationFn: async () => {
-      return scenariosApi.run(scenarioId!, organizationId, parameters, ttlDays, dryRun, inviteeUsername || undefined);
+      return scenariosApi.run(
+        scenarioId!,
+        organizationId,
+        parameters,
+        ttlDays,
+        dryRun,
+        inviteeUsername || undefined,
+        packSource
+      );
     },
     onSuccess: (result) => {
       setSessionId(result.session_id);
@@ -403,10 +421,15 @@ export function RunScenarioPage() {
         <Typography variant="body1" color="text.secondary">
           {scenario.scenario.summary}
         </Typography>
-        <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+        <Box sx={{ mt: 1, display: 'flex', gap: 1, alignItems: 'center' }}>
           <Chip label={scenario.scenario.id} size="small" variant="outlined" />
           {scenario.scenario.scenario_pack && (
-            <Chip label={scenario.scenario.scenario_pack} size="small" variant="outlined" />
+            <Chip
+              label={`Pack: ${scenario.scenario.scenario_pack}`}
+              size="small"
+              color="info"
+              variant="outlined"
+            />
           )}
         </Box>
       </Box>
