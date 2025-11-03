@@ -9,7 +9,12 @@ console = Console()
 
 
 def handle_dry_run(
-    config_manager, scenario, parameters: dict, current_env: str, expiration_label: str
+    config_manager,
+    scenario,
+    parameters: dict,
+    current_env: str,
+    expiration_label: str,
+    organization_id: str,
 ):
     """Handle dry-run mode by displaying preview without executing.
 
@@ -19,6 +24,7 @@ def handle_dry_run(
         parameters: Dictionary of parameter values.
         current_env: Current environment name.
         expiration_label: Human-readable expiration label.
+        organization_id: CloudBees organization UUID.
     """
     from ...pipeline import CreationPipeline
 
@@ -30,8 +36,13 @@ def handle_dry_run(
     processed_parameters = scenario.validate_input(parameters)
     # Get environment properties for template resolution
     env_properties = config_manager.get_environment_properties(current_env)
+    # Inject runtime values
+    runtime_values = {
+        **processed_parameters,
+        "organization_id": organization_id,
+    }
     resolved_scenario = scenario.resolve_template_variables(
-        processed_parameters, env_properties
+        runtime_values, env_properties
     )
 
     # Generate preview
@@ -49,7 +60,12 @@ def handle_dry_run(
 
 
 def show_preview_and_confirm(
-    config_manager, scenario, parameters: dict, current_env: str, expiration_label: str
+    config_manager,
+    scenario,
+    parameters: dict,
+    current_env: str,
+    expiration_label: str,
+    organization_id: str,
 ) -> bool:
     """Show preview and prompt for confirmation.
 
@@ -59,6 +75,7 @@ def show_preview_and_confirm(
         parameters: Dictionary of parameter values.
         current_env: Current environment name.
         expiration_label: Human-readable expiration label.
+        organization_id: CloudBees organization UUID.
 
     Returns:
         True if user wants to proceed, False otherwise.
@@ -71,8 +88,13 @@ def show_preview_and_confirm(
     processed_parameters = scenario.validate_input(parameters)
     # Get environment properties for template resolution
     env_properties = config_manager.get_environment_properties(current_env)
+    # Inject runtime values
+    runtime_values = {
+        **processed_parameters,
+        "organization_id": organization_id,
+    }
     resolved_scenario = scenario.resolve_template_variables(
-        processed_parameters, env_properties
+        runtime_values, env_properties
     )
 
     # Generate preview

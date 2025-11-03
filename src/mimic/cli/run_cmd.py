@@ -345,14 +345,24 @@ def run(
         # Handle dry-run mode
         if dry_run:
             handle_dry_run(
-                config_manager, scenario, parameters, current_env, expiration_label
+                config_manager,
+                scenario,
+                parameters,
+                current_env,
+                expiration_label,
+                organization_id,
             )
             return
 
         # Preview + confirmation (unless --yes flag is used)
         if not yes:
             proceed = show_preview_and_confirm(
-                config_manager, scenario, parameters, current_env, expiration_label
+                config_manager,
+                scenario,
+                parameters,
+                current_env,
+                expiration_label,
+                organization_id,
             )
             if not proceed:
                 console.print("[yellow]Cancelled by user[/yellow]")

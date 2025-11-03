@@ -328,9 +328,15 @@ async def preview_scenario(
 
         env_properties = config.get_environment_properties(current_env)
 
+        # Inject runtime values that should be available in templates
+        runtime_values = {
+            **validated_params,
+            "organization_id": request.organization_id,
+        }
+
         # Resolve template variables
         resolved_scenario = scenario.resolve_template_variables(
-            validated_params, env_properties
+            runtime_values, env_properties
         )
 
         # Generate preview
@@ -541,9 +547,13 @@ async def _execute_scenario_background(
                 }
             )
 
-            # Resolve template variables for preview
+            # Inject runtime values and resolve template variables for preview
+            runtime_values = {
+                **parameters,
+                "organization_id": organization_id,
+            }
             resolved_scenario = scenario.resolve_template_variables(
-                parameters, env_properties
+                runtime_values, env_properties
             )
             preview = CreationPipeline.preview_scenario(resolved_scenario)
 
