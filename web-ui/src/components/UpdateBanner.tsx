@@ -29,19 +29,19 @@ export function UpdateBanner() {
   const [upgradeOutput, setUpgradeOutput] = useState<string | null>(null);
   const [upgradeComplete, setUpgradeComplete] = useState(false);
 
-  // Check if this commit was already dismissed
+  // Check if this version was already dismissed
   useEffect(() => {
-    if (updateInfo?.latest_commit) {
-      const dismissedCommit = localStorage.getItem(DISMISSED_KEY);
-      if (dismissedCommit === updateInfo.latest_commit) {
+    if (updateInfo?.latest_version) {
+      const dismissedVersion = localStorage.getItem(DISMISSED_KEY);
+      if (dismissedVersion === updateInfo.latest_version) {
         setDismissed(true);
       }
     }
   }, [updateInfo]);
 
   const handleDismiss = () => {
-    if (updateInfo?.latest_commit) {
-      localStorage.setItem(DISMISSED_KEY, updateInfo.latest_commit);
+    if (updateInfo?.latest_version) {
+      localStorage.setItem(DISMISSED_KEY, updateInfo.latest_version);
     }
     setDismissed(true);
   };
@@ -116,21 +116,19 @@ export function UpdateBanner() {
       >
         <Box>
           <Typography variant="body2" component="div">
-            <strong>Update Available</strong> — Your version: {updateInfo?.current_commit_short}{' '}
-            → Latest: {updateInfo?.latest_commit_short}
+            <strong>Update Available</strong> — Your version: {updateInfo?.current_version}{' '}
+            → Latest: {updateInfo?.latest_version}
           </Typography>
-          {updateInfo?.latest_commit_url && (
-            <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
-              <Link
-                href={updateInfo.latest_commit_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                color="inherit"
-              >
-                View latest commit on GitHub
-              </Link>
-            </Typography>
-          )}
+          <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
+            <Link
+              href={`https://github.com/cb-demos/mimic`}
+              target="_blank"
+              rel="noopener noreferrer"
+              color="inherit"
+            >
+              View on GitHub
+            </Link>
+          </Typography>
         </Box>
       </Alert>
 

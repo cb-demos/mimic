@@ -2,6 +2,7 @@
  * Main layout component with navigation drawer and app bar
  */
 
+import { useState, useEffect } from 'react';
 import {
   AppBar,
   Box,
@@ -29,6 +30,7 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import { EnvironmentSwitcher } from './EnvironmentSwitcher';
 import { UpdateBanner } from './UpdateBanner';
+import { versionApi } from '../api/endpoints';
 
 const drawerWidth = 240;
 
@@ -44,6 +46,20 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { drawerOpen, toggleDrawer } = useAppStore();
+  const [version, setVersion] = useState<string | null>(null);
+
+  // Fetch version on mount
+  useEffect(() => {
+    const fetchVersion = async () => {
+      try {
+        const versionInfo = await versionApi.getVersion();
+        setVersion(versionInfo.version);
+      } catch (error) {
+        console.warn('Failed to fetch version:', error);
+      }
+    };
+    fetchVersion();
+  }, []);
 
   const navigationItems: NavigationItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Dashboard />, path: '/' },
@@ -99,7 +115,7 @@ export function Layout() {
         }}
       >
         <Toolbar /> {/* Spacer for app bar */}
-        <Box sx={{ overflow: 'auto' }}>
+        <Box sx={{ overflow: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
           <List>
             {navigationItems.map((item) => (
               <ListItem key={item.id} disablePadding>
@@ -116,6 +132,21 @@ export function Layout() {
               </ListItem>
             ))}
           </List>
+
+          {/* Version display at bottom */}
+          <Box sx={{ mt: 'auto', p: 2, textAlign: 'center' }}>
+            {version && (
+              <Typography
+                variant="caption"
+                sx={{
+                  color: 'text.disabled',
+                  fontSize: '0.7rem',
+                }}
+              >
+                v{version}
+              </Typography>
+            )}
+          </Box>
         </Box>
       </Drawer>
 

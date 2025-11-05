@@ -777,7 +777,7 @@ wheels = [
 
 [[package]]
 name = "mimic"
-version = "2.2.0"
+version = "2025.11.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

@@ -397,7 +397,7 @@ make format
 
 ### Git Hooks
 
-Install git hooks to automatically ensure code quality and keep version.json up to date:
+Install git hooks to automatically ensure code quality:
 
 ```bash
 # Install pre-commit hook
@@ -405,7 +405,7 @@ make install-git-hooks
 ```
 
 This installs:
-- **Pre-commit hook**: Runs format, lint, typecheck, test, build-ui, and generates version.json before each commit
+- **Pre-commit hook**: Runs format, lint, typecheck, test, and build-ui before each commit
 
 ### Frontend (Web UI)
 

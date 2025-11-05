@@ -6,18 +6,12 @@ import { apiClient } from '../client';
 
 export interface VersionInfo {
   version: string;
-  commit: string | null;
-  commit_short: string | null;
-  build_timestamp: string | null;
 }
 
 export interface UpdateCheckResponse {
   update_available: boolean;
-  current_commit: string | null;
-  current_commit_short: string | null;
-  latest_commit: string | null;
-  latest_commit_short: string | null;
-  latest_commit_url: string | null;
+  current_version: string;
+  latest_version: string | null;
   message: string;
 }
 
