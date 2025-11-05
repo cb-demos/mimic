@@ -33,10 +33,6 @@ import {
   CircularProgress,
   IconButton,
   Collapse,
-  List,
-  ListItem,
-  ListItemText,
-  Link,
 } from '@mui/material';
 import {
   Search,
@@ -44,8 +40,8 @@ import {
   ExpandMore,
   ExpandLess,
   Warning,
-  OpenInNew,
 } from '@mui/icons-material';
+import { ResourceList } from '../components/ResourceList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cleanupApi, environmentsApi } from '../api/endpoints';
 import type { Session } from '../types/api';
@@ -383,51 +379,10 @@ export function CleanupPage() {
                       <TableCell colSpan={8} sx={{ py: 0, borderBottom: 'none' }}>
                         <Collapse in={expandedRow === session.session_id}>
                           <Box sx={{ p: 2, bgcolor: 'action.hover' }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Resources ({session.resources?.length || 0})
-                            </Typography>
-                            {session.resources && session.resources.length > 0 ? (
-                              <List dense>
-                                {session.resources.map((resource, idx: number) => (
-                                  <ListItem key={idx}>
-                                    <ListItemText
-                                      primary={
-                                        resource.url ? (
-                                          <Link
-                                            href={resource.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            underline="hover"
-                                            sx={{
-                                              display: 'inline-flex',
-                                              alignItems: 'center',
-                                              gap: 0.5,
-                                              fontFamily: 'monospace',
-                                              fontSize: '0.875rem',
-                                            }}
-                                          >
-                                            {resource.name}
-                                            <OpenInNew sx={{ fontSize: '0.875rem' }} />
-                                          </Link>
-                                        ) : (
-                                          <Typography
-                                            component="span"
-                                            sx={{ fontFamily: 'monospace', fontSize: '0.875rem' }}
-                                          >
-                                            {resource.name}
-                                          </Typography>
-                                        )
-                                      }
-                                      secondary={`${resource.type} • ID: ${resource.id}${resource.org_id ? ` • Org: ${resource.org_id}` : ''}`}
-                                    />
-                                  </ListItem>
-                                ))}
-                              </List>
-                            ) : (
-                              <Typography variant="body2" color="text.secondary">
-                                No resources
-                              </Typography>
-                            )}
+                            <ResourceList
+                              resources={session.resources || []}
+                              showHeader={true}
+                            />
                           </Box>
                         </Collapse>
                       </TableCell>

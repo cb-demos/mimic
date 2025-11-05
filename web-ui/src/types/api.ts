@@ -414,10 +414,92 @@ export interface TaskErrorData {
   error: string;
 }
 
+// ==================== Instance and Resource Models ====================
+
+export interface GitHubRepository {
+  id: string; // Format: "owner/repo"
+  name: string;
+  owner: string;
+  url: string;
+  created_at: string; // ISO datetime
+}
+
+export interface EnvironmentVariable {
+  name: string;
+  value: string;
+  is_secret: boolean;
+}
+
+export interface CloudBeesComponent {
+  id: string; // UUID
+  name: string;
+  org_id: string;
+  repository_url?: string;
+  url?: string; // CloudBees UI URL (added by backend enrichment)
+  created_at: string; // ISO datetime
+}
+
+export interface CloudBeesEnvironment {
+  id: string; // UUID
+  name: string;
+  org_id: string;
+  variables: EnvironmentVariable[];
+  flag_ids: string[];
+  url?: string; // CloudBees UI URL (added by backend enrichment)
+  created_at: string; // ISO datetime
+}
+
+export interface CloudBeesFlag {
+  id: string; // UUID
+  name: string;
+  org_id: string;
+  type: string; // "boolean", "string", "number"
+  key: string;
+  url?: string; // CloudBees UI URL (added by backend enrichment)
+  created_at: string; // ISO datetime
+}
+
+export interface CloudBeesApplication {
+  id: string; // UUID
+  name: string;
+  org_id: string;
+  repository_url?: string;
+  url?: string; // CloudBees UI URL (added by backend enrichment)
+  component_ids: string[];
+  environment_ids: string[];
+  is_shared: boolean;
+  created_at: string; // ISO datetime
+}
+
+export interface Instance {
+  id: string;
+  scenario_id: string;
+  name: string;
+  environment: string;
+  created_at: string; // ISO datetime
+  expires_at?: string; // ISO datetime
+  repositories: GitHubRepository[];
+  components: CloudBeesComponent[];
+  environments: CloudBeesEnvironment[];
+  flags: CloudBeesFlag[];
+  applications: CloudBeesApplication[];
+  metadata: Record<string, any>;
+}
+
+export interface ScenarioSummary {
+  instance: Instance;
+  components: any[];
+  environments: any[];
+  flags: any[];
+  applications: any[];
+  repositories: any[];
+  success: boolean;
+}
+
 export interface ScenarioCompleteData {
   session_id: string;
-  run_name: string;
-  resources: Array<Record<string, any>>;
+  instance_name: string;
+  summary: ScenarioSummary;
 }
 
 export interface ScenarioErrorData {

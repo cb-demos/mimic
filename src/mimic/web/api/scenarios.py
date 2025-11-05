@@ -65,6 +65,81 @@ def _safe_json_serialize(data: Any) -> str:
     return json.dumps(data, default=default_serializer)
 
 
+def _enrich_instance_with_urls(instance_dict: dict, config, environment: str) -> dict:
+    """Enrich an instance dictionary with generated CloudBees UI URLs.
+
+    This adds proper URLs to CloudBees resources (components, environments, flags, applications)
+    by calling their get_url() methods with the appropriate base_url and org_slug.
+
+    Args:
+        instance_dict: Instance dictionary from model_dump()
+        config: ConfigManager instance
+        environment: Environment name (prod, preprod, demo, custom)
+
+    Returns:
+        Enriched instance dictionary with URLs added to CloudBees resources
+    """
+    # Get base URL and org slug for this environment
+    api_url = config.get_environment_url(environment)
+    ui_url = config.get_environment_ui_url(environment)
+    org_slug = config.get_environment_org_slug(environment)
+
+    # Determine the base URL to use (custom UI URL or derived from API URL)
+    base_url = None
+    if ui_url:
+        # Use custom UI URL (e.g., https://ui.demo1.cloudbees.io)
+        base_url = ui_url
+    elif api_url:
+        # Convert API URL to UI URL: https://api.cloudbees.io -> https://cloudbees.io
+        base_url = api_url.replace("//api.", "//")
+
+    # Import models for URL generation
+    from mimic.models import (
+        CloudBeesApplication,
+        CloudBeesComponent,
+        CloudBeesEnvironment,
+        CloudBeesFlag,
+    )
+
+    # Add URLs to components
+    if "components" in instance_dict and base_url and org_slug:
+        for comp_dict in instance_dict["components"]:
+            try:
+                comp = CloudBeesComponent(**comp_dict)
+                comp_dict["url"] = comp.get_url(base_url, org_slug)
+            except Exception:
+                pass  # Skip if URL generation fails
+
+    # Add URLs to environments
+    if "environments" in instance_dict and base_url and org_slug:
+        for env_dict in instance_dict["environments"]:
+            try:
+                env = CloudBeesEnvironment(**env_dict)
+                env_dict["url"] = env.get_url(base_url, org_slug)
+            except Exception:
+                pass
+
+    # Add URLs to flags
+    if "flags" in instance_dict and base_url and org_slug:
+        for flag_dict in instance_dict["flags"]:
+            try:
+                flag = CloudBeesFlag(**flag_dict)
+                flag_dict["url"] = flag.get_url(base_url, org_slug)
+            except Exception:
+                pass
+
+    # Add URLs to applications
+    if "applications" in instance_dict and base_url and org_slug:
+        for app_dict in instance_dict["applications"]:
+            try:
+                app = CloudBeesApplication(**app_dict)
+                app_dict["url"] = app.get_url(base_url, org_slug)
+            except Exception:
+                pass
+
+    return instance_dict
+
+
 @router.get("", response_model=ScenarioListResponse)
 async def list_scenarios(
     scenarios: ScenarioDep,
@@ -472,6 +547,7 @@ async def run_scenario(
         env_name=env_name,
         expires_at=expires_at,
         dry_run=request.dry_run,
+        config=config,
     )
 
     logger.info(f"Started scenario execution: {session_id}")
@@ -540,6 +616,7 @@ async def _execute_scenario_background(
     env_name: str,
     expires_at: datetime | None,
     dry_run: bool,
+    config,  # ConfigManager for URL generation
 ):
     """Execute a scenario in the background with progress events.
 
@@ -634,6 +711,14 @@ async def _execute_scenario_background(
             if instance:
                 repo = InstanceRepository()
                 repo.save(instance)
+
+            # Enrich instance with CloudBees URLs before sending to frontend
+            if instance:
+                instance_dict = instance.model_dump()
+                enriched_instance = _enrich_instance_with_urls(
+                    instance_dict, config, env_name
+                )
+                summary["instance"] = enriched_instance
 
             await emit_event(
                 {

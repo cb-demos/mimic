@@ -4,7 +4,13 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createProgressStream } from '../api/sse';
-import type { ProgressEvent, TaskStartData, TaskProgressData, TaskCompleteData } from '../types/api';
+import type {
+  ProgressEvent,
+  TaskStartData,
+  TaskProgressData,
+  TaskCompleteData,
+  ScenarioCompleteData
+} from '../types/api';
 
 export interface ProgressState {
   events: ProgressEvent[];
@@ -12,6 +18,7 @@ export interface ProgressState {
   isComplete: boolean;
   error: Error | null;
   isConnected: boolean;
+  completionData: ScenarioCompleteData | null;
 }
 
 export interface TaskProgress {
@@ -34,6 +41,7 @@ export function useProgress(sessionId: string | null) {
     isComplete: false,
     error: null,
     isConnected: false,
+    completionData: null,
   });
 
   const reset = useCallback(() => {
@@ -43,6 +51,7 @@ export function useProgress(sessionId: string | null) {
       isComplete: false,
       error: null,
       isConnected: false,
+      completionData: null,
     });
   }, []);
 
@@ -111,6 +120,8 @@ export function useProgress(sessionId: string | null) {
             }
           } else if (event.event === 'scenario_complete') {
             newState.isComplete = true;
+            // Store completion data for access by components
+            newState.completionData = event.data as ScenarioCompleteData;
           } else if (event.event === 'scenario_error') {
             // Scenario failed - extract error from event data
             const data = event.data as any;

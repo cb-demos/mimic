@@ -3,7 +3,7 @@
  * Implements CLI-parity flow: credentials → properties → preview → execution
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Autocomplete,
@@ -24,9 +24,6 @@ import {
   Chip,
   Card,
   CardContent,
-  List,
-  ListItem,
-  ListItemText,
   TextField,
 } from '@mui/material';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -37,7 +34,9 @@ import { ProgressDisplay } from '../components/ProgressDisplay';
 import { PropertyCheckDialog } from '../components/PropertyCheckDialog';
 import { PreviewDialog } from '../components/PreviewDialog';
 import { CredentialValidationStatus } from '../components/CredentialValidationStatus';
+import { ResourceList } from '../components/ResourceList';
 import { useProgress } from '../hooks/useProgress';
+import type { Resource } from '../types/api';
 import type {
   CachedOrg,
   CheckPropertiesResponse,
@@ -160,7 +159,96 @@ export function RunScenarioPage() {
   const currentEnv = environmentsData?.current || 'prod';
 
   // Use progress hook for SSE
-  const { isConnected, isComplete, error: progressError } = useProgress(sessionId);
+  const { isConnected, isComplete, error: progressError, completionData } = useProgress(sessionId);
+
+  // Convert Instance resources to flat Resource array for display (memoized)
+  const createdResources = useMemo((): Resource[] => {
+    if (!completionData?.summary?.instance) return [];
+
+    try {
+      const instance = completionData.summary.instance;
+      const resources: Resource[] = [];
+
+      // Convert repositories
+      if (Array.isArray(instance.repositories)) {
+        instance.repositories.forEach((repo) => {
+          if (repo?.id && repo?.name) {
+            resources.push({
+              type: 'repository',
+              id: repo.id,
+              name: repo.name,
+              url: repo.url,
+            });
+          }
+        });
+      }
+
+      // Convert components (backend now provides url via get_url())
+      if (Array.isArray(instance.components)) {
+        instance.components.forEach((component) => {
+          if (component?.id && component?.name) {
+            resources.push({
+              type: 'component',
+              id: component.id,
+              name: component.name,
+              org_id: component.org_id,
+              url: (component as any).url, // URL added by backend enrichment
+            });
+          }
+        });
+      }
+
+      // Convert environments (backend now provides url via get_url())
+      if (Array.isArray(instance.environments)) {
+        instance.environments.forEach((env) => {
+          if (env?.id && env?.name) {
+            resources.push({
+              type: 'environment',
+              id: env.id,
+              name: env.name,
+              org_id: env.org_id,
+              url: (env as any).url, // URL added by backend enrichment
+            });
+          }
+        });
+      }
+
+      // Convert flags (backend now provides url via get_url())
+      if (Array.isArray(instance.flags)) {
+        instance.flags.forEach((flag) => {
+          if (flag?.id && flag?.name) {
+            resources.push({
+              type: 'flag',
+              id: flag.id,
+              name: flag.name,
+              org_id: flag.org_id,
+              url: (flag as any).url, // URL added by backend enrichment
+            });
+          }
+        });
+      }
+
+      // Convert applications (backend now provides url via get_url())
+      if (Array.isArray(instance.applications)) {
+        instance.applications.forEach((app) => {
+          if (app?.id && app?.name) {
+            resources.push({
+              type: 'application',
+              id: app.id,
+              name: app.name,
+              org_id: app.org_id,
+              url: (app as any).url, // URL added by backend enrichment
+            });
+          }
+        });
+      }
+
+      return resources;
+    } catch (err) {
+      console.error('Failed to transform instance resources:', err);
+      return [];
+    }
+  }, [completionData]);
 
   // Sync progress error to error state for display
   useEffect(() => {
@@ -637,22 +725,9 @@ export function RunScenarioPage() {
             <Card sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Next Steps
+                  Resources Created
                 </Typography>
-                <List>
-                  <ListItem>
-                    <ListItemText
-                      primary="View Resources"
-                      secondary="Check the created resources in the Cleanup page"
-                    />
-                  </ListItem>
-                  <ListItem>
-                    <ListItemText
-                      primary="Run Another Scenario"
-                      secondary="Configure and execute another scenario"
-                    />
-                  </ListItem>
-                </List>
+                <ResourceList resources={createdResources} showHeader={false} />
               </CardContent>
             </Card>
           )}
