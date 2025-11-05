@@ -105,7 +105,7 @@ export function EnvironmentsPage() {
       queryClient.invalidateQueries({ queryKey: ['environments'] });
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to select environment');
+      setError(err.message || 'Failed to select environment');
     },
   });
 
@@ -121,7 +121,7 @@ export function EnvironmentsPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to add environment');
+      setError(err.message || 'Failed to add environment');
     },
   });
 
@@ -134,7 +134,7 @@ export function EnvironmentsPage() {
       setEnvToDelete(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to remove environment');
+      setError(err.message || 'Failed to remove environment');
     },
   });
 
@@ -155,7 +155,7 @@ export function EnvironmentsPage() {
       }, 1500);
     },
     onError: (err: any) => {
-      setCredentialError(err.response?.data?.detail || 'Failed to update credentials');
+      setCredentialError(err.message || 'Failed to update credentials');
       setCredentialSuccess(null);
     },
   });
@@ -170,7 +170,7 @@ export function EnvironmentsPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to add property');
+      setError(err.message || 'Failed to add property');
     },
   });
 
@@ -185,7 +185,7 @@ export function EnvironmentsPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to delete property');
+      setError(err.message || 'Failed to delete property');
     },
   });
 

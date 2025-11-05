@@ -60,7 +60,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to add scenario pack');
+      setError(err.message || 'Failed to add scenario pack');
     },
   });
 
@@ -76,7 +76,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to remove scenario pack');
+      setError(err.message || 'Failed to remove scenario pack');
     },
   });
 
@@ -90,7 +90,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to update pack status');
+      setError(err.message || 'Failed to update pack status');
     },
   });
 
@@ -108,7 +108,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to update pack(s)');
+      setError(err.message || 'Failed to update pack(s)');
     },
   });
 

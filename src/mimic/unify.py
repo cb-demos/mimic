@@ -193,6 +193,45 @@ class UnifyAPIClient:
         """Get a single environment by ID"""
         return self._make_request("GET", f"/v1/resources/{org_id}/endpoints/{env_id}")
 
+    def list_github_apps(self, org_id: str) -> list[str]:
+        """List GitHub App integrations configured for an organization.
+
+        Returns a list of GitHub organization names that have been set up as
+        GitHub App integrations in CloudBees Unify.
+
+        Args:
+            org_id: CloudBees organization ID
+
+        Returns:
+            List of GitHub organization names (e.g., ['cloudbees-days', 'cloudbees-test'])
+        """
+        params = {
+            "filter.contributionTypes": "cb.platform.endpoint-type",
+            "parents": "true",
+            "pagination.pageLength": 1000,
+        }
+        response = self._make_request(
+            "GET", f"/v1/resources/{org_id}/endpoints", params=params
+        )
+
+        # Filter for GitHub App integrations and extract org names
+        github_orgs = []
+        for endpoint in response.get("endpoints", []):
+            # Only process GitHub App endpoint types
+            if endpoint.get("contributionId") != "cb.github.github-app-endpoint-type":
+                continue
+
+            # Extract the GitHub org name from properties
+            properties = endpoint.get("properties", [])
+            for prop in properties:
+                if prop.get("name") == "app_install_target_name":
+                    org_name = prop.get("string")
+                    if org_name:
+                        github_orgs.append(org_name)
+                    break
+
+        return github_orgs
+
     # Enhanced Services API
     def list_services_by_type(
         self, org_id: str, service_type: str | None = None

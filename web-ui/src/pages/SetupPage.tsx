@@ -79,7 +79,7 @@ export function SetupPage() {
         setError('Failed to verify GitHub credentials');
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to test GitHub connection');
+      setError(err.message || 'Failed to test GitHub connection');
     } finally {
       setTestingConnection(false);
     }
@@ -100,7 +100,7 @@ export function SetupPage() {
         setError('Failed to verify CloudBees credentials');
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to test CloudBees connection');
+      setError(err.message || 'Failed to test CloudBees connection');
     } finally {
       setTestingConnection(false);
     }
@@ -122,7 +122,7 @@ export function SetupPage() {
       navigate('/');
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Setup failed');
+      setError(err.message || 'Setup failed');
     },
   });
 

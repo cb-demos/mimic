@@ -424,6 +424,36 @@ async def run_scenario(
     # Get organization ID from request
     organization_id = request.organization_id
 
+    # Pre-flight check: Validate GitHub App integration
+    if scenario.repositories and validated_params.get("target_org"):
+        from mimic.unify import UnifyAPIClient
+
+        try:
+            with UnifyAPIClient(
+                base_url=cloudbees_url, api_key=cloudbees_pat
+            ) as client:
+                github_orgs = client.list_github_apps(organization_id)
+                target_org = validated_params.get("target_org")
+
+                if target_org not in github_orgs:
+                    configured_orgs = ", ".join(github_orgs) if github_orgs else "none"
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"GitHub organization '{target_org}' is not set up as a "
+                            f"GitHub App integration in CloudBees. Please configure the "
+                            f"integration in your CloudBees organization settings. "
+                            f"Currently configured: {configured_orgs}"
+                        ),
+                    )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to validate GitHub App integration: {str(e)}",
+            ) from e
+
     # Start execution in background
     background_tasks.add_task(
         _execute_scenario_background,

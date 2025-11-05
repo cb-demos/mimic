@@ -92,7 +92,7 @@ export function CleanupPage() {
       setSelectedSession(null);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Cleanup failed');
+      setError(err.message || 'Cleanup failed');
     },
   });
 
@@ -105,7 +105,7 @@ export function CleanupPage() {
       setBulkCleanupDialogOpen(false);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Bulk cleanup failed');
+      setError(err.message || 'Bulk cleanup failed');
     },
   });
 

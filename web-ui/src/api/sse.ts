@@ -32,10 +32,13 @@ export function createProgressStream(
       const progressEvent: ProgressEvent = JSON.parse(event.data);
       options.onProgress(progressEvent);
 
-      // If scenario is complete, close the connection
-      if (progressEvent.event === 'scenario_complete') {
+      // If scenario is complete or errored, close the connection
+      if (progressEvent.event === 'scenario_complete' || progressEvent.event === 'scenario_error') {
         eventSource.close();
-        options.onComplete?.();
+        if (progressEvent.event === 'scenario_complete') {
+          options.onComplete?.();
+        }
+        // scenario_error is handled by the onProgress callback setting the error state
       }
     } catch (error) {
       console.error('[SSE] Failed to parse event:', error);

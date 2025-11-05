@@ -62,7 +62,7 @@ export function ConfigPage() {
       setGithubError(null);
     },
     onError: (err: any) => {
-      setGithubError(err.response?.data?.detail || 'Failed to save GitHub username');
+      setGithubError(err.message || 'Failed to save GitHub username');
       setGithubSuccess(null);
     },
   });
@@ -77,7 +77,7 @@ export function ConfigPage() {
       setGithubToken(''); // Clear token input after save
     },
     onError: (err: any) => {
-      setGithubError(err.response?.data?.detail || 'Failed to save GitHub token');
+      setGithubError(err.message || 'Failed to save GitHub token');
       setGithubSuccess(null);
     },
   });
@@ -115,7 +115,7 @@ export function ConfigPage() {
         setGithubError('GitHub credentials incomplete');
       }
     } catch (err: any) {
-      setGithubError(err.response?.data?.detail || 'Failed to test GitHub connection');
+      setGithubError(err.message || 'Failed to test GitHub connection');
     } finally {
       setTestingGithub(false);
     }

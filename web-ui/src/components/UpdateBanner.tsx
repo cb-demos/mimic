@@ -62,7 +62,7 @@ export function UpdateBanner() {
       setUpgradeComplete(true);
     } catch (error: any) {
       setUpgradeOutput(
-        `Error during upgrade:\n${error.response?.data?.detail || error.message}`
+        `Error during upgrade:\n${error.message}`
       );
       setUpgradeComplete(false);
     } finally {

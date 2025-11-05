@@ -72,8 +72,8 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
       }
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Validation failed');
-      setValidationResult({ valid: false, error: err.response?.data?.detail });
+      setError(err.message || 'Validation failed');
+      setValidationResult({ valid: false, error: err.message });
     },
   });
 
@@ -86,7 +86,7 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
       handleClose();
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to add environment');
+      setError(err.message || 'Failed to add environment');
     },
   });
 

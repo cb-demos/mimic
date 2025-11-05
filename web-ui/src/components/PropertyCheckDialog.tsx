@@ -71,7 +71,7 @@ export function PropertyCheckDialog({
       }
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to create property');
+      setError(err.message || 'Failed to create property');
     },
   });
 

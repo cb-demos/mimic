@@ -378,7 +378,7 @@ export interface RunSetupResponse {
 // ==================== Progress Event Models ====================
 
 export interface ProgressEvent {
-  event: 'task_start' | 'task_progress' | 'task_complete' | 'task_error' | 'scenario_complete';
+  event: 'task_start' | 'task_progress' | 'task_complete' | 'task_error' | 'scenario_complete' | 'scenario_error';
   data: ProgressEventData;
 }
 
@@ -387,7 +387,8 @@ export type ProgressEventData =
   | TaskProgressData
   | TaskCompleteData
   | TaskErrorData
-  | ScenarioCompleteData;
+  | ScenarioCompleteData
+  | ScenarioErrorData;
 
 export interface TaskStartData {
   task_id: string;
@@ -417,6 +418,12 @@ export interface ScenarioCompleteData {
   session_id: string;
   run_name: string;
   resources: Array<Record<string, any>>;
+}
+
+export interface ScenarioErrorData {
+  session_id: string;
+  error: string;
+  error_type: string;
 }
 
 // ==================== Type Aliases for Page Imports ====================

@@ -160,7 +160,15 @@ export function RunScenarioPage() {
   const currentEnv = environmentsData?.current || 'prod';
 
   // Use progress hook for SSE
-  const { isConnected, isComplete } = useProgress(sessionId);
+  const { isConnected, isComplete, error: progressError } = useProgress(sessionId);
+
+  // Sync progress error to error state for display
+  useEffect(() => {
+    if (progressError) {
+      setError(progressError.message);
+      setIsRunning(false);
+    }
+  }, [progressError]);
 
   // Validate credentials
   const validateCredentials = async () => {
@@ -196,7 +204,7 @@ export function RunScenarioPage() {
       // TODO: Add a way to get tokens from backend for validation
       setIsValidatingCredentials(false);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to validate credentials');
+      setError(err.message || 'Failed to validate credentials');
       setIsValidatingCredentials(false);
     }
   };
@@ -224,7 +232,7 @@ export function RunScenarioPage() {
 
       return result;
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to check properties');
+      setError(err.message || 'Failed to check properties');
       return null;
     }
   };
@@ -249,7 +257,7 @@ export function RunScenarioPage() {
       setPreviewData(preview);
       return preview;
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load preview');
+      setError(err.message || 'Failed to load preview');
       return null;
     } finally {
       setIsLoadingPreview(false);
@@ -282,8 +290,9 @@ export function RunScenarioPage() {
       }
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to start scenario execution');
+      setError(err.message || 'Failed to start scenario execution');
       setIsRunning(false);
+      setShowPreview(false); // Close the preview modal so error is visible
     },
   });
 

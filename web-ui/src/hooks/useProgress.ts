@@ -111,6 +111,11 @@ export function useProgress(sessionId: string | null) {
             }
           } else if (event.event === 'scenario_complete') {
             newState.isComplete = true;
+          } else if (event.event === 'scenario_error') {
+            // Scenario failed - extract error from event data
+            const data = event.data as any;
+            newState.error = new Error(data.error || 'Scenario execution failed');
+            newState.isComplete = true; // Mark as complete (failed)
           }
 
           return newState;

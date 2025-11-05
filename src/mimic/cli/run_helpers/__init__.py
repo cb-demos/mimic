@@ -2,6 +2,7 @@
 
 from .cleanup_helpers import handle_opportunistic_cleanup
 from .execution import execute_scenario
+from .github_integration_check import check_github_integration
 from .parameter_handler import collect_parameters, parse_parameters
 from .preview import handle_dry_run, show_preview_and_confirm
 from .prompts import handle_expiration_selection, select_scenario_interactive
@@ -9,6 +10,7 @@ from .property_preflight import check_required_properties
 from .validation import validate_credentials
 
 __all__ = [
+    "check_github_integration",
     "check_required_properties",
     "collect_parameters",
     "execute_scenario",

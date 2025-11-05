@@ -9,6 +9,7 @@ from rich.panel import Panel
 from ..config_manager import ConfigManager
 from ..input_helpers import prompt_cloudbees_org
 from .run_helpers import (
+    check_github_integration,
     check_required_properties,
     collect_parameters,
     execute_scenario,
@@ -334,11 +335,18 @@ def run(
 
         console.print()
 
+        # Collect parameters early so we can validate GitHub integration
+        parameters = collect_parameters(scenario, provided_parameters)
+
+        console.print()
+
+        # Pre-flight check for GitHub App integration
+        check_github_integration(
+            scenario, parameters, env_url, cloudbees_pat, organization_id
+        )
+
         # Pre-flight check for required properties/secrets
         check_required_properties(scenario, env_url, cloudbees_pat, organization_id)
-
-        # Collect parameters (merge provided parameters with interactive prompts)
-        parameters = collect_parameters(scenario, provided_parameters)
 
         console.print()
 
