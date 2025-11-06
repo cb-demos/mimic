@@ -3,6 +3,8 @@
 import multiprocessing
 import platform
 
+from .platform import get_gnome_keyring_install_command, is_wsl
+
 
 def _test_keyring_operation() -> None:
     """Test keyring operation in subprocess.
@@ -92,6 +94,25 @@ def get_keyring_setup_instructions() -> str:
         Multi-line string with setup instructions for the current platform.
     """
     system = platform.system()
+
+    # WSL-specific instructions (takes priority over generic Linux)
+    if is_wsl():
+        install_cmd = get_gnome_keyring_install_command()
+        return f"""Mimic requires gnome-keyring for secure credential storage in WSL.
+
+Install gnome-keyring:
+
+  {install_cmd}
+
+After installation, Mimic will automatically handle the D-Bus session setup.
+Simply run your command again (e.g., 'mimic ui' or 'mimic setup').
+
+Note: You may be prompted for a keyring password on first use. This is normal
+and provides encryption for your stored credentials.
+
+For more information:
+  https://github.com/jaraco/keyring#third-party-backends
+"""
 
     if system == "Linux":
         return """Mimic requires a system keyring to securely store credentials.
