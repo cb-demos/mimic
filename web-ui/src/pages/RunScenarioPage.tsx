@@ -35,7 +35,9 @@ import { PropertyCheckDialog } from '../components/PropertyCheckDialog';
 import { PreviewDialog } from '../components/PreviewDialog';
 import { CredentialValidationStatus } from '../components/CredentialValidationStatus';
 import { ResourceList } from '../components/ResourceList';
+import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
 import { useProgress } from '../hooks/useProgress';
+import { toErrorInfo } from '../utils/errorUtils';
 import type { Resource } from '../types/api';
 import type {
   CachedOrg,
@@ -70,7 +72,7 @@ export function RunScenarioPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [runName, setRunName] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
   const [orgFetchError, setOrgFetchError] = useState<string | null>(null);
 
   // Credential validation state
@@ -253,7 +255,7 @@ export function RunScenarioPage() {
   // Sync progress error to error state for display
   useEffect(() => {
     if (progressError) {
-      setError(progressError.message);
+      setError(toErrorInfo(progressError));
       setIsRunning(false);
     }
   }, [progressError]);
@@ -272,7 +274,11 @@ export function RunScenarioPage() {
       const cloudbeesConfig = await configApi.getCloudBeesConfig();
 
       if (!githubConfig.has_token) {
-        setError('GitHub token not configured. Please configure it in the Config page.');
+        setError({
+          message: 'GitHub token not configured',
+          code: 'MISSING_CREDENTIALS',
+          suggestion: 'Please configure your GitHub token in the Config page.',
+        });
         setIsValidatingCredentials(false);
         return;
       }
@@ -280,9 +286,11 @@ export function RunScenarioPage() {
       const envCredentials = cloudbeesConfig.environments.find((env) => env.name === currentEnv);
 
       if (!envCredentials?.has_token) {
-        setError(
-          `CloudBees token not configured for environment '${currentEnv}'. Please configure it in the Config page.`
-        );
+        setError({
+          message: `CloudBees token not configured for environment '${currentEnv}'`,
+          code: 'MISSING_CREDENTIALS',
+          suggestion: 'Please configure your CloudBees token in the Config page.',
+        });
         setIsValidatingCredentials(false);
         return;
       }
@@ -292,7 +300,7 @@ export function RunScenarioPage() {
       // TODO: Add a way to get tokens from backend for validation
       setIsValidatingCredentials(false);
     } catch (err: any) {
-      setError(err.message || 'Failed to validate credentials');
+      setError(toErrorInfo(err));
       setIsValidatingCredentials(false);
     }
   };
@@ -320,7 +328,7 @@ export function RunScenarioPage() {
 
       return result;
     } catch (err: any) {
-      setError(err.message || 'Failed to check properties');
+      setError(toErrorInfo(err));
       return null;
     }
   };
@@ -345,7 +353,7 @@ export function RunScenarioPage() {
       setPreviewData(preview);
       return preview;
     } catch (err: any) {
-      setError(err.message || 'Failed to load preview');
+      setError(toErrorInfo(err));
       return null;
     } finally {
       setIsLoadingPreview(false);
@@ -378,7 +386,7 @@ export function RunScenarioPage() {
       }
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to start scenario execution');
+      setError(toErrorInfo(err));
       setIsRunning(false);
       setShowPreview(false); // Close the preview modal so error is visible
     },
@@ -387,7 +395,11 @@ export function RunScenarioPage() {
   // Handle parameter form submission - starts the execution flow
   const handleParametersSubmit = async (params: Record<string, any>) => {
     if (!organizationId.trim()) {
-      setError('CloudBees Organization ID is required');
+      setError({
+        message: 'CloudBees Organization ID is required',
+        code: 'MISSING_REQUIRED_FIELD',
+        suggestion: 'Please select or enter a CloudBees organization ID.',
+      });
       return;
     }
 
@@ -640,9 +652,9 @@ export function RunScenarioPage() {
             />
 
             {error && (
-              <Alert severity="error" sx={{ mt: 2 }}>
-                {error}
-              </Alert>
+              <Box sx={{ mt: 2 }}>
+                <ErrorAlert error={error} onClose={() => setError(null)} />
+              </Box>
             )}
 
             {(!scenario.scenario.parameter_schema ||

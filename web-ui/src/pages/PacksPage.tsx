@@ -30,6 +30,8 @@ import { Add, Delete, Refresh, Link as LinkIcon } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { packsApi } from '../api/endpoints';
 import type { ScenarioPack } from '../types/api';
+import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
+import { toErrorInfo } from '../utils/errorUtils';
 
 export function PacksPage() {
   const queryClient = useQueryClient();
@@ -38,7 +40,7 @@ export function PacksPage() {
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
   const [newPackName, setNewPackName] = useState('');
   const [newPackUrl, setNewPackUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   // Fetch packs
@@ -60,7 +62,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to add scenario pack');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -76,7 +78,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to remove scenario pack');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -90,7 +92,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to update pack status');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -108,7 +110,7 @@ export function PacksPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to update pack(s)');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -206,11 +208,7 @@ export function PacksPage() {
         </Box>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <ErrorAlert error={error} onClose={() => setError(null)} />}
 
       {success && (
         <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess(null)}>
@@ -355,7 +353,7 @@ export function PacksPage() {
 
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
+              {error.message}
             </Alert>
           )}
         </DialogContent>

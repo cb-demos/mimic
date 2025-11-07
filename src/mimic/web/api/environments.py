@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, status
 from mimic.environments import PRESET_ENVIRONMENTS
 
 from ..dependencies import ConfigDep
+from ..error_handler import sanitize_error_message
 from ..models import (
     AddEnvironmentRequest,
     AddPresetEnvironmentRequest,
@@ -87,7 +88,9 @@ async def validate_credentials(request: ValidateCredentialsRequest):
                 return ValidateCredentialsResponse(valid=False, error=error)
     except Exception as e:
         logger.error(f"Credential validation error: {e}")
-        return ValidateCredentialsResponse(valid=False, error=str(e))
+        return ValidateCredentialsResponse(
+            valid=False, error=sanitize_error_message(str(e))
+        )
 
 
 @router.post("/presets", response_model=StatusResponse)

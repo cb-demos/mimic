@@ -1,6 +1,7 @@
 """Pydantic models for API requests and responses."""
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -15,11 +16,57 @@ class StatusResponse(BaseModel):
     message: str | None = None
 
 
-class ErrorResponse(BaseModel):
-    """Error response model."""
+class ErrorCode(str, Enum):
+    """Standardized error codes for the API."""
 
-    error: str
-    detail: str | None = None
+    # Validation errors (1xxx)
+    VALIDATION_ERROR = "VALIDATION_ERROR"
+    INVALID_PARAMETERS = "INVALID_PARAMETERS"
+    MISSING_REQUIRED_PROPERTY = "MISSING_REQUIRED_PROPERTY"
+
+    # Credential errors (2xxx)
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    MISSING_CREDENTIALS = "MISSING_CREDENTIALS"
+    KEYRING_UNAVAILABLE = "KEYRING_UNAVAILABLE"
+
+    # API errors (3xxx)
+    GITHUB_API_ERROR = "GITHUB_API_ERROR"
+    CLOUDBEES_API_ERROR = "CLOUDBEES_API_ERROR"
+    NETWORK_ERROR = "NETWORK_ERROR"
+
+    # Pipeline errors (4xxx)
+    PIPELINE_ERROR = "PIPELINE_ERROR"
+    REPOSITORY_CREATION_FAILED = "REPOSITORY_CREATION_FAILED"
+    COMPONENT_CREATION_FAILED = "COMPONENT_CREATION_FAILED"
+    ENVIRONMENT_CREATION_FAILED = "ENVIRONMENT_CREATION_FAILED"
+
+    # Resource errors (5xxx)
+    RESOURCE_NOT_FOUND = "RESOURCE_NOT_FOUND"
+    RESOURCE_CONFLICT = "RESOURCE_CONFLICT"
+
+    # System errors (9xxx)
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    UNKNOWN_ERROR = "UNKNOWN_ERROR"
+
+
+class ErrorDetail(BaseModel):
+    """Detailed error information for a specific field or issue."""
+
+    field: str | None = None
+    message: str
+    code: str | None = None
+
+
+class ErrorResponse(BaseModel):
+    """Enhanced error response with structured information."""
+
+    error: str  # High-level error type
+    code: ErrorCode  # Machine-readable error code
+    message: str  # User-friendly message
+    details: list[ErrorDetail] = Field(default_factory=list)  # Additional details
+    suggestion: str | None = None  # Recovery suggestion
+    request_id: str | None = None  # Correlation ID for tracing
+    timestamp: str  # ISO timestamp
 
 
 # ==================== Scenario Models ====================

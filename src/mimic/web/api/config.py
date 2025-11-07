@@ -8,6 +8,7 @@ from mimic.exceptions import KeyringUnavailableError
 from mimic.unify import UnifyAPIClient
 
 from ..dependencies import CloudBeesCredentialsDep, ConfigDep
+from ..error_handler import sanitize_error_message
 from ..models import (
     AddRecentValueRequest,
     CachedOrg,
@@ -322,7 +323,7 @@ async def validate_all_credentials(request: ValidateAllCredentialsRequest):
                 cloudbees_error = error
     except Exception as e:
         logger.error(f"CloudBees credential validation error: {e}")
-        cloudbees_error = str(e)
+        cloudbees_error = sanitize_error_message(str(e))
 
     # Validate GitHub credentials
     github_client = GitHubClient(request.github_pat)
@@ -334,7 +335,7 @@ async def validate_all_credentials(request: ValidateAllCredentialsRequest):
             github_error = error
     except Exception as e:
         logger.error(f"GitHub credential validation error: {e}")
-        github_error = str(e)
+        github_error = sanitize_error_message(str(e))
 
     return ValidateAllCredentialsResponse(
         cloudbees_valid=cloudbees_valid,

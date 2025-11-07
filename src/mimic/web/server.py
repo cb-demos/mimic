@@ -10,9 +10,28 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from mimic.config_manager import ConfigManager
-from mimic.exceptions import PipelineError, ValidationError
+from mimic.exceptions import (
+    CredentialError,
+    GitHubError,
+    KeyringUnavailableError,
+    PipelineError,
+    ScenarioError,
+    UnifyAPIError,
+    ValidationError,
+)
 
 from .api import cleanup, config, environments, packs, scenarios, setup, version
+from .error_handler import (
+    handle_credential_error,
+    handle_generic_exception,
+    handle_github_error,
+    handle_keyring_error,
+    handle_pipeline_error,
+    handle_scenario_error,
+    handle_unify_error,
+    handle_validation_error,
+)
+from .middleware import RequestContextMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +65,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add request context middleware (should be first for request tracking)
+app.add_middleware(RequestContextMiddleware)
+
 # Add CORS middleware for local development
 # Allow localhost origins only for security
 app.add_middleware(
@@ -64,32 +86,60 @@ app.add_middleware(
 )
 
 
-# Exception handlers
+# Exception handlers - Using centralized error handlers with proper typing
 @app.exception_handler(ValidationError)
-async def validation_error_handler(request, exc: ValidationError):
+async def validation_error_handler_wrapper(request: Request, exc: Exception):
     """Handle validation errors from Mimic."""
-    return JSONResponse(
-        status_code=400,
-        content={"error": "Validation Error", "detail": str(exc)},
-    )
+    return await handle_validation_error(request, exc)  # type: ignore
 
 
 @app.exception_handler(PipelineError)
-async def pipeline_error_handler(request, exc: PipelineError):
+async def pipeline_error_handler_wrapper(request: Request, exc: Exception):
     """Handle pipeline errors from Mimic."""
-    return JSONResponse(
-        status_code=500,
-        content={
-            "error": "Pipeline Error",
-            "detail": str(exc),
-            "step": exc.step,
-        },
-    )
+    return await handle_pipeline_error(request, exc)  # type: ignore
 
 
+@app.exception_handler(GitHubError)
+async def github_error_handler_wrapper(request: Request, exc: Exception):
+    """Handle GitHub API errors."""
+    return await handle_github_error(request, exc)  # type: ignore
+
+
+@app.exception_handler(UnifyAPIError)
+async def unify_error_handler_wrapper(request: Request, exc: Exception):
+    """Handle CloudBees Unify API errors."""
+    return await handle_unify_error(request, exc)  # type: ignore
+
+
+@app.exception_handler(CredentialError)
+async def credential_error_handler_wrapper(request: Request, exc: Exception):
+    """Handle credential errors."""
+    return await handle_credential_error(request, exc)  # type: ignore
+
+
+@app.exception_handler(KeyringUnavailableError)
+async def keyring_error_handler_wrapper(request: Request, exc: Exception):
+    """Handle keyring unavailable errors."""
+    return await handle_keyring_error(request, exc)  # type: ignore
+
+
+@app.exception_handler(ScenarioError)
+async def scenario_error_handler_wrapper(request: Request, exc: Exception):
+    """Handle scenario loading/processing errors."""
+    return await handle_scenario_error(request, exc)  # type: ignore
+
+
+# Catch-all handler for unexpected exceptions
+@app.exception_handler(Exception)
+async def generic_exception_handler_wrapper(request: Request, exc: Exception):
+    """Handle unexpected exceptions."""
+    return await handle_generic_exception(request, exc)
+
+
+# Keep HTTPException handler for FastAPI's own exceptions
 @app.exception_handler(HTTPException)
-async def http_exception_handler(request, exc: HTTPException):
-    """Handle HTTP exceptions."""
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Handle HTTP exceptions from FastAPI."""
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.detail},

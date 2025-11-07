@@ -41,6 +41,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { environmentsApi, configApi } from '../api/endpoints';
 import type { Environment } from '../types/api';
 import { AddPresetEnvironmentDialog } from '../components/AddPresetEnvironmentDialog';
+import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
+import { toErrorInfo } from '../utils/errorUtils';
 
 export function EnvironmentsPage() {
   const queryClient = useQueryClient();
@@ -48,7 +50,7 @@ export function EnvironmentsPage() {
   const [addPresetDialogOpen, setAddPresetDialogOpen] = useState(false);
   const [propsDialogOpen, setPropsDialogOpen] = useState(false);
   const [selectedEnv, setSelectedEnv] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [propertyToDelete, setPropertyToDelete] = useState<string | null>(null);
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -105,7 +107,7 @@ export function EnvironmentsPage() {
       queryClient.invalidateQueries({ queryKey: ['environments'] });
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to select environment');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -121,7 +123,7 @@ export function EnvironmentsPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to add environment');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -134,7 +136,7 @@ export function EnvironmentsPage() {
       setEnvToDelete(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to remove environment');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -170,7 +172,7 @@ export function EnvironmentsPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to add property');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -185,7 +187,7 @@ export function EnvironmentsPage() {
       setError(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to delete property');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -346,11 +348,7 @@ export function EnvironmentsPage() {
         </Popper>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <ErrorAlert error={error} onClose={() => setError(null)} />}
 
       {data && (
         <Paper>
@@ -503,7 +501,7 @@ export function EnvironmentsPage() {
           />
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
+              {error.message}
             </Alert>
           )}
         </DialogContent>
@@ -639,7 +637,7 @@ export function EnvironmentsPage() {
 
               {error && (
                 <Alert severity="error" sx={{ mt: 2 }}>
-                  {error}
+                  {error.message}
                 </Alert>
               )}
 

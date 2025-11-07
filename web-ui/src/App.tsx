@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { useMemo } from 'react';
 import { Layout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Import pages (will create these next)
 import { DashboardPage } from './pages/DashboardPage';
@@ -41,28 +42,30 @@ function App() {
   );
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <BrowserRouter>
-          <Routes>
-            {/* Setup wizard (no layout) */}
-            <Route path="/setup" element={<SetupPage />} />
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <BrowserRouter>
+            <Routes>
+              {/* Setup wizard (no layout) */}
+              <Route path="/setup" element={<SetupPage />} />
 
-            {/* Main app routes (with layout) */}
-            <Route element={<Layout />}>
-              <Route path="/" element={<DashboardPage />} />
-              <Route path="/scenarios" element={<ScenariosPage />} />
-              <Route path="/scenarios/:scenarioId/run" element={<RunScenarioPage />} />
-              <Route path="/environments" element={<EnvironmentsPage />} />
-              <Route path="/config" element={<ConfigPage />} />
-              <Route path="/cleanup" element={<CleanupPage />} />
-              <Route path="/packs" element={<PacksPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </ThemeProvider>
-    </QueryClientProvider>
+              {/* Main app routes (with layout) */}
+              <Route element={<Layout />}>
+                <Route path="/" element={<DashboardPage />} />
+                <Route path="/scenarios" element={<ScenariosPage />} />
+                <Route path="/scenarios/:scenarioId/run" element={<RunScenarioPage />} />
+                <Route path="/environments" element={<EnvironmentsPage />} />
+                <Route path="/config" element={<ConfigPage />} />
+                <Route path="/cleanup" element={<CleanupPage />} />
+                <Route path="/packs" element={<PacksPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

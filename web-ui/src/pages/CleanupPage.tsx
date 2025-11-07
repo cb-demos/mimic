@@ -45,6 +45,8 @@ import { ResourceList } from '../components/ResourceList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cleanupApi, environmentsApi } from '../api/endpoints';
 import type { Session } from '../types/api';
+import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
+import { toErrorInfo } from '../utils/errorUtils';
 
 type SortField = 'created_at' | 'expires_at' | 'instance_name' | 'scenario_id';
 type SortDirection = 'asc' | 'desc';
@@ -60,7 +62,7 @@ export function CleanupPage() {
   const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false);
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [bulkCleanupDialogOpen, setBulkCleanupDialogOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
   const [cleanupResults, setCleanupResults] = useState<any>(null);
 
   // Fetch environments for filter
@@ -88,7 +90,7 @@ export function CleanupPage() {
       setSelectedSession(null);
     },
     onError: (err: any) => {
-      setError(err.message || 'Cleanup failed');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -101,7 +103,7 @@ export function CleanupPage() {
       setBulkCleanupDialogOpen(false);
     },
     onError: (err: any) => {
-      setError(err.message || 'Bulk cleanup failed');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -196,11 +198,7 @@ export function CleanupPage() {
         </Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {error && <ErrorAlert error={error} onClose={() => setError(null)} />}
 
       {cleanupResults && (
         <Alert severity="success" sx={{ mb: 3 }} onClose={() => setCleanupResults(null)}>

@@ -11,7 +11,12 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from mimic.exceptions import ValidationError
+from mimic.exceptions import (
+    GitHubError,
+    PipelineError,
+    UnifyAPIError,
+    ValidationError,
+)
 from mimic.instance_repository import InstanceRepository
 from mimic.pipeline import CreationPipeline
 from mimic.utils import resolve_run_name
@@ -22,6 +27,7 @@ from ..dependencies import (
     GitHubCredentialsDep,
     ScenarioDep,
 )
+from ..error_handler import sanitize_error_message
 from ..events import broadcaster
 from ..models import (
     CheckPropertiesRequest,
@@ -512,15 +518,17 @@ async def run_scenario(
 
                 if target_org not in github_orgs:
                     configured_orgs = ", ".join(github_orgs) if github_orgs else "none"
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=(
+                    raise ValidationError(
+                        message=(
                             f"GitHub organization '{target_org}' is not set up as a "
-                            f"GitHub App integration in CloudBees. Please configure the "
-                            f"integration in your CloudBees organization settings. "
+                            f"GitHub App integration in CloudBees. "
                             f"Currently configured: {configured_orgs}"
                         ),
+                        field="target_org",
+                        value=target_org,
                     )
+        except ValidationError:
+            raise
         except HTTPException:
             raise
         except Exception as e:
@@ -733,13 +741,52 @@ async def _execute_scenario_background(
 
     except Exception as e:
         logger.error(f"Error executing scenario {scenario_id}: {e}", exc_info=True)
+
+        # Determine error code and provide user-friendly message + suggestion
+        error_code = "UNKNOWN_ERROR"
+        # Sanitize error messages to prevent information disclosure
+        sanitized_error = sanitize_error_message(str(e))
+        user_message = sanitized_error
+        suggestion = None
+        technical_details = sanitized_error
+
+        if isinstance(e, GitHubError):
+            error_code = "GITHUB_API_ERROR"
+            user_message = "GitHub API error occurred"
+            suggestion = "Check your GitHub credentials and repository permissions."
+            if e.status_code:
+                technical_details = f"HTTP {e.status_code}: {sanitized_error}"
+        elif isinstance(e, UnifyAPIError):
+            error_code = "CLOUDBEES_API_ERROR"
+            user_message = "CloudBees API error occurred"
+            suggestion = "Verify your CloudBees credentials and organization access."
+            if e.status_code:
+                technical_details = f"HTTP {e.status_code}: {sanitized_error}"
+        elif isinstance(e, PipelineError):
+            error_code = "PIPELINE_ERROR"
+            user_message = f"Pipeline failed at {e.step}"
+            # Get step-specific suggestion
+            step_suggestions = {
+                "repository_creation": "Check your GitHub credentials and organization permissions.",
+                "component_creation": "Verify your CloudBees organization access and endpoint configuration.",
+                "environment_creation": "Ensure your CloudBees organization has permission to create environments.",
+                "flag_configuration": "Check that the application and environments were created successfully.",
+            }
+            suggestion = step_suggestions.get(
+                e.step, "Please review your configuration and try again."
+            )
+            technical_details = f"Step: {e.step}, Error: {sanitized_error}"
+
         await emit_event(
             {
                 "event": "scenario_error",
                 "data": {
                     "session_id": session_id,
-                    "error": str(e),
+                    "error": user_message,
                     "error_type": type(e).__name__,
+                    "error_code": error_code,
+                    "suggestion": suggestion,
+                    "technical_details": technical_details,
                 },
             }
         )

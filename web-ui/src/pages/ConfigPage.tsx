@@ -21,6 +21,8 @@ import {
 import { Visibility, VisibilityOff, CheckCircle, Error, Settings } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { configApi } from '../api/endpoints';
+import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
+import { toErrorInfo } from '../utils/errorUtils';
 
 export function ConfigPage() {
   const queryClient = useQueryClient();
@@ -30,7 +32,7 @@ export function ConfigPage() {
   const [githubUsername, setGithubUsername] = useState('');
   const [githubToken, setGithubToken] = useState('');
   const [showGithubToken, setShowGithubToken] = useState(false);
-  const [githubError, setGithubError] = useState<string | null>(null);
+  const [githubError, setGithubError] = useState<ErrorInfo | null>(null);
   const [githubSuccess, setGithubSuccess] = useState<string | null>(null);
   const [testingGithub, setTestingGithub] = useState(false);
 
@@ -62,7 +64,7 @@ export function ConfigPage() {
       setGithubError(null);
     },
     onError: (err: any) => {
-      setGithubError(err.message || 'Failed to save GitHub username');
+      setGithubError(toErrorInfo(err));
       setGithubSuccess(null);
     },
   });
@@ -77,7 +79,7 @@ export function ConfigPage() {
       setGithubToken(''); // Clear token input after save
     },
     onError: (err: any) => {
-      setGithubError(err.message || 'Failed to save GitHub token');
+      setGithubError(toErrorInfo(err));
       setGithubSuccess(null);
     },
   });
@@ -112,10 +114,10 @@ export function ConfigPage() {
         setGithubSuccess('GitHub connection successful!');
         queryClient.invalidateQueries({ queryKey: ['github-config'] });
       } else {
-        setGithubError('GitHub credentials incomplete');
+        setGithubError({ message: 'GitHub credentials incomplete' });
       }
     } catch (err: any) {
-      setGithubError(err.message || 'Failed to test GitHub connection');
+      setGithubError(toErrorInfo(err));
     } finally {
       setTestingGithub(false);
     }
@@ -151,9 +153,7 @@ export function ConfigPage() {
         )}
 
         {githubError && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGithubError(null)}>
-            {githubError}
-          </Alert>
+          <ErrorAlert error={githubError} onClose={() => setGithubError(null)} />
         )}
 
         {loadingGithub ? (

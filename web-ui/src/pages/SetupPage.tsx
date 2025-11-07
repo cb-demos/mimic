@@ -27,6 +27,8 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { setupApi, configApi, environmentsApi, packsApi } from '../api/endpoints';
 import type { RunSetupRequest, Environment } from '../types/api';
+import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
+import { toErrorInfo } from '../utils/errorUtils';
 
 const STEPS = ['GitHub Setup', 'Select Environment', 'CloudBees Setup', 'Scenario Pack (Optional)'];
 
@@ -54,7 +56,7 @@ export function SetupPage() {
   const [showCloudbeesToken, setShowCloudbeesToken] = useState(false);
   const [packName, setPackName] = useState('');
   const [packUrl, setPackUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorInfo | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
   const [testSuccess, setTestSuccess] = useState<string | null>(null);
 
@@ -76,10 +78,10 @@ export function SetupPage() {
       if (result.has_token && result.username) {
         setTestSuccess('GitHub connection successful!');
       } else {
-        setError('Failed to verify GitHub credentials');
+        setError({ message: 'Failed to verify GitHub credentials' });
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to test GitHub connection');
+      setError(toErrorInfo(err));
     } finally {
       setTestingConnection(false);
     }
@@ -97,10 +99,10 @@ export function SetupPage() {
       if (env?.has_token) {
         setTestSuccess('CloudBees connection successful!');
       } else {
-        setError('Failed to verify CloudBees credentials');
+        setError({ message: 'Failed to verify CloudBees credentials' });
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to test CloudBees connection');
+      setError(toErrorInfo(err));
     } finally {
       setTestingConnection(false);
     }
@@ -122,7 +124,7 @@ export function SetupPage() {
       navigate('/');
     },
     onError: (err: any) => {
-      setError(err.message || 'Setup failed');
+      setError(toErrorInfo(err));
     },
   });
 
@@ -133,17 +135,17 @@ export function SetupPage() {
     // Validate current step
     if (activeStep === 0) {
       if (!setupData.githubToken || !setupData.githubUsername) {
-        setError('GitHub token and username are required');
+        setError({ message: 'GitHub token and username are required' });
         return;
       }
     } else if (activeStep === 1) {
       if (!setupData.environment) {
-        setError('Please select an environment');
+        setError({ message: 'Please select an environment' });
         return;
       }
     } else if (activeStep === 2) {
       if (!setupData.cloudbeesToken) {
-        setError('CloudBees PAT is required');
+        setError({ message: 'CloudBees PAT is required' });
         return;
       }
     }
@@ -356,11 +358,7 @@ export function SetupPage() {
           ))}
         </Stepper>
 
-        {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
-            {error}
-          </Alert>
-        )}
+        {error && <ErrorAlert error={error} onClose={() => setError(null)} />}
 
         {testSuccess && (
           <Alert severity="success" sx={{ mb: 2 }} onClose={() => setTestSuccess(null)}>

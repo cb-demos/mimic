@@ -21,6 +21,18 @@ if (import.meta.env.DEV) {
   });
 }
 
+/**
+ * Structured error type returned by the API
+ */
+export interface StructuredError {
+  message: string;
+  code?: string;
+  suggestion?: string;
+  details?: Array<{ message: string; field?: string; code?: string }>;
+  requestId?: string;
+  statusCode?: number;
+}
+
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => response,
@@ -30,14 +42,43 @@ apiClient.interceptors.response.use(
       console.error('[API Error]', error.response?.data || error.message);
     }
 
-    // Format error message
+    // Extract structured error from response
+    const errorData = error.response?.data;
+
+    if (errorData && typeof errorData === 'object') {
+      // Check if this is a structured error response
+      if (errorData.code || errorData.suggestion || errorData.details) {
+        const structuredError: StructuredError = {
+          message: errorData.message || errorData.error || 'An error occurred',
+          code: errorData.code,
+          suggestion: errorData.suggestion,
+          details: errorData.details || [],
+          requestId: errorData.request_id || errorData.requestId,
+          statusCode: error.response?.status,
+        };
+
+        // Create enhanced error object with structured data attached
+        const enhancedError = new Error(structuredError.message);
+        (enhancedError as any).structured = structuredError;
+
+        return Promise.reject(enhancedError);
+      }
+    }
+
+    // Fallback for non-structured errors (legacy or external errors)
     const errorMessage =
-      error.response?.data?.error ||
-      error.response?.data?.detail ||
+      errorData?.message ||
+      errorData?.error ||
+      errorData?.detail ||
       error.message ||
       'An unknown error occurred';
 
-    // Reject with formatted error
-    return Promise.reject(new Error(errorMessage));
+    const fallbackError = new Error(errorMessage);
+    (fallbackError as any).structured = {
+      message: errorMessage,
+      statusCode: error.response?.status,
+    } as StructuredError;
+
+    return Promise.reject(fallbackError);
   }
 );
