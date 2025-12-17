@@ -1,5 +1,5 @@
 /**
- * Add Preset Environment Dialog - Multi-step wizard for adding preset environments
+ * Add Preset Tenant Dialog - Multi-step wizard for adding preset tenants
  */
 
 import { useState, useEffect } from 'react';
@@ -27,10 +27,10 @@ import {
 } from '@mui/material';
 import { CheckCircle, Error as ErrorIcon } from '@mui/icons-material';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { environmentsApi } from '../api/endpoints';
-import type { PresetEnvironmentInfo } from '../types/api';
+import { tenantsApi } from '../api/endpoints';
+import type { PresetTenantInfo } from '../types/api';
 
-interface AddPresetEnvironmentDialogProps {
+interface AddPresetTenantDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
@@ -38,9 +38,9 @@ interface AddPresetEnvironmentDialogProps {
 
 const steps = ['Select Preset', 'Enter Credentials', 'Validate', 'Confirm'];
 
-export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPresetEnvironmentDialogProps) {
+export function AddPresetTenantDialog({ open, onClose, onSuccess }: AddPresetTenantDialogProps) {
   const [activeStep, setActiveStep] = useState(0);
-  const [selectedPreset, setSelectedPreset] = useState<PresetEnvironmentInfo | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<PresetTenantInfo | null>(null);
   const [pat, setPat] = useState('');
   const [orgId, setOrgId] = useState('');
   const [customProperties, setCustomProperties] = useState<Record<string, string>>({});
@@ -53,15 +53,15 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
 
   // Fetch available presets
   const { data: presetsData, isLoading: loadingPresets } = useQuery({
-    queryKey: ['preset-environments'],
-    queryFn: environmentsApi.listPresetEnvironments,
+    queryKey: ['preset-tenants'],
+    queryFn: tenantsApi.listPresetTenants,
     enabled: open,
   });
 
   // Validate credentials mutation
   const validateMutation = useMutation({
     mutationFn: (data: { pat: string; org_id: string; environment_url: string }) =>
-      environmentsApi.validateCredentials(data),
+      tenantsApi.validateCredentials(data),
     onSuccess: (result) => {
       setValidationResult(result);
       if (result.valid) {
@@ -77,16 +77,16 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
     },
   });
 
-  // Add preset environment mutation
+  // Add preset tenant mutation
   const addMutation = useMutation({
     mutationFn: (data: { name: string; pat: string; org_id: string; custom_properties?: Record<string, string> }) =>
-      environmentsApi.addPresetEnvironment(data),
+      tenantsApi.addPresetTenant(data),
     onSuccess: () => {
       onSuccess();
       handleClose();
     },
     onError: (err: any) => {
-      setError(err.message || 'Failed to add environment');
+      setError(err.message || 'Failed to add tenant');
     },
   });
 
@@ -111,7 +111,7 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
     setError(null);
 
     if (activeStep === 0 && !selectedPreset) {
-      setError('Please select a preset environment');
+      setError('Please select a preset tenant');
       return;
     }
 
@@ -170,12 +170,12 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
               </Box>
             ) : availablePresets.length === 0 ? (
               <Alert severity="info">
-                All preset environments are already configured. You can add custom environments instead.
+                All preset tenants are already configured. You can add custom tenants instead.
               </Alert>
             ) : (
               <>
                 <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Select a CloudBees environment to configure:
+                  Select a CloudBees tenant to configure:
                 </Typography>
                 <List>
                   {availablePresets.map((preset) => (
@@ -268,7 +268,7 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
                   </Typography>
                 )}
                 <Typography variant="body2" sx={{ mt: 1 }}>
-                  Click Next to confirm and add this environment.
+                  Click Next to confirm and add this tenant.
                 </Typography>
               </Alert>
             ) : (
@@ -288,12 +288,12 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
         return (
           <Box sx={{ mt: 2 }}>
             <Alert severity="info" sx={{ mb: 3 }}>
-              Review and confirm your environment configuration
+              Review and confirm your tenant configuration
             </Alert>
 
             <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
               <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-                Environment
+                Tenant
               </Typography>
               <Typography variant="h6" gutterBottom>
                 {selectedPreset?.name}
@@ -370,7 +370,7 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
-      <DialogTitle>Add Preset Environment</DialogTitle>
+      <DialogTitle>Add Preset Tenant</DialogTitle>
       <DialogContent>
         <Stepper activeStep={activeStep} sx={{ pt: 3, pb: 2 }}>
           {steps.map((label) => (
@@ -410,7 +410,7 @@ export function AddPresetEnvironmentDialog({ open, onClose, onSuccess }: AddPres
             onClick={handleConfirm}
             disabled={!canProceed() || addMutation.isPending}
           >
-            {addMutation.isPending ? <CircularProgress size={24} /> : 'Add Environment'}
+            {addMutation.isPending ? <CircularProgress size={24} /> : 'Add Tenant'}
           </Button>
         )}
       </DialogActions>

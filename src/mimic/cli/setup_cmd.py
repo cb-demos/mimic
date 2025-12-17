@@ -7,9 +7,9 @@ from rich.console import Console
 from rich.panel import Panel
 
 from ..config_manager import ConfigManager
-from ..environments import list_preset_environments
+from ..environments import list_preset_tenants
 from ..settings import OFFICIAL_PACK_BRANCH, OFFICIAL_PACK_NAME, OFFICIAL_PACK_URL
-from .env import prepare_environment_config
+from .tenant import prepare_tenant_config
 
 # Shared instances
 console = Console()
@@ -39,15 +39,15 @@ def setup(
 
     # Check if already configured (unless --force)
     if not force and not config_manager.is_first_run():
-        current_env = config_manager.get_current_environment()
+        current_env = config_manager.get_current_tenant()
         if current_env:
             console.print()
             console.print(
                 Panel(
                     "[yellow]Mimic is already configured[/yellow]\n\n"
-                    f"Current environment: [cyan]{current_env}[/cyan]\n\n"
+                    f"Current tenant: [cyan]{current_env}[/cyan]\n\n"
                     "To reconfigure, run: [dim]mimic setup --force[/dim]\n"
-                    "To add another environment: [dim]mimic env add <name>[/dim]",
+                    "To add another tenant: [dim]mimic tenant add <name>[/dim]",
                     title="Setup",
                     border_style="yellow",
                 )
@@ -129,20 +129,20 @@ def setup(
 
     console.print("[green]✓[/green] Keyring backend is available\n")
 
-    # Step 2: CloudBees Environment Setup
-    console.print("[bold cyan]Step 2: CloudBees Environment[/bold cyan]\n")
-    console.print("Choose a CloudBees Unify environment to connect to:\n")
+    # Step 2: CloudBees Tenant Setup
+    console.print("[bold cyan]Step 2: CloudBees Tenant[/bold cyan]\n")
+    console.print("Choose a CloudBees Unify tenant to connect to:\n")
 
-    # Show preset environments
-    presets = list_preset_environments()
-    console.print("[bold]Preset Environments:[/bold]")
+    # Show preset tenants
+    presets = list_preset_tenants()
+    console.print("[bold]Preset Tenants:[/bold]")
     for idx, (name, config) in enumerate(presets.items(), 1):
         console.print(f"  {idx}. [cyan]{name}[/cyan] - {config.description}")
-    console.print(f"  {len(presets) + 1}. [cyan]custom[/cyan] - Custom environment\n")
+    console.print(f"  {len(presets) + 1}. [cyan]custom[/cyan] - Custom tenant\n")
 
-    # Prompt for environment choice
+    # Prompt for tenant choice
     while True:
-        choice = typer.prompt(f"Select environment (1-{len(presets) + 1})", default="1")
+        choice = typer.prompt(f"Select tenant (1-{len(presets) + 1})", default="1")
         try:
             choice_num = int(choice)
             if 1 <= choice_num <= len(presets) + 1:
@@ -155,9 +155,9 @@ def setup(
 
     console.print()
 
-    # Get environment details
+    # Get tenant details
     if choice_num <= len(presets):
-        # Preset environment
+        # Preset tenant
         preset_name = list(presets.keys())[choice_num - 1]
         env_name = preset_name
         env_url = None
@@ -165,14 +165,14 @@ def setup(
 
         console.print(f"[bold]Selected:[/bold] {preset_name}")
     else:
-        # Custom environment
-        env_name = typer.prompt("Environment name")
+        # Custom tenant
+        env_name = typer.prompt("Tenant name")
         env_url = typer.prompt("API URL")
         endpoint_id = typer.prompt("Endpoint ID")
 
-    # Prepare environment configuration (validates and sets defaults)
+    # Prepare tenant configuration (validates and sets defaults)
     env_name, env_url, endpoint_id, env_properties, use_legacy_flags = (
-        prepare_environment_config(env_name, env_url, endpoint_id)
+        prepare_tenant_config(env_name, env_url, endpoint_id)
     )
 
     console.print(f"[dim]API URL: {env_url}[/dim]")
@@ -215,9 +215,9 @@ def setup(
         )
         raise typer.Exit(1) from e
 
-    # Save environment
+    # Save tenant
     try:
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name=env_name,
             url=env_url,
             pat=pat,
@@ -225,7 +225,7 @@ def setup(
             properties=env_properties,
             use_legacy_flags=use_legacy_flags,
         )
-        console.print(f"[green]✓[/green] Environment '[cyan]{env_name}[/cyan]' saved\n")
+        console.print(f"[green]✓[/green] Tenant '[cyan]{env_name}[/cyan]' saved\n")
     except Exception as e:
         from ..exceptions import KeyringUnavailableError
 
@@ -239,7 +239,7 @@ def setup(
                 )
             )
         else:
-            console.print(f"[red]Error saving environment:[/red] {e}")
+            console.print(f"[red]Error saving tenant:[/red] {e}")
         raise typer.Exit(1) from e
 
     # Step 2: GitHub Setup
@@ -322,7 +322,7 @@ def setup(
         Panel(
             "[bold green]✓ Setup Complete![/bold green]\n\n"
             "[bold]Configuration Summary:[/bold]\n"
-            f"  • CloudBees Environment: [cyan]{env_name}[/cyan]\n"
+            f"  • CloudBees Tenant: [cyan]{env_name}[/cyan]\n"
             f"  • GitHub: [green]Configured[/green]\n"
             f"  • GitHub Username: [cyan]{github_username.strip()}[/cyan]\n\n"
             "[bold]Next Steps:[/bold]\n"

@@ -26,14 +26,14 @@ router = APIRouter(prefix="/cleanup", tags=["cleanup"])
 @router.get("/sessions", response_model=SessionListResponse)
 async def list_sessions(
     config: ConfigDep,
-    environment: str | None = Query(None, description="Filter by environment"),
+    tenant: str | None = Query(None, description="Filter by tenant"),
     expired_only: bool = Query(False, description="Show only expired sessions"),
 ):
     """List sessions/instances for cleanup.
 
     Args:
         config: Config manager dependency
-        environment: Optional environment filter
+        tenant: Optional tenant filter
         expired_only: If True, only show expired sessions
 
     Returns:
@@ -47,9 +47,9 @@ async def list_sessions(
     else:
         instances = repo.find_all(include_expired=True)
 
-    # Filter by environment if specified
-    if environment:
-        instances = [i for i in instances if i.environment == environment]
+    # Filter by tenant if specified
+    if tenant:
+        instances = [i for i in instances if i.tenant == tenant]
 
     # Convert to SessionInfo
     now = datetime.now()
@@ -58,10 +58,10 @@ async def list_sessions(
     for instance in instances:
         is_expired = instance.expires_at is not None and instance.expires_at < now
 
-        # Get base URL and org slug for this instance's environment
-        api_url = config.get_environment_url(instance.environment)
-        ui_url = config.get_environment_ui_url(instance.environment)
-        org_slug = config.get_environment_org_slug(instance.environment)
+        # Get base URL and org slug for this instance's tenant
+        api_url = config.get_tenant_url(instance.tenant)
+        ui_url = config.get_tenant_ui_url(instance.tenant)
+        org_slug = config.get_tenant_org_slug(instance.tenant)
 
         # Determine the base URL to use (custom UI URL or derived from API URL)
         base_url = None
@@ -148,7 +148,7 @@ async def list_sessions(
                 session_id=instance.id,
                 instance_name=instance.name,
                 scenario_id=instance.scenario_id,
-                environment=instance.environment,
+                tenant=instance.tenant,
                 created_at=instance.created_at,
                 expires_at=instance.expires_at,
                 is_expired=is_expired,

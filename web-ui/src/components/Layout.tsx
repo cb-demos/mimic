@@ -28,7 +28,7 @@ import {
 } from '@mui/icons-material';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
-import { EnvironmentSwitcher } from './EnvironmentSwitcher';
+import { TenantSwitcher } from './TenantSwitcher';
 import { UpdateBanner } from './UpdateBanner';
 import { versionApi } from '../api/endpoints';
 
@@ -64,7 +64,7 @@ export function Layout() {
   const navigationItems: NavigationItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: <Dashboard />, path: '/' },
     { id: 'scenarios', label: 'Scenarios', icon: <PlayArrow />, path: '/scenarios' },
-    { id: 'environments', label: 'Environments', icon: <Storage />, path: '/environments' },
+    { id: 'tenants', label: 'Tenants', icon: <Storage />, path: '/tenants' },
     { id: 'config', label: 'Configuration', icon: <Settings />, path: '/config' },
     { id: 'instances', label: 'Instances', icon: <CleaningServices />, path: '/cleanup' },
     { id: 'packs', label: 'Scenario Packs', icon: <Inventory />, path: '/packs' },
@@ -93,8 +93,8 @@ export function Layout() {
             Mimic
           </Typography>
 
-          {/* Environment switcher */}
-          <EnvironmentSwitcher />
+          {/* Tenant switcher */}
+          <TenantSwitcher />
 
           {/* Spacer */}
           <Box sx={{ flexGrow: 1 }} />

@@ -1,16 +1,16 @@
 /**
- * Environment API endpoints
+ * Tenant API endpoints
  */
 
 import { apiClient } from '../client';
 import type {
-  EnvironmentListResponse,
-  AddEnvironmentRequest,
   AddPropertyRequest,
+  AddPresetTenantRequest,
+  AddTenantRequest,
+  PresetTenantListResponse,
   PropertiesResponse,
   StatusResponse,
-  PresetEnvironmentListResponse,
-  AddPresetEnvironmentRequest,
+  TenantListResponse,
   ValidateCredentialsRequest,
   ValidateCredentialsResponse,
 } from '../../types/api';
@@ -18,52 +18,52 @@ import type {
 /**
  * List all environments with current selection
  */
-export async function listEnvironments(): Promise<EnvironmentListResponse> {
-  const response = await apiClient.get<EnvironmentListResponse>('/api/environments');
+export async function listTenants(): Promise<TenantListResponse> {
+  const response = await apiClient.get<TenantListResponse>('/api/tenants');
   return response.data;
 }
 
 /**
  * Add a custom environment
  */
-export async function addEnvironment(request: AddEnvironmentRequest): Promise<StatusResponse> {
-  const response = await apiClient.post<StatusResponse>('/api/environments', request);
+export async function addTenant(request: AddTenantRequest): Promise<StatusResponse> {
+  const response = await apiClient.post<StatusResponse>('/api/tenants', request);
   return response.data;
 }
 
 /**
  * Remove an environment
  */
-export async function removeEnvironment(envName: string): Promise<StatusResponse> {
-  const response = await apiClient.delete<StatusResponse>(`/api/environments/${envName}`);
+export async function removeTenant(tenantName: string): Promise<StatusResponse> {
+  const response = await apiClient.delete<StatusResponse>(`/api/tenants/${tenantName}`);
   return response.data;
 }
 
 /**
  * Set an environment as current
  */
-export async function selectEnvironment(envName: string): Promise<StatusResponse> {
-  const response = await apiClient.patch<StatusResponse>(`/api/environments/${envName}/select`);
+export async function selectTenant(tenantName: string): Promise<StatusResponse> {
+  const response = await apiClient.patch<StatusResponse>(`/api/tenants/${tenantName}/select`);
   return response.data;
 }
 
 /**
  * Get environment properties
  */
-export async function getEnvironmentProperties(envName: string): Promise<PropertiesResponse> {
-  const response = await apiClient.get<PropertiesResponse>(`/api/environments/${envName}/properties`);
+export async function getTenantProperties(tenantName: string): Promise<PropertiesResponse> {
+  const response = await apiClient.get<PropertiesResponse>(`/api/tenants/${tenantName}/properties`);
   return response.data;
 }
 
 /**
  * Add/update an environment property
  */
-export async function addEnvironmentProperty(
-  envName: string,
+export async function addTenantProperty(
+  tenantName: string,
   request: AddPropertyRequest
 ): Promise<StatusResponse> {
   const response = await apiClient.post<StatusResponse>(
-    `/api/environments/${envName}/properties`,
+    `/api/tenants/${tenantName}/properties`,
     request
   );
   return response.data;
@@ -72,12 +72,12 @@ export async function addEnvironmentProperty(
 /**
  * Delete an environment property
  */
-export async function deleteEnvironmentProperty(
-  envName: string,
+export async function deleteTenantProperty(
+  tenantName: string,
   propertyKey: string
 ): Promise<StatusResponse> {
   const response = await apiClient.delete<StatusResponse>(
-    `/api/environments/${envName}/properties/${propertyKey}`
+    `/api/tenants/${tenantName}/properties/${propertyKey}`
   );
   return response.data;
 }
@@ -85,8 +85,8 @@ export async function deleteEnvironmentProperty(
 /**
  * List all available preset environments
  */
-export async function listPresetEnvironments(): Promise<PresetEnvironmentListResponse> {
-  const response = await apiClient.get<PresetEnvironmentListResponse>('/api/environments/presets');
+export async function listPresetTenants(): Promise<PresetTenantListResponse> {
+  const response = await apiClient.get<PresetTenantListResponse>('/api/tenants/presets');
   return response.data;
 }
 
@@ -97,7 +97,7 @@ export async function validateCredentials(
   request: ValidateCredentialsRequest
 ): Promise<ValidateCredentialsResponse> {
   const response = await apiClient.post<ValidateCredentialsResponse>(
-    '/api/environments/validate-credentials',
+    '/api/tenants/validate-credentials',
     request
   );
   return response.data;
@@ -106,11 +106,11 @@ export async function validateCredentials(
 /**
  * Add a preset environment with credentials
  */
-export async function addPresetEnvironment(
-  request: AddPresetEnvironmentRequest
+export async function addPresetTenant(
+  request: AddPresetTenantRequest
 ): Promise<StatusResponse> {
   const response = await apiClient.post<StatusResponse>(
-    '/api/environments/presets',
+    '/api/tenants/presets',
     request
   );
   return response.data;
@@ -121,7 +121,7 @@ export async function addPresetEnvironment(
 /**
  * List environments - convenience alias
  */
-export const list = listEnvironments;
+export const list = listTenants;
 
 /**
  * Add environment - convenience wrapper
@@ -134,31 +134,31 @@ export async function add(
   org_id?: string,
   use_legacy_flags?: boolean
 ): Promise<StatusResponse> {
-  return addEnvironment({ name, url, endpoint_id, pat, org_id, use_legacy_flags });
+  return addTenant({ name, url, endpoint_id, pat, org_id, use_legacy_flags });
 }
 
 /**
  * Remove environment - convenience alias
  */
-export const remove = removeEnvironment;
+export const remove = removeTenant;
 
 /**
  * Select environment - convenience alias
  */
-export const select = selectEnvironment;
+export const select = selectTenant;
 
 /**
  * Get properties - convenience alias
  */
-export const getProperties = getEnvironmentProperties;
+export const getProperties = getTenantProperties;
 
 /**
  * Add property - convenience wrapper
  */
 export async function addProperty(
-  envName: string,
+  tenantName: string,
   key: string,
   value: string
 ): Promise<StatusResponse> {
-  return addEnvironmentProperty(envName, { key, value });
+  return addTenantProperty(tenantName, { key, value });
 }

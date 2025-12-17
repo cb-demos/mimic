@@ -22,7 +22,7 @@ def handle_dry_run(
         config_manager: ConfigManager instance.
         scenario: Scenario object.
         parameters: Dictionary of parameter values.
-        current_env: Current environment name.
+        current_env: Current tenant name.
         expiration_label: Human-readable expiration label.
         organization_id: CloudBees organization UUID.
     """
@@ -34,8 +34,8 @@ def handle_dry_run(
 
     # Validate and resolve scenario parameters
     processed_parameters = scenario.validate_input(parameters)
-    # Get environment properties for template resolution
-    env_properties = config_manager.get_environment_properties(current_env)
+    # Get tenant properties for template resolution
+    env_properties = config_manager.get_tenant_properties(current_env)
     # Inject runtime values
     runtime_values = {
         **processed_parameters,
@@ -73,7 +73,7 @@ def show_preview_and_confirm(
         config_manager: ConfigManager instance.
         scenario: Scenario object.
         parameters: Dictionary of parameter values.
-        current_env: Current environment name.
+        current_env: Current tenant name.
         expiration_label: Human-readable expiration label.
         organization_id: CloudBees organization UUID.
 
@@ -86,8 +86,8 @@ def show_preview_and_confirm(
 
     # Validate and resolve scenario parameters
     processed_parameters = scenario.validate_input(parameters)
-    # Get environment properties for template resolution
-    env_properties = config_manager.get_environment_properties(current_env)
+    # Get tenant properties for template resolution
+    env_properties = config_manager.get_tenant_properties(current_env)
     # Inject runtime values
     runtime_values = {
         **processed_parameters,

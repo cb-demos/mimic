@@ -1,6 +1,6 @@
 /**
- * Environment switcher component for the app header
- * Displays current environment and allows switching between configured environments
+ * Tenant switcher component for the app header
+ * Displays current tenant and allows switching between configured tenants
  */
 
 import { useState, useEffect } from 'react';
@@ -15,54 +15,54 @@ import {
 } from '@mui/material';
 import type { SelectChangeEvent } from '@mui/material';
 import { Cloud, CloudDone } from '@mui/icons-material';
-import { listEnvironments, selectEnvironment } from '../api/endpoints/environments';
-import type { EnvironmentInfo } from '../types/api';
+import { listTenants, selectTenant } from '../api/endpoints/tenants';
+import type { TenantInfo } from '../types/api';
 
-export function EnvironmentSwitcher() {
-  const [environments, setEnvironments] = useState<EnvironmentInfo[]>([]);
-  const [currentEnv, setCurrentEnv] = useState<string>('');
+export function TenantSwitcher() {
+  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [currentTenant, setCurrentTenant] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch environments on mount
+  // Fetch tenants on mount
   useEffect(() => {
-    loadEnvironments();
+    loadTenants();
   }, []);
 
-  const loadEnvironments = async () => {
+  const loadTenants = async () => {
     try {
       setInitialLoading(true);
-      const response = await listEnvironments();
-      setEnvironments(response.environments);
-      setCurrentEnv(response.current || '');
+      const response = await listTenants();
+      setTenants(response.tenants);
+      setCurrentTenant(response.current || '');
       setError(null);
     } catch (err) {
-      console.error('Failed to load environments:', err);
-      setError('Failed to load environments');
+      console.error('Failed to load tenants:', err);
+      setError('Failed to load tenants');
     } finally {
       setInitialLoading(false);
     }
   };
 
   const handleChange = async (event: SelectChangeEvent<string>) => {
-    const newEnv = event.target.value;
+    const newTenant = event.target.value;
 
-    // Don't do anything if selecting the same environment
-    if (newEnv === currentEnv) return;
+    // Don't do anything if selecting the same tenant
+    if (newTenant === currentTenant) return;
 
     try {
       setLoading(true);
       setError(null);
 
-      // Call API to switch environment
-      await selectEnvironment(newEnv);
+      // Call API to switch tenant
+      await selectTenant(newTenant);
 
-      // Reload the page to refresh all state with new environment
+      // Reload the page to refresh all state with new tenant
       window.location.reload();
     } catch (err) {
-      console.error('Failed to switch environment:', err);
-      setError('Failed to switch environment');
+      console.error('Failed to switch tenant:', err);
+      setError('Failed to switch tenant');
       // Revert to previous selection on error
       event.preventDefault();
     } finally {
@@ -80,10 +80,10 @@ export function EnvironmentSwitcher() {
   }
 
   // Show error state
-  if (error && environments.length === 0) {
+  if (error && tenants.length === 0) {
     return (
       <Chip
-        label="No environments"
+        label="No tenants"
         color="error"
         size="small"
         sx={{ ml: 2 }}
@@ -100,7 +100,7 @@ export function EnvironmentSwitcher() {
       }}
     >
       <Select
-        value={currentEnv}
+        value={currentTenant}
         onChange={handleChange}
         disabled={loading}
         sx={{
@@ -126,13 +126,13 @@ export function EnvironmentSwitcher() {
           )
         }
       >
-        {environments.map((env) => (
-          <MenuItem key={env.name} value={env.name}>
+        {tenants.map((tenant) => (
+          <MenuItem key={tenant.name} value={tenant.name}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-              {env.is_current && <CloudDone fontSize="small" color="success" />}
-              <Box sx={{ flexGrow: 1 }}>{env.name}</Box>
-              {env.is_preset && (
-                <Tooltip title="Preset environment">
+              {tenant.is_current && <CloudDone fontSize="small" color="success" />}
+              <Box sx={{ flexGrow: 1 }}>{tenant.name}</Box>
+              {tenant.is_preset && (
+                <Tooltip title="Preset tenant">
                   <Chip
                     label="preset"
                     size="small"

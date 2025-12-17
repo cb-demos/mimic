@@ -140,7 +140,7 @@ def prompt_cloudbees_org(
         Selected or entered organization UUID
     """
     config_manager = ConfigManager()
-    cached_orgs = config_manager.get_cached_orgs_for_env(env_name)
+    cached_orgs = config_manager.get_cached_orgs_for_tenant(env_name)
 
     if not cached_orgs:
         # No cached orgs, just prompt for ID

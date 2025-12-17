@@ -16,11 +16,11 @@ from ..platform import (
 )
 from .cleanup import cleanup_app
 from .config import config_app
-from .env import env_app
 from .list_cmd import list_scenarios
 from .run_cmd import run as run_scenario
 from .scenario_pack import scenario_pack_app
 from .setup_cmd import setup
+from .tenant import tenant_app
 from .ui_cmd import ui_app
 from .upgrade_cmd import upgrade
 
@@ -83,7 +83,7 @@ console = Console()
 config_manager = ConfigManager()
 
 # Register sub-applications
-app.add_typer(env_app, name="env")
+app.add_typer(tenant_app, name="tenant")
 app.add_typer(config_app, name="config")
 app.add_typer(cleanup_app, name="cleanup")
 app.add_typer(cleanup_app, name="clean")  # Alias for cleanup

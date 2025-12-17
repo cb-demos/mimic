@@ -61,10 +61,10 @@ class ConfigManager:
             yaml.dump(config, f, default_flow_style=False, sort_keys=False)
 
     def _migrate_config(self, config: dict[str, Any]) -> dict[str, Any]:
-        """Auto-migrate config to add missing fields from preset environments.
+        """Auto-migrate config to add missing fields and rename old keys.
 
         This ensures existing users get new fields (like org_slug) populated automatically
-        from preset definitions without needing to reconfigure.
+        from preset definitions, and migrates old "environment" terminology to "tenant".
 
         Args:
             config: Configuration dictionary to migrate
@@ -72,23 +72,34 @@ class ConfigManager:
         Returns:
             Migrated configuration dictionary
         """
-        from mimic.environments import PRESET_ENVIRONMENTS
+        from mimic.environments import PRESET_TENANTS
 
-        environments = config.get("environments", {})
         needs_save = False
 
-        for env_name, env_config in environments.items():
-            # Check if this environment is missing org_slug or ui_url
-            if "org_slug" not in env_config or "ui_url" not in env_config:
-                # Check if it matches a preset environment
-                preset = PRESET_ENVIRONMENTS.get(env_name)
+        # MIGRATE: environments → tenants
+        if "environments" in config and "tenants" not in config:
+            config["tenants"] = config.pop("environments")
+            needs_save = True
+
+        # MIGRATE: current_environment → current_tenant
+        if "current_environment" in config and "current_tenant" not in config:
+            config["current_tenant"] = config.pop("current_environment")
+            needs_save = True
+
+        # Migrate preset tenant definitions (populate missing fields)
+        tenants = config.get("tenants", {})
+        for tenant_name, tenant_config in tenants.items():
+            # Check if this tenant is missing org_slug or ui_url
+            if "org_slug" not in tenant_config or "ui_url" not in tenant_config:
+                # Check if it matches a preset tenant
+                preset = PRESET_TENANTS.get(tenant_name)
                 if preset:
                     # Populate missing fields from preset
-                    if "org_slug" not in env_config:
-                        env_config["org_slug"] = preset.org_slug
+                    if "org_slug" not in tenant_config:
+                        tenant_config["org_slug"] = preset.org_slug
                         needs_save = True
-                    if "ui_url" not in env_config:
-                        env_config["ui_url"] = preset.ui_url
+                    if "ui_url" not in tenant_config:
+                        tenant_config["ui_url"] = preset.ui_url
                         needs_save = True
 
         # Save config if we made changes
@@ -100,19 +111,19 @@ class ConfigManager:
     def _get_default_config(self) -> dict[str, Any]:
         """Get default configuration structure."""
         return {
-            "current_environment": None,
-            "environments": {},
+            "current_tenant": None,
+            "tenants": {},
             "github": {"default_username": None},
             "settings": {"default_expiration_days": 7, "auto_cleanup_prompt": True},
             "scenario_packs": {},
             "recent_values": {
                 "github_orgs": [],
-                "cloudbees_orgs": {},  # env_name -> {org_id -> org_name} mapping
+                "cloudbees_orgs": {},  # tenant_name -> {org_id -> org_name} mapping
             },
         }
 
-    # Environment management
-    def add_environment(
+    # Tenant management
+    def add_tenant(
         self,
         name: str,
         url: str,
@@ -123,41 +134,41 @@ class ConfigManager:
         properties: dict[str, str] | None = None,
         use_legacy_flags: bool = False,
     ) -> None:
-        """Add a new environment.
+        """Add a new tenant.
 
         Args:
-            name: Environment name (e.g., 'prod', 'preprod', 'demo').
+            name: Tenant name (e.g., 'prod', 'preprod', 'demo').
             url: CloudBees Unify API URL.
             pat: Personal Access Token (stored securely in keyring).
-            endpoint_id: CloudBees endpoint ID for the environment.
+            endpoint_id: CloudBees endpoint ID for the tenant.
             org_slug: Organization slug for UI URLs (e.g., 'cloudbees', 'demo').
             ui_url: Optional custom UI URL (if different from url without 'api.').
-            properties: Optional custom properties for this environment.
+            properties: Optional custom properties for this tenant.
             use_legacy_flags: Whether to use org-based flag API (True) or app-based (False).
         """
         config = self.load_config()
 
-        # Add environment to config
-        if "environments" not in config:
-            config["environments"] = {}
+        # Add tenant to config
+        if "tenants" not in config:
+            config["tenants"] = {}
 
-        env_config: dict[str, Any] = {
+        tenant_config: dict[str, Any] = {
             "url": url,
             "endpoint_id": endpoint_id,
             "use_legacy_flags": use_legacy_flags,
         }
         if org_slug:
-            env_config["org_slug"] = org_slug
+            tenant_config["org_slug"] = org_slug
         if ui_url:
-            env_config["ui_url"] = ui_url
+            tenant_config["ui_url"] = ui_url
         if properties:
-            env_config["properties"] = properties
+            tenant_config["properties"] = properties
 
-        config["environments"][name] = env_config
+        config["tenants"][name] = tenant_config
 
-        # Set as current if no environment is selected
-        if not config.get("current_environment"):
-            config["current_environment"] = name
+        # Set as current if no tenant is selected
+        if not config.get("current_tenant"):
+            config["current_tenant"] = name
 
         # Save PAT to keyring
         self.set_cloudbees_pat(name, pat)
@@ -165,23 +176,23 @@ class ConfigManager:
         # Save config
         self.save_config(config)
 
-    def remove_environment(self, name: str) -> None:
-        """Remove an environment.
+    def remove_tenant(self, name: str) -> None:
+        """Remove a tenant.
 
         Args:
-            name: Environment name to remove.
+            name: Tenant name to remove.
         """
         config = self.load_config()
 
         # Remove from config
-        if "environments" in config and name in config["environments"]:
-            del config["environments"][name]
+        if "tenants" in config and name in config["tenants"]:
+            del config["tenants"][name]
 
-        # Update current_environment if needed
-        if config.get("current_environment") == name:
-            remaining_envs = config.get("environments", {})
-            config["current_environment"] = (
-                next(iter(remaining_envs)) if remaining_envs else None
+        # Update current_tenant if needed
+        if config.get("current_tenant") == name:
+            remaining_tenants = config.get("tenants", {})
+            config["current_tenant"] = (
+                next(iter(remaining_tenants)) if remaining_tenants else None
             )
 
         # Remove PAT from keyring
@@ -190,228 +201,228 @@ class ConfigManager:
         # Save config
         self.save_config(config)
 
-    def list_environments(self) -> dict[str, dict[str, str]]:
-        """List all configured environments.
+    def list_tenants(self) -> dict[str, dict[str, str]]:
+        """List all configured tenants.
 
         Returns:
-            Dictionary of environment names to their configuration.
+            Dictionary of tenant names to their configuration.
         """
         config = self.load_config()
-        return config.get("environments", {})
+        return config.get("tenants", {})
 
-    def get_current_environment(self) -> str | None:
-        """Get the currently selected environment name.
+    def get_current_tenant(self) -> str | None:
+        """Get the currently selected tenant name.
 
         Returns:
-            Current environment name, or None if not set.
+            Current tenant name, or None if not set.
         """
         config = self.load_config()
-        return config.get("current_environment")
+        return config.get("current_tenant")
 
-    def set_current_environment(self, name: str) -> None:
-        """Set the current environment.
+    def set_current_tenant(self, name: str) -> None:
+        """Set the current tenant.
 
         Args:
-            name: Environment name to set as current.
+            name: Tenant name to set as current.
         """
         config = self.load_config()
-        config["current_environment"] = name
+        config["current_tenant"] = name
         self.save_config(config)
 
-    def get_environment_url(self, name: str | None = None) -> str | None:
-        """Get the API URL for an environment.
+    def get_tenant_url(self, name: str | None = None) -> str | None:
+        """Get the API URL for a tenant.
 
         Args:
-            name: Environment name. If None, uses current environment.
+            name: Tenant name. If None, uses current tenant.
 
         Returns:
-            API URL, or None if environment not found.
+            API URL, or None if tenant not found.
         """
         if name is None:
-            name = self.get_current_environment()
+            name = self.get_current_tenant()
 
         if not name:
             return None
 
         config = self.load_config()
-        env = config.get("environments", {}).get(name)
-        return env.get("url") if env else None
+        tenant = config.get("tenants", {}).get(name)
+        return tenant.get("url") if tenant else None
 
-    def get_environment_org_slug(self, name: str | None = None) -> str | None:
-        """Get the organization slug for an environment.
+    def get_tenant_org_slug(self, name: str | None = None) -> str | None:
+        """Get the organization slug for a tenant.
 
         Args:
-            name: Environment name. If None, uses current environment.
+            name: Tenant name. If None, uses current tenant.
 
         Returns:
-            Organization slug, or None if environment not found or not configured.
+            Organization slug, or None if tenant not found or not configured.
         """
         if name is None:
-            name = self.get_current_environment()
+            name = self.get_current_tenant()
 
         if not name:
             return None
 
         config = self.load_config()
-        env = config.get("environments", {}).get(name)
-        return env.get("org_slug") if env else None
+        tenant = config.get("tenants", {}).get(name)
+        return tenant.get("org_slug") if tenant else None
 
-    def get_environment_ui_url(self, name: str | None = None) -> str | None:
-        """Get the UI URL for an environment.
+    def get_tenant_ui_url(self, name: str | None = None) -> str | None:
+        """Get the UI URL for a tenant.
 
         Args:
-            name: Environment name. If None, uses current environment.
+            name: Tenant name. If None, uses current tenant.
 
         Returns:
             Custom UI URL, or None if using default (API URL without 'api.' subdomain).
         """
         if name is None:
-            name = self.get_current_environment()
+            name = self.get_current_tenant()
 
         if not name:
             return None
 
         config = self.load_config()
-        env = config.get("environments", {}).get(name)
-        return env.get("ui_url") if env else None
+        tenant = config.get("tenants", {}).get(name)
+        return tenant.get("ui_url") if tenant else None
 
     def get_endpoint_id(self, name: str | None = None) -> str | None:
-        """Get the endpoint ID for an environment.
+        """Get the endpoint ID for a tenant.
 
         Args:
-            name: Environment name. If None, uses current environment.
+            name: Tenant name. If None, uses current tenant.
 
         Returns:
-            Endpoint ID, or None if environment not found.
+            Endpoint ID, or None if tenant not found.
         """
         if name is None:
-            name = self.get_current_environment()
+            name = self.get_current_tenant()
 
         if not name:
             return None
 
         config = self.load_config()
-        env = config.get("environments", {}).get(name)
-        return env.get("endpoint_id") if env else None
+        tenant = config.get("tenants", {}).get(name)
+        return tenant.get("endpoint_id") if tenant else None
 
-    def get_environment_properties(self, name: str | None = None) -> dict[str, str]:
-        """Get all properties for an environment (built-in + custom).
+    def get_tenant_properties(self, name: str | None = None) -> dict[str, str]:
+        """Get all properties for a tenant (built-in + custom).
 
         Built-in properties are automatically exposed:
-        - UNIFY_API: The API URL for the environment
-        - ENDPOINT_ID: The endpoint ID for the environment
+        - UNIFY_API: The API URL for the tenant
+        - ENDPOINT_ID: The endpoint ID for the tenant
 
         Args:
-            name: Environment name. If None, uses current environment.
+            name: Tenant name. If None, uses current tenant.
 
         Returns:
-            Dictionary of property name to value. Returns empty dict if environment not found.
+            Dictionary of property name to value. Returns empty dict if tenant not found.
         """
         if name is None:
-            name = self.get_current_environment()
+            name = self.get_current_tenant()
 
         if not name:
             return {}
 
         config = self.load_config()
-        env = config.get("environments", {}).get(name)
+        tenant = config.get("tenants", {}).get(name)
 
-        if not env:
+        if not tenant:
             return {}
 
         # Start with built-in properties
         properties = {
-            "UNIFY_API": env.get("url", ""),
-            "ENDPOINT_ID": env.get("endpoint_id", ""),
+            "UNIFY_API": tenant.get("url", ""),
+            "ENDPOINT_ID": tenant.get("endpoint_id", ""),
         }
 
         # Merge in custom properties (they can override built-ins if needed)
-        custom_properties = env.get("properties", {})
+        custom_properties = tenant.get("properties", {})
         properties.update(custom_properties)
 
         return properties
 
-    def get_environment_uses_legacy_flags(self, name: str | None = None) -> bool:
-        """Check if an environment uses legacy (org-based) or new (app-based) flag API.
+    def get_tenant_uses_legacy_flags(self, name: str | None = None) -> bool:
+        """Check if a tenant uses legacy (org-based) or new (app-based) flag API.
 
         Args:
-            name: Environment name. If None, uses current environment.
+            name: Tenant name. If None, uses current tenant.
 
         Returns:
-            True if environment uses legacy org-based flag API, False for app-based API.
-            Returns False if environment not found.
+            True if tenant uses legacy org-based flag API, False for app-based API.
+            Returns False if tenant not found.
         """
-        from mimic.environments import get_preset_environment
+        from mimic.environments import get_preset_tenant
 
         if name is None:
-            name = self.get_current_environment()
+            name = self.get_current_tenant()
 
         if not name:
             return False
 
-        # Check if it's a preset environment first
-        preset = get_preset_environment(name)
+        # Check if it's a preset tenant first
+        preset = get_preset_tenant(name)
         if preset:
             return preset.use_legacy_flags
 
-        # Check custom environment configuration
+        # Check custom tenant configuration
         config = self.load_config()
-        env = config.get("environments", {}).get(name)
-        if env:
-            return env.get("use_legacy_flags", False)
+        tenant = config.get("tenants", {}).get(name)
+        if tenant:
+            return tenant.get("use_legacy_flags", False)
 
         return False
 
-    def set_environment_property(self, name: str, key: str, value: str) -> None:
-        """Set a custom property for an environment.
+    def set_tenant_property(self, name: str, key: str, value: str) -> None:
+        """Set a custom property for a tenant.
 
         Args:
-            name: Environment name.
+            name: Tenant name.
             key: Property key.
             value: Property value.
         """
         config = self.load_config()
 
-        if "environments" not in config or name not in config["environments"]:
-            raise ValueError(f"Environment '{name}' not found")
+        if "tenants" not in config or name not in config["tenants"]:
+            raise ValueError(f"Tenant '{name}' not found")
 
         # Ensure properties dict exists
-        if "properties" not in config["environments"][name]:
-            config["environments"][name]["properties"] = {}
+        if "properties" not in config["tenants"][name]:
+            config["tenants"][name]["properties"] = {}
 
-        config["environments"][name]["properties"][key] = value
+        config["tenants"][name]["properties"][key] = value
         self.save_config(config)
 
-    def unset_environment_property(self, name: str, key: str) -> None:
-        """Remove a custom property from an environment.
+    def unset_tenant_property(self, name: str, key: str) -> None:
+        """Remove a custom property from a tenant.
 
         Args:
-            name: Environment name.
+            name: Tenant name.
             key: Property key to remove.
         """
         config = self.load_config()
 
-        if "environments" not in config or name not in config["environments"]:
-            raise ValueError(f"Environment '{name}' not found")
+        if "tenants" not in config or name not in config["tenants"]:
+            raise ValueError(f"Tenant '{name}' not found")
 
-        properties = config["environments"][name].get("properties", {})
+        properties = config["tenants"][name].get("properties", {})
         if key in properties:
             del properties[key]
             self.save_config(config)
 
     # Credential management (keyring)
-    def set_cloudbees_pat(self, env_name: str, pat: str) -> None:
+    def set_cloudbees_pat(self, tenant_name: str, pat: str) -> None:
         """Store CloudBees PAT securely in keyring.
 
         Args:
-            env_name: Environment name.
+            tenant_name: Tenant name.
             pat: Personal Access Token.
 
         Raises:
             KeyringUnavailableError: If keyring backend is not available.
         """
         try:
-            keyring.set_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}", pat)
+            keyring.set_password(self.KEYRING_SERVICE, f"cloudbees:{tenant_name}", pat)
         except Exception as e:
             instructions = get_keyring_setup_instructions()
             raise KeyringUnavailableError(
@@ -419,11 +430,11 @@ class ConfigManager:
                 instructions=instructions,
             ) from e
 
-    def get_cloudbees_pat(self, env_name: str | None = None) -> str | None:
+    def get_cloudbees_pat(self, tenant_name: str | None = None) -> str | None:
         """Retrieve CloudBees PAT from keyring.
 
         Args:
-            env_name: Environment name. If None, uses current environment.
+            tenant_name: Tenant name. If None, uses current tenant.
 
         Returns:
             PAT, or None if not found.
@@ -431,14 +442,16 @@ class ConfigManager:
         Raises:
             KeyringUnavailableError: If keyring backend is not available.
         """
-        if env_name is None:
-            env_name = self.get_current_environment()
+        if tenant_name is None:
+            tenant_name = self.get_current_tenant()
 
-        if not env_name:
+        if not tenant_name:
             return None
 
         try:
-            return keyring.get_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}")
+            return keyring.get_password(
+                self.KEYRING_SERVICE, f"cloudbees:{tenant_name}"
+            )
         except Exception as e:
             instructions = get_keyring_setup_instructions()
             raise KeyringUnavailableError(
@@ -446,14 +459,14 @@ class ConfigManager:
                 instructions=instructions,
             ) from e
 
-    def delete_cloudbees_pat(self, env_name: str) -> None:
+    def delete_cloudbees_pat(self, tenant_name: str) -> None:
         """Delete CloudBees PAT from keyring.
 
         Args:
-            env_name: Environment name.
+            tenant_name: Tenant name.
         """
         try:
-            keyring.delete_password(self.KEYRING_SERVICE, f"cloudbees:{env_name}")
+            keyring.delete_password(self.KEYRING_SERVICE, f"cloudbees:{tenant_name}")
         except Exception:
             pass  # Already deleted or never existed
 
@@ -674,20 +687,20 @@ class ConfigManager:
         return config.get("recent_values", {}).get(category, [])
 
     def cache_org_name(
-        self, org_id: str, org_name: str, env_name: str | None = None
+        self, org_id: str, org_name: str, tenant_name: str | None = None
     ) -> None:
-        """Cache a CloudBees organization name by ID for a specific environment.
+        """Cache a CloudBees organization name by ID for a specific tenant.
 
         Args:
             org_id: Organization UUID.
             org_name: Organization name.
-            env_name: Environment name. If None, uses current environment.
+            tenant_name: Tenant name. If None, uses current tenant.
         """
-        if env_name is None:
-            env_name = self.get_current_environment()
+        if tenant_name is None:
+            tenant_name = self.get_current_tenant()
 
-        if not env_name:
-            # No environment set, can't cache
+        if not tenant_name:
+            # No tenant set, can't cache
             return
 
         config = self.load_config()
@@ -698,56 +711,60 @@ class ConfigManager:
         if "cloudbees_orgs" not in config["recent_values"]:
             config["recent_values"]["cloudbees_orgs"] = {}
 
-        if env_name not in config["recent_values"]["cloudbees_orgs"]:
-            config["recent_values"]["cloudbees_orgs"][env_name] = {}
+        if tenant_name not in config["recent_values"]["cloudbees_orgs"]:
+            config["recent_values"]["cloudbees_orgs"][tenant_name] = {}
 
-        config["recent_values"]["cloudbees_orgs"][env_name][org_id] = org_name
+        config["recent_values"]["cloudbees_orgs"][tenant_name][org_id] = org_name
         self.save_config(config)
 
     def get_cached_org_name(
-        self, org_id: str, env_name: str | None = None
+        self, org_id: str, tenant_name: str | None = None
     ) -> str | None:
-        """Get cached CloudBees organization name by ID for a specific environment.
+        """Get cached CloudBees organization name by ID for a specific tenant.
 
         Args:
             org_id: Organization UUID.
-            env_name: Environment name. If None, uses current environment.
+            tenant_name: Tenant name. If None, uses current tenant.
 
         Returns:
             Organization name if cached, None otherwise.
         """
-        if env_name is None:
-            env_name = self.get_current_environment()
+        if tenant_name is None:
+            tenant_name = self.get_current_tenant()
 
-        if not env_name:
+        if not tenant_name:
             return None
 
         config = self.load_config()
         return (
             config.get("recent_values", {})
             .get("cloudbees_orgs", {})
-            .get(env_name, {})
+            .get(tenant_name, {})
             .get(org_id)
         )
 
-    def get_cached_orgs_for_env(self, env_name: str | None = None) -> dict[str, str]:
-        """Get all cached CloudBees organizations for a specific environment.
+    def get_cached_orgs_for_tenant(
+        self, tenant_name: str | None = None
+    ) -> dict[str, str]:
+        """Get all cached CloudBees organizations for a specific tenant.
 
         Args:
-            env_name: Environment name. If None, uses current environment.
+            tenant_name: Tenant name. If None, uses current tenant.
 
         Returns:
-            Dictionary mapping org_id -> org_name for the environment.
+            Dictionary mapping org_id -> org_name for the tenant.
         """
-        if env_name is None:
-            env_name = self.get_current_environment()
+        if tenant_name is None:
+            tenant_name = self.get_current_tenant()
 
-        if not env_name:
+        if not tenant_name:
             return {}
 
         config = self.load_config()
         return (
-            config.get("recent_values", {}).get("cloudbees_orgs", {}).get(env_name, {})
+            config.get("recent_values", {})
+            .get("cloudbees_orgs", {})
+            .get(tenant_name, {})
         )
 
     def ensure_official_pack_exists(self) -> bool:

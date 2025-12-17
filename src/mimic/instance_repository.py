@@ -44,7 +44,7 @@ class InstanceRepository:
             self._save_state({"instances": {}})
 
     def _load_state(self) -> dict[str, Any]:
-        """Load state from JSON file.
+        """Load state from JSON file with auto-migration.
 
         Returns:
             Dictionary containing instances data
@@ -53,7 +53,19 @@ class InstanceRepository:
             return {"instances": {}}
 
         with open(self.state_file) as f:
-            return json.load(f)
+            state = json.load(f)
+
+        # MIGRATE: environment → tenant in all instances
+        needs_save = False
+        for _instance_id, instance_data in state.get("instances", {}).items():
+            if "environment" in instance_data and "tenant" not in instance_data:
+                instance_data["tenant"] = instance_data.pop("environment")
+                needs_save = True
+
+        if needs_save:
+            self._save_state(state)
+
+        return state
 
     def _save_state(self, state: dict[str, Any]) -> None:
         """Save state to JSON file.
@@ -178,21 +190,21 @@ class InstanceRepository:
         all_instances = self.find_all(include_expired=True)
         return [i for i in all_instances if i.scenario_id == scenario_id]
 
-    def find_by_environment(self, environment: str) -> list[Instance]:
-        """Find instances by CloudBees environment.
+    def find_by_tenant(self, tenant: str) -> list[Instance]:
+        """Find instances by CloudBees tenant.
 
         Args:
-            environment: The environment name to filter by (e.g., "prod", "demo")
+            tenant: The tenant name to filter by (e.g., "prod", "demo")
 
         Returns:
-            List of Instance objects for this environment, sorted by creation date (newest first)
+            List of Instance objects for this tenant, sorted by creation date (newest first)
 
         Examples:
             >>> repo = InstanceRepository()
-            >>> prod_instances = repo.find_by_environment("prod")
+            >>> prod_instances = repo.find_by_tenant("prod")
         """
         all_instances = self.find_all(include_expired=True)
-        return [i for i in all_instances if i.environment == environment]
+        return [i for i in all_instances if i.tenant == tenant]
 
     def find_expired(self) -> list[Instance]:
         """Find all expired instances.

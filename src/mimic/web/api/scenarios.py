@@ -86,9 +86,9 @@ def _enrich_instance_with_urls(instance_dict: dict, config, environment: str) ->
         Enriched instance dictionary with URLs added to CloudBees resources
     """
     # Get base URL and org slug for this environment
-    api_url = config.get_environment_url(environment)
-    ui_url = config.get_environment_ui_url(environment)
-    org_slug = config.get_environment_org_slug(environment)
+    api_url = config.get_tenant_url(environment)
+    ui_url = config.get_tenant_ui_url(environment)
+    org_slug = config.get_tenant_org_slug(environment)
 
     # Determine the base URL to use (custom UI URL or derived from API URL)
     base_url = None
@@ -400,14 +400,14 @@ async def preview_scenario(
         validated_params = scenario.validate_input(request.parameters)
 
         # Get environment properties for template resolution
-        current_env = config.get_current_environment()
+        current_env = config.get_current_tenant()
         if not current_env:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No environment configured",
             )
 
-        env_properties = config.get_environment_properties(current_env)
+        env_properties = config.get_tenant_properties(current_env)
 
         # Inject runtime values that should be available in templates
         runtime_values = {
@@ -500,7 +500,7 @@ async def run_scenario(
     env_name, cloudbees_pat, cloudbees_url, endpoint_id = cloudbees_creds
 
     # Get environment properties
-    env_properties = config.get_environment_properties(env_name)
+    env_properties = config.get_tenant_properties(env_name)
 
     # Get organization ID from request
     organization_id = request.organization_id
@@ -707,7 +707,7 @@ async def _execute_scenario_background(
                 env_properties=env_properties,
                 scenario_id=scenario_id,
                 instance_name=instance_name,
-                environment=env_name,
+                tenant=env_name,
                 expires_at=expires_at,
                 event_callback=emit_event,  # Pass callback for progress events
             )

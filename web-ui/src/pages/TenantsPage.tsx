@@ -1,5 +1,5 @@
 /**
- * Environments page - manage CloudBees environments
+ * Tenants page - manage CloudBees tenants
  */
 
 import { useState, useRef } from 'react';
@@ -38,13 +38,13 @@ import {
 } from '@mui/material';
 import { Add, Delete, Settings, CheckCircle, ArrowDropDown, DeleteOutline, VpnKey, Visibility, VisibilityOff, Error as ErrorIcon } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { environmentsApi, configApi } from '../api/endpoints';
-import type { Environment } from '../types/api';
-import { AddPresetEnvironmentDialog } from '../components/AddPresetEnvironmentDialog';
+import { tenantsApi, configApi } from '../api/endpoints';
+import type { Tenant } from '../types/api';
+import { AddPresetTenantDialog } from '../components/AddPresetTenantDialog';
 import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
 import { toErrorInfo } from '../utils/errorUtils';
 
-export function EnvironmentsPage() {
+export function TenantsPage() {
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addPresetDialogOpen, setAddPresetDialogOpen] = useState(false);
@@ -64,12 +64,12 @@ export function EnvironmentsPage() {
   const [credentialError, setCredentialError] = useState<string | null>(null);
   const [credentialSuccess, setCredentialSuccess] = useState<string | null>(null);
 
-  // Environment deletion confirmation state
+  // Tenant deletion confirmation state
   const [deleteEnvConfirmOpen, setDeleteEnvConfirmOpen] = useState(false);
-  const [envToDelete, setEnvToDelete] = useState<Environment | null>(null);
+  const [tenantToDelete, setTenantToDelete] = useState<Tenant | null>(null);
 
-  // Add environment form
-  const [newEnv, setNewEnv] = useState({
+  // Add tenant form
+  const [newTenant, setNewTenant] = useState({
     name: '',
     url: '',
     endpoint_id: '',
@@ -81,10 +81,10 @@ export function EnvironmentsPage() {
     value: '',
   });
 
-  // Fetch environments
+  // Fetch tenants
   const { data, isLoading } = useQuery({
-    queryKey: ['environments'],
-    queryFn: environmentsApi.list,
+    queryKey: ['tenants'],
+    queryFn: tenantsApi.list,
   });
 
   // Fetch CloudBees config for credential status
@@ -93,33 +93,33 @@ export function EnvironmentsPage() {
     queryFn: configApi.getCloudbees,
   });
 
-  // Fetch properties for selected environment
+  // Fetch properties for selected tenant
   const { data: propertiesData, isLoading: loadingProps } = useQuery({
-    queryKey: ['environment-properties', selectedEnv],
-    queryFn: () => environmentsApi.getProperties(selectedEnv!),
+    queryKey: ['tenant-properties', selectedEnv],
+    queryFn: () => tenantsApi.getProperties(selectedEnv!),
     enabled: !!selectedEnv,
   });
 
-  // Select environment mutation
+  // Select tenant mutation
   const selectMutation = useMutation({
-    mutationFn: (envName: string) => environmentsApi.select(envName),
+    mutationFn: (envName: string) => tenantsApi.select(envName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['environments'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
     },
     onError: (err: any) => {
       setError(toErrorInfo(err));
     },
   });
 
-  // Add environment mutation
+  // Add tenant mutation
   const addMutation = useMutation({
     mutationFn: (env: { name: string; url: string; endpoint_id: string }) =>
-      environmentsApi.add(env.name, env.url, env.endpoint_id),
+      tenantsApi.add(env.name, env.url, env.endpoint_id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['environments'] });
-      queryClient.invalidateQueries({ queryKey: ['preset-environments'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['preset-tenants'] });
       setAddDialogOpen(false);
-      setNewEnv({ name: '', url: '', endpoint_id: '' });
+      setNewTenant({ name: '', url: '', endpoint_id: '' });
       setError(null);
     },
     onError: (err: any) => {
@@ -127,13 +127,13 @@ export function EnvironmentsPage() {
     },
   });
 
-  // Remove environment mutation
+  // Remove tenant mutation
   const removeMutation = useMutation({
-    mutationFn: (envName: string) => environmentsApi.remove(envName),
+    mutationFn: (envName: string) => tenantsApi.remove(envName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['environments'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       setDeleteEnvConfirmOpen(false);
-      setEnvToDelete(null);
+      setTenantToDelete(null);
     },
     onError: (err: any) => {
       setError(toErrorInfo(err));
@@ -145,7 +145,7 @@ export function EnvironmentsPage() {
     mutationFn: (data: { environment: string; token: string }) =>
       configApi.setCloubeesToken(data.environment, data.token),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['environments'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
       queryClient.invalidateQueries({ queryKey: ['cloudbees-config'] });
       setCredentialSuccess('Credentials updated successfully');
       setCredentialError(null);
@@ -165,9 +165,9 @@ export function EnvironmentsPage() {
   // Add property mutation
   const addPropMutation = useMutation({
     mutationFn: (data: { envName: string; key: string; value: string }) =>
-      environmentsApi.addProperty(data.envName, data.key, data.value),
+      tenantsApi.addProperty(data.envName, data.key, data.value),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['environment-properties', selectedEnv] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-properties', selectedEnv] });
       setNewProp({ key: '', value: '' });
       setError(null);
     },
@@ -179,9 +179,9 @@ export function EnvironmentsPage() {
   // Delete property mutation
   const deletePropMutation = useMutation({
     mutationFn: (data: { envName: string; propertyKey: string }) =>
-      environmentsApi.deleteEnvironmentProperty(data.envName, data.propertyKey),
+      tenantsApi.deleteTenantProperty(data.envName, data.propertyKey),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['environment-properties', selectedEnv] });
+      queryClient.invalidateQueries({ queryKey: ['tenant-properties', selectedEnv] });
       setDeleteConfirmOpen(false);
       setPropertyToDelete(null);
       setError(null);
@@ -228,8 +228,8 @@ export function EnvironmentsPage() {
   };
 
   const handlePresetSuccess = () => {
-    queryClient.invalidateQueries({ queryKey: ['environments'] });
-    queryClient.invalidateQueries({ queryKey: ['preset-environments'] });
+    queryClient.invalidateQueries({ queryKey: ['tenants'] });
+    queryClient.invalidateQueries({ queryKey: ['preset-tenants'] });
   };
 
   const handleUpdateCredentials = (envName: string) => {
@@ -259,14 +259,14 @@ export function EnvironmentsPage() {
     }
   };
 
-  const handleDeleteEnvironment = (env: Environment) => {
-    setEnvToDelete(env);
+  const handleDeleteTenant = (tenant: Tenant) => {
+    setTenantToDelete(tenant);
     setDeleteEnvConfirmOpen(true);
   };
 
-  const confirmDeleteEnvironment = () => {
-    if (envToDelete) {
-      removeMutation.mutate(envToDelete.name);
+  const confirmDeleteTenant = () => {
+    if (tenantToDelete) {
+      removeMutation.mutate(tenantToDelete.name);
     }
   };
 
@@ -275,7 +275,7 @@ export function EnvironmentsPage() {
   };
 
   const hasCredentials = (envName: string): boolean => {
-    const env = cloudbeesConfig?.environments.find((e) => e.name === envName);
+    const env = cloudbeesConfig?.tenants.find((e) => e.name === envName);
     return env?.has_token ?? false;
   };
 
@@ -294,10 +294,10 @@ export function EnvironmentsPage() {
       <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Box>
           <Typography variant="h4" gutterBottom>
-            Environments
+            Tenants
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Manage CloudBees environments and properties
+            Manage CloudBees tenants and properties
           </Typography>
         </Box>
         <ButtonGroup variant="contained" ref={addButtonRef}>
@@ -330,7 +330,7 @@ export function EnvironmentsPage() {
                         setAddPresetDialogOpen(true);
                       }}
                     >
-                      Add Preset Environment
+                      Add Preset Tenant
                     </MenuItem>
                     <MenuItem
                       onClick={() => {
@@ -338,7 +338,7 @@ export function EnvironmentsPage() {
                         setAddDialogOpen(true);
                       }}
                     >
-                      Add Custom Environment
+                      Add Custom Tenant
                     </MenuItem>
                   </MenuList>
                 </ClickAwayListener>
@@ -354,7 +354,7 @@ export function EnvironmentsPage() {
         <Paper>
           <Box sx={{ p: 2, bgcolor: 'primary.main', color: 'primary.contrastText' }}>
             <Typography variant="body2">
-              Current Environment: <strong>{data.current}</strong>
+              Current Tenant: <strong>{data.current}</strong>
             </Typography>
           </Box>
 
@@ -373,7 +373,7 @@ export function EnvironmentsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {data.environments.map((env: Environment) => (
+                {data.tenants.map((env: Tenant) => (
                   <TableRow key={env.name} hover>
                     <TableCell>
                       {env.name === data.current && (
@@ -456,9 +456,9 @@ export function EnvironmentsPage() {
                       <IconButton
                         size="small"
                         color="error"
-                        onClick={() => handleDeleteEnvironment(env)}
+                        onClick={() => handleDeleteTenant(env)}
                         disabled={removeMutation.isPending}
-                        title="Delete environment"
+                        title="Delete tenant"
                         sx={{ ml: 1 }}
                       >
                         <Delete />
@@ -472,31 +472,31 @@ export function EnvironmentsPage() {
         </Paper>
       )}
 
-      {/* Add Environment Dialog */}
+      {/* Add Tenant Dialog */}
       <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Custom Environment</DialogTitle>
+        <DialogTitle>Add Custom Tenant</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
-            label="Environment Name"
-            value={newEnv.name}
-            onChange={(e) => setNewEnv({ ...newEnv, name: e.target.value })}
+            label="Tenant Name"
+            value={newTenant.name}
+            onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })}
             sx={{ mt: 2, mb: 2 }}
             placeholder="e.g., staging"
           />
           <TextField
             fullWidth
             label="URL"
-            value={newEnv.url}
-            onChange={(e) => setNewEnv({ ...newEnv, url: e.target.value })}
+            value={newTenant.url}
+            onChange={(e) => setNewTenant({ ...newTenant, url: e.target.value })}
             sx={{ mb: 2 }}
             placeholder="e.g., https://staging.cloudbees.io"
           />
           <TextField
             fullWidth
             label="Endpoint ID"
-            value={newEnv.endpoint_id}
-            onChange={(e) => setNewEnv({ ...newEnv, endpoint_id: e.target.value })}
+            value={newTenant.endpoint_id}
+            onChange={(e) => setNewTenant({ ...newTenant, endpoint_id: e.target.value })}
             placeholder="e.g., cb-staging"
           />
           {error && (
@@ -509,16 +509,16 @@ export function EnvironmentsPage() {
           <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={() => addMutation.mutate(newEnv)}
-            disabled={!newEnv.name || !newEnv.url || !newEnv.endpoint_id || addMutation.isPending}
+            onClick={() => addMutation.mutate(newTenant)}
+            disabled={!newTenant.name || !newTenant.url || !newTenant.endpoint_id || addMutation.isPending}
           >
             {addMutation.isPending ? <CircularProgress size={24} /> : 'Add'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Add Preset Environment Dialog */}
-      <AddPresetEnvironmentDialog
+      {/* Add Preset Tenant Dialog */}
+      <AddPresetTenantDialog
         open={addPresetDialogOpen}
         onClose={() => setAddPresetDialogOpen(false)}
         onSuccess={handlePresetSuccess}
@@ -553,7 +553,7 @@ export function EnvironmentsPage() {
         fullWidth
       >
         <DialogTitle>
-          Environment Properties: {selectedEnv}
+          Tenant Properties: {selectedEnv}
         </DialogTitle>
         <DialogContent>
           {loadingProps ? (
@@ -612,7 +612,7 @@ export function EnvironmentsPage() {
                 </Paper>
               ) : (
                 <Alert severity="info" sx={{ mb: 3 }}>
-                  No properties set for this environment
+                  No properties set for this tenant
                 </Alert>
               )}
 
@@ -668,7 +668,7 @@ export function EnvironmentsPage() {
         <DialogTitle>Update Credentials: {selectedEnvForCreds}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, mt: 1 }}>
-            Update the CloudBees Personal Access Token for this environment
+            Update the CloudBees Personal Access Token for this tenant
           </Typography>
 
           {credentialSuccess && (
@@ -713,19 +713,19 @@ export function EnvironmentsPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Delete Environment Confirmation Dialog */}
+      {/* Delete Tenant Confirmation Dialog */}
       <Dialog open={deleteEnvConfirmOpen} onClose={() => setDeleteEnvConfirmOpen(false)}>
-        <DialogTitle>Delete Environment</DialogTitle>
+        <DialogTitle>Delete Tenant</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
-            Are you sure you want to delete the environment <strong>{envToDelete?.name}</strong>?
+            Are you sure you want to delete the tenant <strong>{tenantToDelete?.name}</strong>?
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-            This will remove the environment configuration and stored credentials.
+            This will remove the tenant configuration and stored credentials.
           </Typography>
-          {envToDelete?.is_preset && (
+          {tenantToDelete?.is_preset && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              This is a preset environment. You can re-add it later from the preset list if needed.
+              This is a preset tenant. You can re-add it later from the preset list if needed.
             </Alert>
           )}
         </DialogContent>
@@ -734,7 +734,7 @@ export function EnvironmentsPage() {
           <Button
             variant="contained"
             color="error"
-            onClick={confirmDeleteEnvironment}
+            onClick={confirmDeleteTenant}
             disabled={removeMutation.isPending}
           >
             {removeMutation.isPending ? <CircularProgress size={24} /> : 'Delete'}

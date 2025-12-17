@@ -14,7 +14,7 @@ from ..models import (
     CachedOrg,
     CachedOrgsResponse,
     CloudBeesConfigResponse,
-    CloudBeesEnvCredentials,
+    CloudBeesTenantCredentials,
     FetchOrgNameRequest,
     FetchOrgNameResponse,
     GitHubConfigResponse,
@@ -123,16 +123,16 @@ async def get_cloudbees_config(config: ConfigDep):
         List of environments with their credential status
     """
     try:
-        environments = config.list_environments()
+        environments = config.list_tenants()
         env_credentials = []
 
         for env_name in environments:
             has_token = config.get_cloudbees_pat(env_name) is not None
             env_credentials.append(
-                CloudBeesEnvCredentials(name=env_name, has_token=has_token)
+                CloudBeesTenantCredentials(name=env_name, has_token=has_token)
             )
 
-        return CloudBeesConfigResponse(environments=env_credentials)
+        return CloudBeesConfigResponse(tenants=env_credentials)
 
     except KeyringUnavailableError as e:
         logger.error(f"Keyring unavailable: {e}")
@@ -148,31 +148,31 @@ async def get_cloudbees_config(config: ConfigDep):
 
 @router.post("/cloudbees/token", response_model=StatusResponse)
 async def set_cloudbees_token(request: SetCloudBeesTokenRequest, config: ConfigDep):
-    """Set CloudBees personal access token for an environment.
+    """Set CloudBees personal access token for a tenant.
 
     The token is stored securely in the OS keyring.
 
     Args:
-        request: Request with environment name and CloudBees token
+        request: Request with tenant name and CloudBees token
         config: Config manager dependency
 
     Returns:
         Status message
     """
     try:
-        # Verify environment exists
-        environments = config.list_environments()
-        if request.environment not in environments:
+        # Verify tenant exists
+        tenants = config.list_tenants()
+        if request.tenant not in tenants:
             return StatusResponse(
                 status="error",
-                message=f"Environment '{request.environment}' not found",
+                message=f"Tenant '{request.tenant}' not found",
             )
 
-        config.set_cloudbees_pat(request.environment, request.token)
-        logger.info(f"CloudBees PAT updated for environment: {request.environment}")
+        config.set_cloudbees_pat(request.tenant, request.token)
+        logger.info(f"CloudBees PAT updated for tenant: {request.tenant}")
         return StatusResponse(
             status="success",
-            message=f"CloudBees token saved securely for {request.environment}",
+            message=f"CloudBees token saved securely for {request.tenant}",
         )
 
     except KeyringUnavailableError as e:
@@ -187,7 +187,7 @@ async def set_cloudbees_token(request: SetCloudBeesTokenRequest, config: ConfigD
         ) from e
 
     except Exception as e:
-        logger.error(f"Failed to save CloudBees token for {request.environment}: {e}")
+        logger.error(f"Failed to save CloudBees token for {request.tenant}: {e}")
         return StatusResponse(status="error", message=f"Failed to save token: {str(e)}")
 
 
@@ -236,12 +236,12 @@ async def get_cached_orgs(config: ConfigDep):
     Returns:
         List of cached organizations with ID and display name
     """
-    current_env = config.get_current_environment()
+    current_env = config.get_current_tenant()
     if not current_env:
         return CachedOrgsResponse(orgs=[])
 
     # Get cached orgs as dict[org_id -> org_name]
-    cached_orgs_dict = config.get_cached_orgs_for_env(current_env)
+    cached_orgs_dict = config.get_cached_orgs_for_tenant(current_env)
 
     # Convert to list of CachedOrg objects
     orgs = [

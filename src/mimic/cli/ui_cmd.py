@@ -67,7 +67,7 @@ def start_ui(
     """Start the Mimic web UI server.
 
     The web UI provides a user-friendly interface for managing scenarios,
-    environments, and configurations. It runs locally on your machine with
+    tenants, and configurations. It runs locally on your machine with
     the same security model as the CLI.
 
     Examples:

@@ -34,7 +34,7 @@ def execute_scenario(
         scenario: Scenario object.
         parameters: Dictionary of parameter values.
         scenario_id: Scenario ID.
-        current_env: Current environment name.
+        current_env: Current tenant name.
         expiration_days: Number of days until expiration.
         expiration_label: Human-readable expiration label.
         no_expiration: Whether resources never expire.
@@ -67,17 +67,17 @@ def execute_scenario(
     console.print("[bold green]Starting scenario execution...[/bold green]")
     console.print(f"[dim]Run Name: {run_name}[/dim]")
     console.print(f"[dim]Session ID: {session_id}[/dim]")
-    console.print(f"[dim]Environment: {current_env}[/dim]")
+    console.print(f"[dim]Tenant: {current_env}[/dim]")
     console.print()
 
     # Get default GitHub username for repo invitations
     invitee_username = config_manager.get_github_username()
 
-    # Get environment properties
-    env_properties = config_manager.get_environment_properties(current_env)
+    # Get tenant properties
+    env_properties = config_manager.get_tenant_properties(current_env)
 
-    # Check if environment uses legacy flags API
-    use_legacy_flags = config_manager.get_environment_uses_legacy_flags(current_env)
+    # Check if tenant uses legacy flags API
+    use_legacy_flags = config_manager.get_tenant_uses_legacy_flags(current_env)
 
     pipeline = CreationPipeline(
         organization_id=organization_id,
@@ -91,7 +91,7 @@ def execute_scenario(
         # New parameters for Instance creation
         scenario_id=scenario_id,
         instance_name=run_name,
-        environment=current_env,
+        tenant=current_env,
         expires_at=expires_at,
         use_legacy_flags=use_legacy_flags,
     )
@@ -111,7 +111,7 @@ def execute_scenario(
         console=console,
         session_id=session_id,
         run_name=run_name,
-        environment=current_env,
+        tenant=current_env,
         expiration_label=expiration_label,
         summary=summary,
         pipeline=pipeline,

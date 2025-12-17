@@ -1,4 +1,4 @@
-"""Tests for ConfigManager - environment and credential management."""
+"""Tests for ConfigManager - tenant and credential management."""
 
 from unittest.mock import MagicMock, patch
 
@@ -68,8 +68,8 @@ class TestConfigManagerInitialization:
         """Test default configuration structure."""
         config = config_manager.load_config()
 
-        assert config["current_environment"] is None
-        assert config["environments"] == {}
+        assert config["current_tenant"] is None
+        assert config["tenants"] == {}
         assert config["github"]["default_username"] is None
         assert config["settings"]["default_expiration_days"] == 7
         assert config["settings"]["auto_cleanup_prompt"] is True
@@ -80,15 +80,15 @@ class TestConfigManagerInitialization:
         assert not config_manager.config_file.exists()
 
         config = config_manager.load_config()
-        assert config["environments"] == {}
+        assert config["tenants"] == {}
 
 
-class TestEnvironmentManagement:
-    """Test environment CRUD operations."""
+class TestTenantManagement:
+    """Test tenant CRUD operations."""
 
-    def test_add_environment(self, config_manager):
-        """Test adding a new environment."""
-        config_manager.add_environment(
+    def test_add_tenant(self, config_manager):
+        """Test adding a new tenant."""
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="test-pat-123",
@@ -96,74 +96,74 @@ class TestEnvironmentManagement:
         )
 
         config = config_manager.load_config()
-        assert "prod" in config["environments"]
-        assert config["environments"]["prod"]["url"] == "https://api.cloudbees.io"
-        assert config["environments"]["prod"]["endpoint_id"] == "endpoint-abc-123"
+        assert "prod" in config["tenants"]
+        assert config["tenants"]["prod"]["url"] == "https://api.cloudbees.io"
+        assert config["tenants"]["prod"]["endpoint_id"] == "endpoint-abc-123"
 
         # Should be set as current environment (first one added)
-        assert config["current_environment"] == "prod"
+        assert config["current_tenant"] == "prod"
 
     def test_add_multiple_environments(self, config_manager):
         """Test adding multiple environments."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="preprod",
             url="https://preprod.api.cloudbees.io",
             pat="pat2",
             endpoint_id="endpoint2",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat3",
             endpoint_id="endpoint3",
         )
 
-        environments = config_manager.list_environments()
+        environments = config_manager.list_tenants()
         assert len(environments) == 3
         assert "prod" in environments
         assert "preprod" in environments
         assert "demo" in environments
 
         # Current should still be first one added
-        assert config_manager.get_current_environment() == "prod"
+        assert config_manager.get_current_tenant() == "prod"
 
     def test_remove_environment(self, config_manager):
         """Test removing an environment."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat2",
             endpoint_id="endpoint2",
         )
 
-        config_manager.remove_environment("demo")
+        config_manager.remove_tenant("demo")
 
-        environments = config_manager.list_environments()
+        environments = config_manager.list_tenants()
         assert len(environments) == 1
         assert "demo" not in environments
         assert "prod" in environments
 
     def test_remove_current_environment_switches_to_another(self, config_manager):
         """Test that removing current environment switches to another."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat2",
@@ -171,58 +171,58 @@ class TestEnvironmentManagement:
         )
 
         # Current should be "prod" (first added)
-        assert config_manager.get_current_environment() == "prod"
+        assert config_manager.get_current_tenant() == "prod"
 
         # Remove current environment
-        config_manager.remove_environment("prod")
+        config_manager.remove_tenant("prod")
 
         # Should switch to remaining environment
-        assert config_manager.get_current_environment() == "demo"
+        assert config_manager.get_current_tenant() == "demo"
 
     def test_remove_last_environment_sets_current_to_none(self, config_manager):
         """Test that removing the last environment sets current to None."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
 
-        config_manager.remove_environment("prod")
+        config_manager.remove_tenant("prod")
 
-        assert config_manager.get_current_environment() is None
-        assert len(config_manager.list_environments()) == 0
+        assert config_manager.get_current_tenant() is None
+        assert len(config_manager.list_tenants()) == 0
 
     def test_set_current_environment(self, config_manager):
         """Test switching current environment."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat2",
             endpoint_id="endpoint2",
         )
 
-        config_manager.set_current_environment("demo")
-        assert config_manager.get_current_environment() == "demo"
+        config_manager.set_current_tenant("demo")
+        assert config_manager.get_current_tenant() == "demo"
 
-        config_manager.set_current_environment("prod")
-        assert config_manager.get_current_environment() == "prod"
+        config_manager.set_current_tenant("prod")
+        assert config_manager.get_current_tenant() == "prod"
 
     def test_get_environment_url(self, config_manager):
         """Test retrieving environment URL."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat2",
@@ -230,18 +230,15 @@ class TestEnvironmentManagement:
         )
 
         # Get specific environment URL
-        assert config_manager.get_environment_url("prod") == "https://api.cloudbees.io"
-        assert (
-            config_manager.get_environment_url("demo")
-            == "https://demo.api.cloudbees.io"
-        )
+        assert config_manager.get_tenant_url("prod") == "https://api.cloudbees.io"
+        assert config_manager.get_tenant_url("demo") == "https://demo.api.cloudbees.io"
 
         # Get current environment URL (should be prod)
-        assert config_manager.get_environment_url() == "https://api.cloudbees.io"
+        assert config_manager.get_tenant_url() == "https://api.cloudbees.io"
 
     def test_get_endpoint_id(self, config_manager):
         """Test retrieving endpoint ID."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
@@ -253,8 +250,8 @@ class TestEnvironmentManagement:
 
     def test_get_environment_url_returns_none_for_nonexistent(self, config_manager):
         """Test that getting URL for nonexistent environment returns None."""
-        assert config_manager.get_environment_url("nonexistent") is None
-        assert config_manager.get_environment_url() is None  # No current environment
+        assert config_manager.get_tenant_url("nonexistent") is None
+        assert config_manager.get_tenant_url() is None  # No current environment
 
 
 class TestCredentialManagement:
@@ -262,7 +259,7 @@ class TestCredentialManagement:
 
     def test_store_and_retrieve_cloudbees_pat(self, config_manager, mock_keyring):
         """Test storing and retrieving CloudBees PAT."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="test-pat-123",
@@ -280,20 +277,20 @@ class TestCredentialManagement:
 
     def test_get_cloudbees_pat_for_current_environment(self, config_manager):
         """Test retrieving PAT for current environment."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat-prod",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat-demo",
             endpoint_id="endpoint2",
         )
 
-        config_manager.set_current_environment("demo")
+        config_manager.set_current_tenant("demo")
 
         # Get PAT without specifying environment (should use current)
         pat = config_manager.get_cloudbees_pat()
@@ -301,7 +298,7 @@ class TestCredentialManagement:
 
     def test_delete_cloudbees_pat(self, config_manager, mock_keyring):
         """Test deleting CloudBees PAT from keyring."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="test-pat",
@@ -319,14 +316,14 @@ class TestCredentialManagement:
 
     def test_remove_environment_deletes_pat(self, config_manager, mock_keyring):
         """Test that removing environment also deletes its PAT."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="demo-pat",
             endpoint_id="endpoint1",
         )
 
-        config_manager.remove_environment("demo")
+        config_manager.remove_tenant("demo")
 
         # Verify PAT was deleted from keyring
         mock_keyring.delete_password.assert_called_with("mimic", "cloudbees:demo")
@@ -394,7 +391,7 @@ class TestConfigPersistence:
         """Test that config file is created when environment is added."""
         assert not config_manager.config_file.exists()
 
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -405,13 +402,13 @@ class TestConfigPersistence:
 
     def test_config_persists_across_instances(self, config_manager, mock_keyring):
         """Test that config persists when creating new manager instance."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat2",
@@ -424,11 +421,11 @@ class TestConfigPersistence:
         manager2.config_file = config_manager.config_file
         manager2.state_file = config_manager.state_file
 
-        environments = manager2.list_environments()
+        environments = manager2.list_tenants()
         assert len(environments) == 2
         assert "prod" in environments
         assert "demo" in environments
-        assert manager2.get_current_environment() == "prod"
+        assert manager2.get_current_tenant() == "prod"
 
     def test_empty_config_file_returns_defaults(self, config_manager, temp_config_dir):
         """Test that empty config file returns default config."""
@@ -436,8 +433,8 @@ class TestConfigPersistence:
         config_manager.config_file.write_text("")
 
         config = config_manager.load_config()
-        assert config["environments"] == {}
-        assert config["current_environment"] is None
+        assert config["tenants"] == {}
+        assert config["current_tenant"] is None
 
 
 class TestFirstRunDetection:
@@ -454,7 +451,7 @@ class TestFirstRunDetection:
     def test_is_first_run_returns_false_after_config_created(self, config_manager):
         """Test that is_first_run returns False after config is created."""
         # Create config by adding environment
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -528,7 +525,7 @@ class TestRecentValuesManagement:
     def test_cache_org_name(self, config_manager):
         """Test caching CloudBees organization name."""
         # Set up environment first
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -542,7 +539,7 @@ class TestRecentValuesManagement:
 
     def test_cache_multiple_org_names(self, config_manager):
         """Test caching multiple organization names."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -564,7 +561,7 @@ class TestRecentValuesManagement:
 
     def test_get_cached_org_name_nonexistent(self, config_manager):
         """Test getting cached org name that doesn't exist."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -576,7 +573,7 @@ class TestRecentValuesManagement:
 
     def test_cache_org_name_overwrites_existing(self, config_manager):
         """Test that caching org name overwrites existing entry."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -591,13 +588,13 @@ class TestRecentValuesManagement:
 
     def test_cache_org_name_environment_specific(self, config_manager):
         """Test that cached org names are environment-specific."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat1",
             endpoint_id="endpoint1",
         )
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="demo",
             url="https://demo.api.cloudbees.io",
             pat="pat2",
@@ -614,7 +611,7 @@ class TestRecentValuesManagement:
 
     def test_get_cached_orgs_for_env(self, config_manager):
         """Test getting all cached orgs for an environment."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -624,7 +621,7 @@ class TestRecentValuesManagement:
         config_manager.cache_org_name("abc-123", "Acme Corp", "prod")
         config_manager.cache_org_name("xyz-789", "Example Inc", "prod")
 
-        cached_orgs = config_manager.get_cached_orgs_for_env("prod")
+        cached_orgs = config_manager.get_cached_orgs_for_tenant("prod")
         assert cached_orgs == {
             "abc-123": "Acme Corp",
             "xyz-789": "Example Inc",
@@ -632,19 +629,19 @@ class TestRecentValuesManagement:
 
     def test_get_cached_orgs_for_env_empty(self, config_manager):
         """Test getting cached orgs for environment with no cached orgs."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
             endpoint_id="endpoint1",
         )
 
-        cached_orgs = config_manager.get_cached_orgs_for_env("prod")
+        cached_orgs = config_manager.get_cached_orgs_for_tenant("prod")
         assert cached_orgs == {}
 
     def test_recent_values_persist(self, config_manager):
         """Test that recent values persist across config loads."""
-        config_manager.add_environment(
+        config_manager.add_tenant(
             name="prod",
             url="https://api.cloudbees.io",
             pat="pat",
@@ -684,7 +681,7 @@ class TestEnvironmentPropertiesManagement:
         """Test adding environment with custom properties."""
         properties = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
@@ -694,19 +691,19 @@ class TestEnvironmentPropertiesManagement:
 
         # Verify properties were saved
         config = env_config_manager.load_config()
-        assert "properties" in config["environments"]["demo"]
-        assert config["environments"]["demo"]["properties"] == properties
+        assert "properties" in config["tenants"]["demo"]
+        assert config["tenants"]["demo"]["properties"] == properties
 
     def test_get_environment_properties_built_in(self, env_config_manager):
         """Test that built-in properties are automatically exposed."""
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
             endpoint_id="endpoint-123",
         )
 
-        props = env_config_manager.get_environment_properties("demo")
+        props = env_config_manager.get_tenant_properties("demo")
 
         # Built-in properties should be present
         assert "UNIFY_API" in props
@@ -718,7 +715,7 @@ class TestEnvironmentPropertiesManagement:
         """Test getting custom environment properties."""
         custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
@@ -726,7 +723,7 @@ class TestEnvironmentPropertiesManagement:
             properties=custom_props,
         )
 
-        props = env_config_manager.get_environment_properties("demo")
+        props = env_config_manager.get_tenant_properties("demo")
 
         # Should have both built-in and custom properties
         assert props["UNIFY_API"] == "https://api.demo1.cloudbees.io"
@@ -736,32 +733,30 @@ class TestEnvironmentPropertiesManagement:
 
     def test_set_environment_property(self, env_config_manager):
         """Test setting a property on an existing environment."""
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
             endpoint_id="endpoint-123",
         )
 
-        env_config_manager.set_environment_property(
-            "demo", "CUSTOM_KEY", "custom_value"
-        )
+        env_config_manager.set_tenant_property("demo", "CUSTOM_KEY", "custom_value")
 
-        props = env_config_manager.get_environment_properties("demo")
+        props = env_config_manager.get_tenant_properties("demo")
         assert props["CUSTOM_KEY"] == "custom_value"
 
     def test_set_environment_property_on_nonexistent_environment(
         self, env_config_manager
     ):
         """Test that setting property on nonexistent environment raises error."""
-        with pytest.raises(ValueError, match="Environment 'nonexistent' not found"):
-            env_config_manager.set_environment_property("nonexistent", "KEY", "value")
+        with pytest.raises(ValueError, match="Tenant 'nonexistent' not found"):
+            env_config_manager.set_tenant_property("nonexistent", "KEY", "value")
 
     def test_unset_environment_property(self, env_config_manager):
         """Test removing a property from an environment."""
         custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
@@ -770,14 +765,14 @@ class TestEnvironmentPropertiesManagement:
         )
 
         # Verify property exists
-        props = env_config_manager.get_environment_properties("demo")
+        props = env_config_manager.get_tenant_properties("demo")
         assert "USE_VPC" in props
 
         # Remove it
-        env_config_manager.unset_environment_property("demo", "USE_VPC")
+        env_config_manager.unset_tenant_property("demo", "USE_VPC")
 
         # Verify it's gone
-        props = env_config_manager.get_environment_properties("demo")
+        props = env_config_manager.get_tenant_properties("demo")
         assert "USE_VPC" not in props
         # But other properties remain
         assert "FM_INSTANCE" in props
@@ -786,31 +781,31 @@ class TestEnvironmentPropertiesManagement:
         self, env_config_manager
     ):
         """Test that unsetting property on nonexistent environment raises error."""
-        with pytest.raises(ValueError, match="Environment 'nonexistent' not found"):
-            env_config_manager.unset_environment_property("nonexistent", "KEY")
+        with pytest.raises(ValueError, match="Tenant 'nonexistent' not found"):
+            env_config_manager.unset_tenant_property("nonexistent", "KEY")
 
     def test_get_environment_properties_empty_when_no_environment(
         self, env_config_manager
     ):
         """Test that getting properties for nonexistent env returns empty dict."""
-        props = env_config_manager.get_environment_properties("nonexistent")
+        props = env_config_manager.get_tenant_properties("nonexistent")
         assert props == {}
 
     def test_get_environment_properties_current_environment(self, env_config_manager):
         """Test getting properties for current environment (None parameter)."""
         custom_props = {"USE_VPC": "true"}
 
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
             endpoint_id="endpoint-123",
             properties=custom_props,
         )
-        env_config_manager.set_current_environment("demo")
+        env_config_manager.set_current_tenant("demo")
 
         # Get properties without specifying environment name
-        props = env_config_manager.get_environment_properties()
+        props = env_config_manager.get_tenant_properties()
         assert props["USE_VPC"] == "true"
         assert props["UNIFY_API"] == "https://api.demo1.cloudbees.io"
 
@@ -818,7 +813,7 @@ class TestEnvironmentPropertiesManagement:
         """Test that properties persist when config is reloaded."""
         custom_props = {"USE_VPC": "true", "FM_INSTANCE": "demo1.cloudbees.io"}
 
-        env_config_manager.add_environment(
+        env_config_manager.add_tenant(
             name="demo",
             url="https://api.demo1.cloudbees.io",
             pat="test-pat",
@@ -832,7 +827,7 @@ class TestEnvironmentPropertiesManagement:
         manager2.CONFIG_FILE = env_config_manager.CONFIG_FILE
 
         # Properties should still be there
-        props = manager2.get_environment_properties("demo")
+        props = manager2.get_tenant_properties("demo")
         assert props["USE_VPC"] == "true"
         assert props["FM_INSTANCE"] == "demo1.cloudbees.io"
 

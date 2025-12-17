@@ -1,10 +1,10 @@
-"""Pre-defined CloudBees Unify environment configurations."""
+"""Pre-defined CloudBees Unify tenant configurations."""
 
 from typing import NamedTuple
 
 
-class EnvironmentConfig(NamedTuple):
-    """CloudBees Unify environment configuration."""
+class TenantConfig(NamedTuple):
+    """CloudBees Unify tenant configuration."""
 
     url: str
     endpoint_id: str
@@ -19,9 +19,9 @@ class EnvironmentConfig(NamedTuple):
     )
 
 
-# Pre-defined CloudBees Unify environments
-PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
-    "prod": EnvironmentConfig(
+# Pre-defined CloudBees Unify tenants
+PRESET_TENANTS: dict[str, TenantConfig] = {
+    "prod": TenantConfig(
         url="https://api.cloudbees.io",
         endpoint_id="9a3942be-0e86-415e-94c5-52512be1138d",
         description="CloudBees Unify Production",
@@ -33,7 +33,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         },
         use_legacy_flags=True,
     ),
-    "preprod": EnvironmentConfig(
+    "preprod": TenantConfig(
         url="https://api.saas-preprod.beescloud.com",
         endpoint_id="8509888e-d27f-44fa-46a9-29bc76f5e790",
         description="CloudBees Unify Pre-Production",
@@ -45,7 +45,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         },
         use_legacy_flags=False,  # Preprod uses app-based flag API
     ),
-    "demo": EnvironmentConfig(
+    "demo": TenantConfig(
         url="https://api.demo1.cloudbees.io",
         endpoint_id="f6e2a9c4-cc4a-4cbd-b1fc-102fa4572d2c",
         description="CloudBees Unify Demo",
@@ -57,7 +57,7 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
         },
         use_legacy_flags=False,  # Demo uses app-based flag API
     ),
-    "golden": EnvironmentConfig(
+    "golden": TenantConfig(
         url="https://api.cloudbees.io",
         endpoint_id="5848f60a-077d-438b-acad-842b64686797",
         description="SE Golden Demo Env",
@@ -72,22 +72,22 @@ PRESET_ENVIRONMENTS: dict[str, EnvironmentConfig] = {
 }
 
 
-def get_preset_environment(name: str) -> EnvironmentConfig | None:
-    """Get a preset environment configuration by name.
+def get_preset_tenant(name: str) -> TenantConfig | None:
+    """Get a preset tenant configuration by name.
 
     Args:
-        name: Environment name (prod, preprod, demo).
+        name: Tenant name (prod, preprod, demo, golden).
 
     Returns:
-        EnvironmentConfig if found, None otherwise.
+        TenantConfig if found, None otherwise.
     """
-    return PRESET_ENVIRONMENTS.get(name.lower())
+    return PRESET_TENANTS.get(name.lower())
 
 
-def list_preset_environments() -> dict[str, EnvironmentConfig]:
-    """Get all preset environment configurations.
+def list_preset_tenants() -> dict[str, TenantConfig]:
+    """Get all preset tenant configurations.
 
     Returns:
-        Dictionary of preset environment names to their configs.
+        Dictionary of preset tenant names to their configs.
     """
-    return PRESET_ENVIRONMENTS.copy()
+    return PRESET_TENANTS.copy()

@@ -77,7 +77,7 @@ def cleanup_list(
         table.add_column("Run Name", style="bold cyan", no_wrap=True)
         table.add_column("Instance ID", style="dim", no_wrap=True)
         table.add_column("Scenario", style="white")
-        table.add_column("Environment", style="dim")
+        table.add_column("Tenant", style="dim")
         table.add_column("Created", style="dim")
         table.add_column("Expires", style="yellow")
         table.add_column("Resources", style="green", justify="right")
@@ -119,7 +119,7 @@ def cleanup_list(
                 run_name,
                 session.id,
                 session.scenario_id,
-                session.environment,
+                session.tenant,
                 created_str,
                 expires_str,
                 str(resource_count),
@@ -268,7 +268,7 @@ def cleanup_run(
             Panel(
                 f"[bold]Instance:[/bold] {session.id}\n"
                 f"[bold]Scenario:[/bold] {session.scenario_id}\n"
-                f"[bold]Environment:[/bold] {session.environment}\n"
+                f"[bold]Tenant:[/bold] {session.tenant}\n"
                 f"[bold]Created:[/bold] {session.created_at.strftime('%Y-%m-%d %H:%M')}\n"
                 f"[bold]Expires:[/bold] {'Never' if session.expires_at is None else session.expires_at.strftime('%Y-%m-%d %H:%M')}\n"
                 f"[bold]Resources:[/bold] {total_resources}",

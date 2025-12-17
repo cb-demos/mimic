@@ -51,7 +51,7 @@ class CreationPipeline:
         # New parameters for Instance creation
         scenario_id: str | None = None,
         instance_name: str | None = None,
-        environment: str | None = None,
+        tenant: str | None = None,
         expires_at: datetime | None = None,
         use_legacy_flags: bool = False,
         # Optional callback for progress events (used by web UI)
@@ -72,7 +72,7 @@ class CreationPipeline:
         # Instance metadata
         self.scenario_id = scenario_id
         self.instance_name = instance_name or session_id
-        self.environment = environment
+        self.tenant = tenant
         self.expires_at = expires_at
         self.created_at = datetime.now()
 
@@ -592,7 +592,7 @@ class CreationPipeline:
             id=self.session_id,
             scenario_id=self.scenario_id or "unknown",
             name=self.instance_name,
-            environment=self.environment or "unknown",
+            tenant=self.tenant or "unknown",
             created_at=self.created_at,
             expires_at=self.expires_at,
             repositories=repositories,

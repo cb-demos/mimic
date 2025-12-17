@@ -28,7 +28,7 @@ import {
 } from '@mui/material';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { configApi, scenariosApi } from '../api/endpoints';
-import { listEnvironments } from '../api/endpoints/environments';
+import { listTenants } from '../api/endpoints/tenants';
 import { ParameterForm } from '../components/ParameterForm';
 import { ProgressDisplay } from '../components/ProgressDisplay';
 import { PropertyCheckDialog } from '../components/PropertyCheckDialog';
@@ -152,10 +152,10 @@ export function RunScenarioPage() {
     enabled: !!scenarioId,
   });
 
-  // Fetch current environment from backend
+  // Fetch current tenant from backend
   const { data: environmentsData, isLoading: loadingEnvironments } = useQuery({
-    queryKey: ['environments'],
-    queryFn: listEnvironments,
+    queryKey: ['tenants'],
+    queryFn: listTenants,
   });
 
   const currentEnv = environmentsData?.current || 'prod';
@@ -283,11 +283,11 @@ export function RunScenarioPage() {
         return;
       }
 
-      const envCredentials = cloudbeesConfig.environments.find((env) => env.name === currentEnv);
+      const envCredentials = cloudbeesConfig.tenants.find((env) => env.name === currentEnv);
 
       if (!envCredentials?.has_token) {
         setError({
-          message: `CloudBees token not configured for environment '${currentEnv}'`,
+          message: `CloudBees token not configured for tenant '${currentEnv}'`,
           code: 'MISSING_CREDENTIALS',
           suggestion: 'Please configure your CloudBees token in the Config page.',
         });

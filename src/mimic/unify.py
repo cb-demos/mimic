@@ -585,7 +585,7 @@ def create_client_from_config(
 
     # Get environment name
     if env_name is None:
-        env_name = config_manager.get_current_environment()
+        env_name = config_manager.get_current_tenant()
 
     if not env_name:
         raise ValueError(
@@ -593,7 +593,7 @@ def create_client_from_config(
         )
 
     # Get environment URL and PAT
-    base_url = config_manager.get_environment_url(env_name)
+    base_url = config_manager.get_tenant_url(env_name)
     if not base_url:
         raise ValueError(f"Environment '{env_name}' not found in configuration")
 

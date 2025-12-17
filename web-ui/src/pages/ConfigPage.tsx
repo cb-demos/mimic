@@ -230,14 +230,14 @@ export function ConfigPage() {
           <Button
             variant="contained"
             startIcon={<Settings />}
-            onClick={() => navigate('/environments')}
+            onClick={() => navigate('/tenants')}
           >
-            Manage in Environments
+            Manage in Tenants
           </Button>
         </Box>
 
         <Alert severity="info" sx={{ mb: 2 }}>
-          CloudBees credentials are now managed in the Environments page where you can update tokens directly for each environment.
+          CloudBees credentials are now managed in the Tenants page where you can update tokens directly for each tenant.
         </Alert>
 
         {loadingCloudbees ? (
@@ -247,7 +247,7 @@ export function ConfigPage() {
             <Typography variant="body2" color="text.secondary" gutterBottom>
               Credential Status
             </Typography>
-            {cloudbeesConfig.environments.map((env) => (
+            {cloudbeesConfig.tenants.map((env) => (
               <Box key={env.name} sx={{ display: 'flex', alignItems: 'center', mb: 1, mt: 1 }}>
                 {env.has_token ? (
                   <CheckCircle color="success" fontSize="small" sx={{ mr: 1 }} />

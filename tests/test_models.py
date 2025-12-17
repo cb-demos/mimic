@@ -320,7 +320,7 @@ class TestInstance:
             id="abc-123",
             scenario_id="feature-flags-demo",
             name="acme-corp-demo",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=expires,
         )
@@ -328,7 +328,7 @@ class TestInstance:
         assert instance.id == "abc-123"
         assert instance.scenario_id == "feature-flags-demo"
         assert instance.name == "acme-corp-demo"
-        assert instance.environment == "prod"
+        assert instance.tenant == "prod"
         assert instance.created_at == now
         assert instance.expires_at == expires
         assert instance.repositories == []
@@ -345,7 +345,7 @@ class TestInstance:
             id="xyz-789",
             scenario_id="test-scenario",
             name="persistent-demo",
-            environment="demo",
+            tenant="demo",
             created_at=now,
             expires_at=None,
         )
@@ -402,7 +402,7 @@ class TestInstance:
             id="inst-1",
             scenario_id="full-demo",
             name="complete-instance",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=now + timedelta(days=30),
             repositories=[repo],
@@ -427,7 +427,7 @@ class TestInstance:
             id="inst-1",
             scenario_id="test",
             name="test",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
             components=[
@@ -461,7 +461,7 @@ class TestInstance:
             id="inst-1",
             scenario_id="test",
             name="test",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
             repositories=[
@@ -527,7 +527,7 @@ class TestInstance:
             id="inst-1",
             scenario_id="test",
             name="test",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
             components=components,
@@ -574,7 +574,7 @@ class TestInstance:
             id="inst-1",
             scenario_id="test",
             name="test",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
             environments=environments,
@@ -602,7 +602,7 @@ class TestInstance:
         assert "id" in error_fields
         assert "scenario_id" in error_fields
         assert "name" in error_fields
-        assert "environment" in error_fields
+        assert "tenant" in error_fields
         assert "created_at" in error_fields
 
     def test_serialization_deserialization(self):
@@ -614,7 +614,7 @@ class TestInstance:
             id="inst-1",
             scenario_id="test-scenario",
             name="test-instance",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=expires,
             repositories=[

@@ -58,38 +58,38 @@ def require_github_credentials(
 def require_cloudbees_credentials(
     config: Annotated[ConfigManager, Depends(get_config_manager)],
 ) -> tuple[str, str, str, str]:
-    """Require CloudBees credentials for current environment.
+    """Require CloudBees credentials for current tenant.
 
     Args:
         config: ConfigManager dependency
 
     Returns:
-        Tuple of (environment_name, cloudbees_pat, url, endpoint_id)
+        Tuple of (tenant_name, cloudbees_pat, url, endpoint_id)
 
     Raises:
-        HTTPException: If CloudBees credentials or environment not configured
+        HTTPException: If CloudBees credentials or tenant not configured
     """
-    env_name = config.get_current_environment()
+    env_name = config.get_current_tenant()
     if not env_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No environment selected. Please select an environment via /api/environments/{env}/select",
+            detail="No tenant selected. Please select a tenant via /api/tenants/{tenant}/select",
         )
 
     pat = config.get_cloudbees_pat(env_name)
     if not pat:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"CloudBees credentials not configured for environment '{env_name}'",
+            detail=f"CloudBees credentials not configured for tenant '{env_name}'",
         )
 
-    url = config.get_environment_url(env_name)
+    url = config.get_tenant_url(env_name)
     endpoint_id = config.get_endpoint_id(env_name)
 
     if not url or not endpoint_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Environment '{env_name}' configuration incomplete",
+            detail=f"Tenant '{env_name}' configuration incomplete",
         )
 
     return env_name, pat, url, endpoint_id

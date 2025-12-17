@@ -30,7 +30,7 @@ async def get_setup_status(config: ConfigDep):
             missing_config.append("github_token")
 
         # Check if any environment is configured
-        current_env = config.get_current_environment()
+        current_env = config.get_current_tenant()
         if not current_env:
             missing_config.append("current_environment")
         else:
@@ -73,20 +73,20 @@ async def run_setup(request: RunSetupRequest, config: ConfigDep):
         config.set_github_pat(request.github_token)
         logger.info(f"Set GitHub username: {request.github_username}")
 
-        # Set current environment
-        environments = config.list_environments()
-        if request.environment not in environments:
+        # Set current tenant
+        tenants = config.list_tenants()
+        if request.tenant not in tenants:
             return RunSetupResponse(
                 success=False,
-                message=f"Environment '{request.environment}' not found",
+                message=f"Tenant '{request.tenant}' not found",
             )
 
-        config.set_current_environment(request.environment)
-        logger.info(f"Set current environment: {request.environment}")
+        config.set_current_tenant(request.tenant)
+        logger.info(f"Set current tenant: {request.tenant}")
 
-        # Set CloudBees PAT for selected environment
-        config.set_cloudbees_pat(request.environment, request.cloudbees_token)
-        logger.info(f"Set CloudBees PAT for environment: {request.environment}")
+        # Set CloudBees PAT for selected tenant
+        config.set_cloudbees_pat(request.tenant, request.cloudbees_token)
+        logger.info(f"Set CloudBees PAT for tenant: {request.tenant}")
 
         return RunSetupResponse(success=True, message="Setup completed successfully")
 

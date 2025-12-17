@@ -31,19 +31,19 @@ def validate_scenario_fm_token_config(
 ) -> None:
     """Validate that FM_TOKEN environments are properly configured.
 
-    For non-legacy flag environments (use_legacy_flags=False), environments
+    For non-legacy flag tenants (use_legacy_flags=False), environments
     that request FM_TOKEN must be mapped to an application.
 
     Args:
         scenario: The scenario to validate
         config_manager: ConfigManager instance
-        env_name: Current environment name
+        env_name: Current tenant name
 
     Raises:
         typer.Exit: If configuration is invalid
     """
-    # Check if this environment uses legacy flags
-    use_legacy_flags = config_manager.get_environment_uses_legacy_flags(env_name)
+    # Check if this tenant uses legacy flags
+    use_legacy_flags = config_manager.get_tenant_uses_legacy_flags(env_name)
 
     # Only validate for new app-based API
     if use_legacy_flags:
@@ -77,7 +77,7 @@ def validate_scenario_fm_token_config(
 
         error_msg += (
             f"\n[yellow]Why this matters:[/yellow]\n"
-            f"Environment '[cyan]{env_name}[/cyan]' uses the app-based flag API, which requires "
+            f"Tenant '[cyan]{env_name}[/cyan]' uses the app-based flag API, which requires "
             f"an application to retrieve SDK keys (FM_TOKEN).\n\n"
             f"[yellow]How to fix:[/yellow]\n"
             f"Add an application definition to the scenario YAML that includes "
@@ -92,8 +92,8 @@ def validate_scenario_fm_token_config(
         error_msg += (
             "\nIf multiple scenario instances share resources, consider:\n"
             "[dim]    is_shared: true  # App persists across instances[/dim]\n\n"
-            "[dim]Note: This validation only applies to non-prod environments.\n"
-            "Prod environment uses the legacy org-based flag API.[/dim]"
+            "[dim]Note: This validation only applies to non-prod tenants.\n"
+            "Prod tenant uses the legacy org-based flag API.[/dim]"
         )
 
         console.print(Panel(error_msg, border_style="red", title="Configuration Error"))
@@ -203,14 +203,14 @@ def run(
         # Skip if --yes flag is used
         handle_opportunistic_cleanup(config_manager, yes)
 
-        # Check if environment is configured
-        current_env = config_manager.get_current_environment()
+        # Check if tenant is configured
+        current_env = config_manager.get_current_tenant()
         if not current_env:
             console.print(
                 Panel(
-                    "[red]No environment configured[/red]\n\n"
-                    "Add an environment first:\n"
-                    "[dim]mimic env add (prod|preprod|demo)[/dim]",
+                    "[red]No tenant configured[/red]\n\n"
+                    "Add a tenant first:\n"
+                    "[dim]mimic tenant add (prod|preprod|demo)[/dim]",
                     title="Configuration Required",
                     border_style="red",
                 )
@@ -247,18 +247,16 @@ def run(
         )
         console.print()
 
-        # Show target environment immediately
-        console.print(f"Target Environment: [cyan]{current_env}[/cyan]")
+        # Show target tenant immediately
+        console.print(f"Target Tenant: [cyan]{current_env}[/cyan]")
         console.print()
 
         # Get credentials
         cloudbees_pat = config_manager.get_cloudbees_pat(current_env)
         if not cloudbees_pat:
+            console.print(f"[red]Error:[/red] No PAT found for tenant '{current_env}'")
             console.print(
-                f"[red]Error:[/red] No PAT found for environment '{current_env}'"
-            )
-            console.print(
-                f"[dim]Re-add the environment with:[/dim] mimic env add {current_env}"
+                f"[dim]Re-add the tenant with:[/dim] mimic tenant add {current_env}"
             )
             raise typer.Exit(1)
 
@@ -272,16 +270,16 @@ def run(
             config_manager.set_github_pat(github_pat)
             console.print("[dim]GitHub PAT saved securely in OS keyring[/dim]\n")
 
-        # Get environment details
-        env_url = config_manager.get_environment_url(current_env)
+        # Get tenant details
+        env_url = config_manager.get_tenant_url(current_env)
         endpoint_id = config_manager.get_endpoint_id(current_env)
 
         if not env_url or not endpoint_id:
             console.print(
-                f"[red]Error:[/red] Environment '{current_env}' is missing configuration"
+                f"[red]Error:[/red] Tenant '{current_env}' is missing configuration"
             )
             console.print(
-                f"[dim]Re-add the environment with:[/dim] mimic env add {current_env}"
+                f"[dim]Re-add the tenant with:[/dim] mimic tenant add {current_env}"
             )
             raise typer.Exit(1)
 
@@ -325,7 +323,7 @@ def run(
                 Panel(
                     "[red]Credential validation failed[/red]\n\n"
                     "Please check your credentials and try again:\n"
-                    "• CloudBees: mimic env add <name>\n"
+                    "• CloudBees: mimic tenant add <name>\n"
                     "• GitHub: mimic config github-token",
                     title="Error",
                     border_style="red",

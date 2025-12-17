@@ -37,7 +37,7 @@ def sample_instance():
         id="test-123",
         scenario_id="test-scenario",
         name="test-instance",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
     )
@@ -98,7 +98,7 @@ def complex_instance():
         id="complex-123",
         scenario_id="full-demo",
         name="complex-instance",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=30),
         repositories=[repo],
@@ -255,7 +255,7 @@ class TestGetByName:
             id="inst-1",
             scenario_id="test",
             name="first-instance",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
         )
@@ -263,7 +263,7 @@ class TestGetByName:
             id="inst-2",
             scenario_id="test",
             name="second-instance",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
         )
@@ -292,7 +292,7 @@ class TestFindAll:
                 id=f"inst-{i}",
                 scenario_id="test",
                 name=f"instance-{i}",
-                environment="prod",
+                tenant="prod",
                 created_at=now + timedelta(seconds=i),
                 expires_at=None,
             )
@@ -310,7 +310,7 @@ class TestFindAll:
             id="old",
             scenario_id="test",
             name="old",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=2),
             expires_at=None,
         )
@@ -318,7 +318,7 @@ class TestFindAll:
             id="new",
             scenario_id="test",
             name="new",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
         )
@@ -326,7 +326,7 @@ class TestFindAll:
             id="middle",
             scenario_id="test",
             name="middle",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=1),
             expires_at=None,
         )
@@ -349,7 +349,7 @@ class TestFindAll:
             id="active",
             scenario_id="test",
             name="active",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=now + timedelta(days=7),
         )
@@ -357,7 +357,7 @@ class TestFindAll:
             id="expired",
             scenario_id="test",
             name="expired",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=10),
             expires_at=now - timedelta(days=3),
         )
@@ -376,7 +376,7 @@ class TestFindAll:
             id="active",
             scenario_id="test",
             name="active",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=now + timedelta(days=7),
         )
@@ -384,7 +384,7 @@ class TestFindAll:
             id="expired",
             scenario_id="test",
             name="expired",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=10),
             expires_at=now - timedelta(days=3),
         )
@@ -404,7 +404,7 @@ class TestFindAll:
             id="never",
             scenario_id="test",
             name="never",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
         )
@@ -428,7 +428,7 @@ class TestFindByScenario:
                 id=f"scenario-a-{i}",
                 scenario_id="scenario-a",
                 name=f"instance-{i}",
-                environment="prod",
+                tenant="prod",
                 created_at=now,
                 expires_at=None,
             )
@@ -439,7 +439,7 @@ class TestFindByScenario:
                 id=f"scenario-b-{i}",
                 scenario_id="scenario-b",
                 name=f"instance-{i}",
-                environment="prod",
+                tenant="prod",
                 created_at=now,
                 expires_at=None,
             )
@@ -459,11 +459,11 @@ class TestFindByScenario:
         assert instances == []
 
 
-class TestFindByEnvironment:
-    """Test find_by_environment method."""
+class TestFindByTenant:
+    """Test find_by_tenant method."""
 
-    def test_find_by_environment_filters_correctly(self, repo):
-        """Test that find_by_environment filters by environment."""
+    def test_find_by_tenant_filters_correctly(self, repo):
+        """Test that find_by_tenant filters by tenant."""
         now = datetime.now()
 
         for i in range(2):
@@ -471,7 +471,7 @@ class TestFindByEnvironment:
                 id=f"prod-{i}",
                 scenario_id="test",
                 name=f"prod-instance-{i}",
-                environment="prod",
+                tenant="prod",
                 created_at=now,
                 expires_at=None,
             )
@@ -482,23 +482,23 @@ class TestFindByEnvironment:
                 id=f"demo-{i}",
                 scenario_id="test",
                 name=f"demo-instance-{i}",
-                environment="demo",
+                tenant="demo",
                 created_at=now,
                 expires_at=None,
             )
             repo.save(instance)
 
-        prod_instances = repo.find_by_environment("prod")
+        prod_instances = repo.find_by_tenant("prod")
         assert len(prod_instances) == 2
-        assert all(i.environment == "prod" for i in prod_instances)
+        assert all(i.tenant == "prod" for i in prod_instances)
 
-        demo_instances = repo.find_by_environment("demo")
+        demo_instances = repo.find_by_tenant("demo")
         assert len(demo_instances) == 3
-        assert all(i.environment == "demo" for i in demo_instances)
+        assert all(i.tenant == "demo" for i in demo_instances)
 
-    def test_find_by_environment_returns_empty_for_nonexistent(self, repo):
-        """Test that find_by_environment returns empty list for non-existent environment."""
-        instances = repo.find_by_environment("nonexistent")
+    def test_find_by_tenant_returns_empty_for_nonexistent(self, repo):
+        """Test that find_by_tenant returns empty list for non-existent environment."""
+        instances = repo.find_by_tenant("nonexistent")
         assert instances == []
 
 
@@ -513,7 +513,7 @@ class TestFindExpired:
             id="active",
             scenario_id="test",
             name="active",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=now + timedelta(days=7),
         )
@@ -521,7 +521,7 @@ class TestFindExpired:
             id="expired-1",
             scenario_id="test",
             name="expired-1",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=10),
             expires_at=now - timedelta(days=3),
         )
@@ -529,7 +529,7 @@ class TestFindExpired:
             id="expired-2",
             scenario_id="test",
             name="expired-2",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=20),
             expires_at=now - timedelta(days=1),
         )
@@ -550,7 +550,7 @@ class TestFindExpired:
             id="never",
             scenario_id="test",
             name="never",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=None,
         )
@@ -558,7 +558,7 @@ class TestFindExpired:
             id="expired",
             scenario_id="test",
             name="expired",
-            environment="prod",
+            tenant="prod",
             created_at=now - timedelta(days=10),
             expires_at=now - timedelta(days=3),
         )
@@ -578,7 +578,7 @@ class TestFindExpired:
             id="active",
             scenario_id="test",
             name="active",
-            environment="prod",
+            tenant="prod",
             created_at=now,
             expires_at=now + timedelta(days=7),
         )

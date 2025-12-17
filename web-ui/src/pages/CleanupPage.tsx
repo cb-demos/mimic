@@ -43,7 +43,7 @@ import {
 } from '@mui/icons-material';
 import { ResourceList } from '../components/ResourceList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { cleanupApi, environmentsApi } from '../api/endpoints';
+import { cleanupApi, tenantsApi } from '../api/endpoints';
 import type { Session } from '../types/api';
 import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
 import { toErrorInfo } from '../utils/errorUtils';
@@ -68,7 +68,7 @@ export function CleanupPage() {
   // Fetch environments for filter
   const { data: environmentsData } = useQuery({
     queryKey: ['environments'],
-    queryFn: environmentsApi.list,
+    queryFn: tenantsApi.list,
   });
 
   // Fetch sessions
@@ -76,7 +76,7 @@ export function CleanupPage() {
     queryKey: ['cleanup-sessions', selectedEnv, expiredOnly],
     queryFn: () => {
       const env = selectedEnv === 'all' ? undefined : selectedEnv;
-      return cleanupApi.list({ environment: env, expired_only: expiredOnly });
+      return cleanupApi.list({ tenant: env, expired_only: expiredOnly });
     },
   });
 
@@ -226,14 +226,14 @@ export function CleanupPage() {
           />
 
           <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>Environment</InputLabel>
+            <InputLabel>Tenant</InputLabel>
             <Select
               value={selectedEnv}
-              label="Environment"
+              label="Tenant"
               onChange={(e) => setSelectedEnv(e.target.value)}
             >
-              <MenuItem value="all">All Environments</MenuItem>
-              {environmentsData?.environments.map((env) => (
+              <MenuItem value="all">All Tenants</MenuItem>
+              {environmentsData?.tenants.map((env) => (
                 <MenuItem key={env.name} value={env.name}>
                   {env.name}
                 </MenuItem>
@@ -286,7 +286,7 @@ export function CleanupPage() {
                       Scenario
                     </TableSortLabel>
                   </TableCell>
-                  <TableCell>Environment</TableCell>
+                  <TableCell>Tenant</TableCell>
                   <TableCell>
                     <TableSortLabel
                       active={sortField === 'created_at'}
@@ -338,7 +338,7 @@ export function CleanupPage() {
                           {session.scenario_id}
                         </Typography>
                       </TableCell>
-                      <TableCell>{session.environment}</TableCell>
+                      <TableCell>{session.tenant}</TableCell>
                       <TableCell>
                         <Typography variant="body2">
                           {new Date(session.created_at).toLocaleDateString()}

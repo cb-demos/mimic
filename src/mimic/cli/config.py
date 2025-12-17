@@ -53,16 +53,16 @@ def config_show():
     )
     console.print()
 
-    # Environment summary
-    current_env = config.get("current_environment")
-    env_count = len(config.get("environments", {}))
-    console.print("[cyan]Environments:[/cyan]")
+    # Tenant summary
+    current_env = config.get("current_tenant")
+    env_count = len(config.get("tenants", {}))
+    console.print("[cyan]Tenants:[/cyan]")
     console.print(f"  Total configured: [yellow]{env_count}[/yellow]")
     console.print(f"  Current: [yellow]{current_env or 'None'}[/yellow]")
     console.print()
 
     console.print("[dim]Use 'mimic config set <key> <value>' to change settings[/dim]")
-    console.print("[dim]Use 'mimic env list' to see configured environments[/dim]")
+    console.print("[dim]Use 'mimic tenant list' to see configured tenants[/dim]")
     console.print()
 
 
@@ -149,20 +149,20 @@ def config_properties():
     console.print("[bold]Browse CloudBees Properties & Secrets[/bold]")
     console.print()
 
-    # Get current environment
-    current_env = config_manager.get_current_environment()
+    # Get current tenant
+    current_env = config_manager.get_current_tenant()
     if not current_env:
         console.print(
-            "[red]Error:[/red] No environment configured. Run 'mimic setup' first."
+            "[red]Error:[/red] No tenant configured. Run 'mimic setup' first."
         )
         raise typer.Exit(1)
 
-    console.print(f"[dim]Current environment: {current_env}[/dim]")
+    console.print(f"[dim]Current tenant: {current_env}[/dim]")
     console.print()
 
-    # Get list of recently used organizations for this environment
+    # Get list of recently used organizations for this tenant
     # cached_orgs maps org_id -> org_name
-    cached_orgs = config_manager.get_cached_orgs_for_env(current_env)
+    cached_orgs = config_manager.get_cached_orgs_for_tenant(current_env)
 
     # Create reverse mapping: org_name -> org_id for display
     org_names_to_ids = {name: org_id for org_id, name in cached_orgs.items()}
@@ -267,20 +267,20 @@ def config_add_property():
     console.print("[bold]Add CloudBees Property or Secret[/bold]")
     console.print()
 
-    # Get current environment
-    current_env = config_manager.get_current_environment()
+    # Get current tenant
+    current_env = config_manager.get_current_tenant()
     if not current_env:
         console.print(
-            "[red]Error:[/red] No environment configured. Run 'mimic setup' first."
+            "[red]Error:[/red] No tenant configured. Run 'mimic setup' first."
         )
         raise typer.Exit(1)
 
-    console.print(f"[dim]Current environment: {current_env}[/dim]")
+    console.print(f"[dim]Current tenant: {current_env}[/dim]")
     console.print()
 
-    # Get list of recently used organizations for this environment
+    # Get list of recently used organizations for this tenant
     # cached_orgs maps org_id -> org_name
-    cached_orgs = config_manager.get_cached_orgs_for_env(current_env)
+    cached_orgs = config_manager.get_cached_orgs_for_tenant(current_env)
 
     # Create reverse mapping: org_name -> org_id for display
     org_names_to_ids = {name: org_id for org_id, name in cached_orgs.items()}

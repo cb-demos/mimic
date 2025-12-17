@@ -131,8 +131,8 @@ class TestSetupCommand:
         # Verify config was saved
         config_manager = setup_config_manager
         config = config_manager.load_config()
-        assert "prod" in config["environments"]
-        assert config["current_environment"] == "prod"
+        assert "prod" in config["tenants"]
+        assert config["current_tenant"] == "prod"
 
         # Verify credentials were stored (via mock)
         # The actual keyring calls would have been made through the setup_config_manager fixture
@@ -245,14 +245,11 @@ class TestSetupCommand:
         # Verify custom environment was saved
         config_manager = setup_config_manager
         config = config_manager.load_config()
-        assert "custom-env" in config["environments"]
+        assert "custom-env" in config["tenants"]
         assert (
-            config["environments"]["custom-env"]["url"]
-            == "https://custom.api.example.com"
+            config["tenants"]["custom-env"]["url"] == "https://custom.api.example.com"
         )
-        assert (
-            config["environments"]["custom-env"]["endpoint_id"] == "custom-endpoint-123"
-        )
+        assert config["tenants"]["custom-env"]["endpoint_id"] == "custom-endpoint-123"
 
     @patch("mimic.keyring_health.test_keyring_available")
     @patch("mimic.scenario_pack_manager.ScenarioPackManager")
@@ -300,7 +297,7 @@ class TestSetupCommand:
         """Test setup command when already configured without --force flag."""
         # Create a config file to simulate already configured
         config_manager = setup_config_manager
-        config_manager.add_environment(
+        config_manager.add_tenant(
             "prod", "https://api.cloudbees.io", "test-pat", "endpoint-123"
         )
 
@@ -337,7 +334,7 @@ class TestSetupCommand:
 
         # Create a config file to simulate already configured
         config_manager = setup_config_manager
-        config_manager.add_environment(
+        config_manager.add_tenant(
             "prod", "https://api.cloudbees.io", "old-pat", "endpoint-123"
         )
 
@@ -394,7 +391,7 @@ class TestFirstRunDetection:
         """Test that commands work normally after setup is complete."""
         # Create config to simulate setup complete
         config_manager = setup_config_manager
-        config_manager.add_environment(
+        config_manager.add_tenant(
             "prod", "https://api.cloudbees.io", "test-pat", "endpoint-123"
         )
 

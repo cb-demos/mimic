@@ -184,8 +184,8 @@ class SetGitHubUsernameRequest(BaseModel):
     username: str
 
 
-class CloudBeesEnvCredentials(BaseModel):
-    """CloudBees credentials for a specific environment."""
+class CloudBeesTenantCredentials(BaseModel):
+    """CloudBees credentials for a specific tenant."""
 
     name: str
     has_token: bool
@@ -194,13 +194,13 @@ class CloudBeesEnvCredentials(BaseModel):
 class CloudBeesConfigResponse(BaseModel):
     """Response for CloudBees configuration status."""
 
-    environments: list[CloudBeesEnvCredentials]
+    tenants: list[CloudBeesTenantCredentials]
 
 
 class SetCloudBeesTokenRequest(BaseModel):
-    """Request to set CloudBees token for an environment."""
+    """Request to set CloudBees token for a tenant."""
 
-    environment: str
+    tenant: str
     token: str
 
 
@@ -243,11 +243,11 @@ class FetchOrgNameResponse(BaseModel):
     display_name: str
 
 
-# ==================== Environment Models ====================
+# ==================== Tenant Models ====================
 
 
-class EnvironmentInfo(BaseModel):
-    """Information about a single environment."""
+class TenantInfo(BaseModel):
+    """Information about a single tenant."""
 
     name: str
     url: str
@@ -258,15 +258,15 @@ class EnvironmentInfo(BaseModel):
     properties: dict[str, str] = Field(default_factory=dict)
 
 
-class EnvironmentListResponse(BaseModel):
-    """Response for listing environments."""
+class TenantListResponse(BaseModel):
+    """Response for listing tenants."""
 
-    environments: list[EnvironmentInfo]
+    tenants: list[TenantInfo]
     current: str | None = None
 
 
-class AddEnvironmentRequest(BaseModel):
-    """Request to add a custom environment."""
+class AddTenantRequest(BaseModel):
+    """Request to add a custom tenant."""
 
     name: str
     url: str
@@ -277,20 +277,20 @@ class AddEnvironmentRequest(BaseModel):
 
 
 class AddPropertyRequest(BaseModel):
-    """Request to add/update an environment property."""
+    """Request to add/update a tenant property."""
 
     key: str
     value: str
 
 
 class PropertiesResponse(BaseModel):
-    """Response with environment properties."""
+    """Response with tenant properties."""
 
     properties: dict[str, str]
 
 
-class PresetEnvironmentInfo(BaseModel):
-    """Information about a preset environment."""
+class PresetTenantInfo(BaseModel):
+    """Information about a preset tenant."""
 
     name: str
     url: str
@@ -301,14 +301,14 @@ class PresetEnvironmentInfo(BaseModel):
     is_configured: bool  # Whether this preset has been added to config
 
 
-class PresetEnvironmentListResponse(BaseModel):
-    """Response for listing preset environments."""
+class PresetTenantListResponse(BaseModel):
+    """Response for listing preset tenants."""
 
-    presets: list[PresetEnvironmentInfo]
+    presets: list[PresetTenantInfo]
 
 
-class AddPresetEnvironmentRequest(BaseModel):
-    """Request to add a preset environment."""
+class AddPresetTenantRequest(BaseModel):
+    """Request to add a preset tenant."""
 
     name: str
     pat: str
@@ -376,7 +376,7 @@ class SessionInfo(BaseModel):
     session_id: str
     instance_name: str
     scenario_id: str
-    environment: str
+    tenant: str
     created_at: datetime
     expires_at: datetime | None
     is_expired: bool
@@ -472,7 +472,7 @@ class RunSetupRequest(BaseModel):
 
     github_token: str
     github_username: str
-    environment: str
+    tenant: str
     cloudbees_token: str
 
 

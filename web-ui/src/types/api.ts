@@ -154,17 +154,17 @@ export interface SetGitHubUsernameRequest {
   username: string;
 }
 
-export interface CloudBeesEnvCredentials {
+export interface CloudBeesTenantCredentials {
   name: string;
   has_token: boolean;
 }
 
 export interface CloudBeesConfigResponse {
-  environments: CloudBeesEnvCredentials[];
+  tenants: CloudBeesTenantCredentials[];
 }
 
 export interface SetCloudBeesTokenRequest {
-  environment: string;
+  tenant: string;
   token: string;
 }
 
@@ -195,9 +195,9 @@ export interface FetchOrgNameResponse {
   display_name: string;
 }
 
-// ==================== Environment Models ====================
+// ==================== Tenant Models ====================
 
-export interface EnvironmentInfo {
+export interface TenantInfo {
   name: string;
   url: string;
   endpoint_id: string;
@@ -207,12 +207,12 @@ export interface EnvironmentInfo {
   properties: Record<string, string>;
 }
 
-export interface EnvironmentListResponse {
-  environments: EnvironmentInfo[];
+export interface TenantListResponse {
+  tenants: TenantInfo[];
   current?: string;
 }
 
-export interface AddEnvironmentRequest {
+export interface AddTenantRequest {
   name: string;
   url: string;
   endpoint_id: string;
@@ -230,7 +230,7 @@ export interface PropertiesResponse {
   properties: Record<string, string>;
 }
 
-export interface PresetEnvironmentInfo {
+export interface PresetTenantInfo {
   name: string;
   url: string;
   endpoint_id: string;
@@ -240,16 +240,19 @@ export interface PresetEnvironmentInfo {
   is_configured: boolean;
 }
 
-export interface PresetEnvironmentListResponse {
-  presets: PresetEnvironmentInfo[];
+export interface PresetTenantListResponse {
+  presets: PresetTenantInfo[];
 }
 
-export interface AddPresetEnvironmentRequest {
+export interface AddPresetTenantRequest {
   name: string;
   pat: string;
   org_id: string;
   custom_properties?: Record<string, string>;
 }
+
+// Type alias for backwards compatibility during transition
+export type Tenant = TenantInfo;
 
 export interface ValidateCredentialsRequest {
   pat: string;
@@ -296,7 +299,7 @@ export interface SessionInfo {
   session_id: string;
   instance_name: string;
   scenario_id: string;
-  environment: string;
+  tenant: string;
   created_at: string; // ISO datetime string
   expires_at?: string; // ISO datetime string
   is_expired: boolean;
@@ -516,9 +519,9 @@ export interface ScenarioErrorData {
 export type Session = SessionInfo;
 
 /**
- * Alias for EnvironmentInfo - used by environment pages
+ * Alias for TenantInfo - used by tenant pages
  */
-export type Environment = EnvironmentInfo;
+export type Environment = TenantInfo;
 
 /**
  * Alias for ScenarioPackInfo - used by packs page

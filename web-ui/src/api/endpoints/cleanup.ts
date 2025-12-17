@@ -13,7 +13,7 @@ import type {
  * List sessions for cleanup
  */
 export async function listSessions(params?: {
-  environment?: string;
+  tenant?: string;
   expired_only?: boolean;
 }): Promise<SessionListResponse> {
   const response = await apiClient.get<SessionListResponse>('/api/cleanup/sessions', {

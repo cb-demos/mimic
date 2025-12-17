@@ -273,7 +273,7 @@ class Instance(BaseModel):
     id: str  # Unique identifier (formerly session_id)
     scenario_id: str  # Which scenario was used
     name: str  # Human-readable name (from name_template)
-    environment: str  # Which CloudBees environment (prod/preprod/demo/custom)
+    tenant: str  # Which CloudBees tenant (prod/preprod/demo/custom)
     created_at: datetime
     expires_at: datetime | None  # None = never expires
 

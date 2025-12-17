@@ -46,7 +46,7 @@ def cleanup_manager(instance_repository):
         mock_config = MagicMock()
         mock_config.get_github_pat.return_value = "test-github-token"
         mock_config.get_cloudbees_pat.return_value = "test-cloudbees-token"
-        mock_config.get_environment_url.return_value = "https://api.cloudbees.io"
+        mock_config.get_tenant_url.return_value = "https://api.cloudbees.io"
         mock_config_manager.return_value = mock_config
 
         with patch("src.mimic.cleanup_manager.Console"):
@@ -72,7 +72,7 @@ def test_get_cleanup_stats_with_sessions(cleanup_manager, instance_repository):
         id="active-1",
         scenario_id="test-scenario",
         name="test-run-active",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
     )
@@ -84,7 +84,7 @@ def test_get_cleanup_stats_with_sessions(cleanup_manager, instance_repository):
         id="expired-1",
         scenario_id="test-scenario",
         name="test-run-expired",
-        environment="prod",
+        tenant="prod",
         created_at=past_time,
         expires_at=past_time,  # Already expired
     )
@@ -106,7 +106,7 @@ def test_check_expired_sessions(cleanup_manager, instance_repository):
         id="expired-1",
         scenario_id="test-scenario",
         name="test-run-expired",
-        environment="prod",
+        tenant="prod",
         created_at=past_time,
         expires_at=past_time,
     )
@@ -136,7 +136,7 @@ async def test_cleanup_session_github_repo(cleanup_manager, instance_repository)
         id="test-session",
         scenario_id="test-scenario",
         name="test-run",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
         repositories=[repo],
@@ -181,7 +181,7 @@ async def test_cleanup_session_cloudbees_component(
         id="test-session",
         scenario_id="test-scenario",
         name="test-run",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
         components=[component],
@@ -225,7 +225,7 @@ async def test_cleanup_session_dry_run(cleanup_manager, instance_repository):
         id="test-session",
         scenario_id="test-scenario",
         name="test-run",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
         repositories=[repo],
@@ -270,7 +270,7 @@ async def test_cleanup_session_with_errors(cleanup_manager, instance_repository)
         id="test-session",
         scenario_id="test-scenario",
         name="test-run",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
         repositories=[repo],
@@ -311,7 +311,7 @@ async def test_cleanup_expired_sessions(cleanup_manager, instance_repository):
             id=f"expired-{i}",
             scenario_id="test-scenario",
             name=f"test-run-{i}",
-            environment="prod",
+            tenant="prod",
             created_at=past_time,
             expires_at=past_time,
             repositories=[repo],
@@ -384,7 +384,7 @@ async def test_cleanup_multiple_resource_types(cleanup_manager, instance_reposit
         id="test-session",
         scenario_id="test-scenario",
         name="test-run",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
         repositories=[repo],
@@ -440,7 +440,7 @@ async def test_cleanup_skips_feature_flags(cleanup_manager, instance_repository)
         id="test-session",
         scenario_id="test-scenario",
         name="test-run",
-        environment="prod",
+        tenant="prod",
         created_at=now,
         expires_at=now + timedelta(days=7),
         flags=[flag],

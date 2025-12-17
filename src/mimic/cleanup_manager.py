@@ -80,7 +80,7 @@ class CleanupManager:
         results = {
             "session_id": session_id,
             "scenario_id": instance.scenario_id,
-            "environment": instance.environment,
+            "tenant": instance.tenant,
             "dry_run": dry_run,
             "cleaned": [],
             "errors": [],
@@ -94,12 +94,12 @@ class CleanupManager:
 
         # Get credentials
         github_pat = self.config_manager.get_github_pat()
-        cloudbees_pat = self.config_manager.get_cloudbees_pat(instance.environment)
-        env_url = self.config_manager.get_environment_url(instance.environment)
+        cloudbees_pat = self.config_manager.get_cloudbees_pat(instance.tenant)
+        env_url = self.config_manager.get_tenant_url(instance.tenant)
 
         if not cloudbees_pat or not env_url:
             self.console.print(
-                f"[yellow]Warning:[/yellow] No credentials found for environment '{instance.environment}'. "
+                f"[yellow]Warning:[/yellow] No credentials found for environment '{instance.tenant}'. "
                 "Skipping CloudBees resources."
             )
 

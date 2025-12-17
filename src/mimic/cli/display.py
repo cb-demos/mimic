@@ -10,7 +10,7 @@ def display_success_summary(
     console: Console,
     session_id: str,
     run_name: str,
-    environment: str,
+    tenant: str,
     expiration_label: str,
     summary: dict,
     pipeline: Any,
@@ -22,7 +22,7 @@ def display_success_summary(
     lines.append("[bold green]✓ Scenario completed successfully![/bold green]\n")
     lines.append(f"Run Name: [bold cyan]{run_name}[/bold cyan]")
     lines.append(f"Instance ID: [dim]{session_id}[/dim]")
-    lines.append(f"Environment: [cyan]{environment}[/cyan]")
+    lines.append(f"Tenant: [cyan]{tenant}[/cyan]")
     lines.append(f"Expires: [yellow]{expiration_label}[/yellow]\n")
 
     # Display repositories
@@ -108,7 +108,7 @@ def display_scenario_preview(
     )
     console.print()
 
-    console.print(f"[dim]Environment:[/dim] [cyan]{environment}[/cyan]")
+    console.print(f"[dim]Tenant:[/dim] [cyan]{environment}[/cyan]")
     console.print(f"[dim]Expiration:[/dim] [yellow]{expiration_label}[/yellow]\n")
 
     # Display repositories

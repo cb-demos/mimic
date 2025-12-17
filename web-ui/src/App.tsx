@@ -13,7 +13,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { DashboardPage } from './pages/DashboardPage';
 import { ScenariosPage } from './pages/ScenariosPage';
 import { RunScenarioPage } from './pages/RunScenarioPage';
-import { EnvironmentsPage } from './pages/EnvironmentsPage';
+import { TenantsPage } from './pages/TenantsPage';
 import { ConfigPage } from './pages/ConfigPage';
 import { CleanupPage } from './pages/CleanupPage';
 import { PacksPage } from './pages/PacksPage';
@@ -56,7 +56,7 @@ function App() {
                 <Route path="/" element={<DashboardPage />} />
                 <Route path="/scenarios" element={<ScenariosPage />} />
                 <Route path="/scenarios/:scenarioId/run" element={<RunScenarioPage />} />
-                <Route path="/environments" element={<EnvironmentsPage />} />
+                <Route path="/tenants" element={<TenantsPage />} />
                 <Route path="/config" element={<ConfigPage />} />
                 <Route path="/cleanup" element={<CleanupPage />} />
                 <Route path="/packs" element={<PacksPage />} />

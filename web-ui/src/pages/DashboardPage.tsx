@@ -36,7 +36,7 @@ import {
   scenariosApi,
   cleanupApi,
   packsApi,
-  environmentsApi,
+  tenantsApi,
   configApi,
 } from '../api/endpoints';
 import type { Session } from '../types/api';
@@ -62,7 +62,7 @@ export function DashboardPage() {
 
   const { data: environments } = useQuery({
     queryKey: ['environments'],
-    queryFn: environmentsApi.list,
+    queryFn: tenantsApi.list,
   });
 
   const { data: githubConfig } = useQuery({
@@ -93,7 +93,7 @@ export function DashboardPage() {
   const recentSessions = [...(sessions?.sessions || [])].slice(0, 5);
 
   const currentEnv = environments?.current;
-  const currentEnvHasToken = cloudbeesConfig?.environments.find(
+  const currentEnvHasToken = cloudbeesConfig?.tenants.find(
     (e) => e.name === currentEnv
   )?.has_token;
 
@@ -109,7 +109,7 @@ export function DashboardPage() {
           Dashboard
         </Typography>
         <Typography variant="body1" color="text.secondary">
-          Overview of your Mimic environment
+          Overview of your Mimic configuration
         </Typography>
       </Box>
 
@@ -120,7 +120,7 @@ export function DashboardPage() {
             ? 'GitHub and CloudBees credentials not configured. '
             : !githubConnected
               ? 'GitHub credentials not configured. '
-              : 'CloudBees credentials not configured for current environment. '}
+              : 'CloudBees credentials not configured for current tenant. '}
           <Button color="inherit" size="small" onClick={() => navigate('/config')}>
             Configure Now
           </Button>
@@ -195,7 +195,7 @@ export function DashboardPage() {
                 <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     <CloudQueue color="primary" sx={{ mr: 1 }} />
-                    <Typography variant="h6">Environment</Typography>
+                    <Typography variant="h6">Tenant</Typography>
                   </Box>
                   <Typography variant="h6" sx={{ mb: 1 }}>
                     {currentEnv}
@@ -331,7 +331,7 @@ export function DashboardPage() {
                           }
                           secondary={
                             <>
-                              {session.scenario_id} • {session.environment}
+                              {session.scenario_id} • {session.tenant}
                               <br />
                               {new Date(session.created_at).toLocaleDateString()} •{' '}
                               {session.resources?.length || 0} resources

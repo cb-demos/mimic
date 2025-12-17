@@ -20,7 +20,7 @@ from mimic.exceptions import (
     ValidationError,
 )
 
-from .api import cleanup, config, environments, packs, scenarios, setup, version
+from .api import cleanup, config, packs, scenarios, setup, tenants, version
 from .error_handler import (
     handle_credential_error,
     handle_generic_exception,
@@ -156,7 +156,7 @@ async def health_check():
 # Register API routers
 app.include_router(scenarios.router, prefix="/api")
 app.include_router(config.router, prefix="/api")
-app.include_router(environments.router, prefix="/api")
+app.include_router(tenants.router, prefix="/api")
 app.include_router(cleanup.router, prefix="/api")
 app.include_router(packs.router, prefix="/api")
 app.include_router(setup.router, prefix="/api")

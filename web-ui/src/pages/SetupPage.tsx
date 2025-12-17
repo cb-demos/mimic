@@ -25,12 +25,12 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { setupApi, configApi, environmentsApi, packsApi } from '../api/endpoints';
+import { setupApi, configApi, tenantsApi, packsApi } from '../api/endpoints';
 import type { RunSetupRequest, Environment } from '../types/api';
 import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
 import { toErrorInfo } from '../utils/errorUtils';
 
-const STEPS = ['GitHub Setup', 'Select Environment', 'CloudBees Setup', 'Scenario Pack (Optional)'];
+const STEPS = ['GitHub Setup', 'Select Tenant', 'CloudBees Setup', 'Scenario Pack (Optional)'];
 
 interface SetupData {
   githubToken: string;
@@ -63,7 +63,7 @@ export function SetupPage() {
   // Fetch environments for step 2
   const { data: environmentsData, isLoading: loadingEnvs } = useQuery({
     queryKey: ['environments'],
-    queryFn: environmentsApi.list,
+    queryFn: tenantsApi.list,
   });
 
   // Test GitHub connection
@@ -95,7 +95,7 @@ export function SetupPage() {
     try {
       await configApi.setCloubeesToken(setupData.environment, setupData.cloudbeesToken);
       const result = await configApi.getCloudbees();
-      const env = result.environments.find(e => e.name === setupData.environment);
+      const env = result.tenants.find(e => e.name === setupData.environment);
       if (env?.has_token) {
         setTestSuccess('CloudBees connection successful!');
       } else {
@@ -230,25 +230,25 @@ export function SetupPage() {
         return (
           <Box>
             <Typography variant="h6" gutterBottom>
-              Select CloudBees Environment
+              Select CloudBees Tenant
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Choose the CloudBees environment you want to use.
+              Choose the CloudBees tenant you want to use.
             </Typography>
 
             {loadingEnvs ? (
               <CircularProgress />
             ) : (
               <FormControl fullWidth>
-                <InputLabel>Environment</InputLabel>
+                <InputLabel>Tenant</InputLabel>
                 <Select
                   value={setupData.environment}
-                  label="Environment"
+                  label="Tenant"
                   onChange={(e) =>
                     setSetupData({ ...setupData, environment: e.target.value })
                   }
                 >
-                  {environmentsData?.environments.map((env: Environment) => (
+                  {environmentsData?.tenants.map((env: Environment) => (
                     <MenuItem key={env.name} value={env.name}>
                       {env.name} ({env.url})
                     </MenuItem>
@@ -266,7 +266,7 @@ export function SetupPage() {
               CloudBees Personal Access Token
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              Enter your CloudBees PAT for the <strong>{setupData.environment}</strong> environment.
+              Enter your CloudBees PAT for the <strong>{setupData.environment}</strong> tenant.
             </Typography>
 
             <TextField

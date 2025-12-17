@@ -96,8 +96,8 @@ export async function setGithubUsername(username: string): Promise<StatusRespons
 /**
  * Set CloudBees token - convenience wrapper
  */
-export async function setCloubeesToken(environment: string, token: string): Promise<StatusResponse> {
-  return setCloudBeesToken({ environment, token });
+export async function setCloubeesToken(tenant: string, token: string): Promise<StatusResponse> {
+  return setCloudBeesToken({ tenant, token });
 }
 
 // ==================== Recent Values ====================
