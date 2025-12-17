@@ -11,7 +11,7 @@ import yaml
 def test_scenario_pack():
     """Create a temporary scenario pack for testing.
 
-    This creates realistic test scenarios that can be used by MCP and other tests.
+    This creates realistic test scenarios for integration tests.
     """
     with tempfile.TemporaryDirectory() as tmpdir:
         pack_dir = Path(tmpdir) / "test-pack"
@@ -88,41 +88,3 @@ def test_scenario_pack():
             yaml.dump(simple_scenario, f)
 
         yield pack_dir
-
-
-@pytest.fixture
-def mock_scenario_manager(test_scenario_pack, monkeypatch):
-    """Mock scenario manager to use test scenarios.
-
-    This fixture patches the config and pack managers to return our test pack,
-    then reinitializes the scenario manager in mcp.py with test data.
-    """
-    from mimic.config_manager import ConfigManager
-    from mimic.scenario_pack_manager import ScenarioPackManager
-    from mimic.scenarios import initialize_scenarios
-
-    # Patch the config manager methods
-    monkeypatch.setattr(
-        ConfigManager,
-        "list_scenario_packs",
-        lambda self: {"test-pack": {"enabled": True}},
-    )
-    monkeypatch.setattr(
-        ScenarioPackManager, "get_pack_path", lambda self, name: test_scenario_pack
-    )
-
-    # Reinitialize the scenario manager in mcp module with test pack
-    test_manager = initialize_scenarios(
-        scenarios_dirs=[(test_scenario_pack, "test-pack")], local_dir=None
-    )
-
-    # Patch mcp module's scenario_manager
-    import mimic.mcp
-
-    original_manager = mimic.mcp.scenario_manager
-    mimic.mcp.scenario_manager = test_manager
-
-    yield test_manager
-
-    # Restore original
-    mimic.mcp.scenario_manager = original_manager

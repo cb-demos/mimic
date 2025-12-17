@@ -103,11 +103,3 @@ app.command("upgrade")(upgrade)
 
 # Register setup command
 app.command("setup")(setup)
-
-
-@app.command()
-def mcp():
-    """Start the MCP (Model Context Protocol) stdio server."""
-    from ..mcp import run_mcp_server
-
-    run_mcp_server()

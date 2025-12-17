@@ -1,6 +1,6 @@
 # Mimic
 
-Tool for orchestrating demo scenarios on CloudBees Unify. Provides a CLI, web UI, and MCP server interface.
+Tool for orchestrating demo scenarios on CloudBees Unify. Provides a CLI and web UI for managing demo environments.
 
 ## Prerequisites
 
@@ -85,13 +85,6 @@ docker run --rm -v ~/.mimic:/home/appuser/.mimic cloudbeesdemo/mimic:latest list
 docker run --rm -it -v ~/.mimic:/home/appuser/.mimic cloudbeesdemo/mimic:latest run hackers-app
 ```
 
-### MCP Server Mode
-
-```bash
-# Start stdio MCP server
-docker run --rm -i -v ~/.mimic:/home/appuser/.mimic cloudbeesdemo/mimic:latest mcp
-```
-
 ### Environment Management
 
 ```bash
@@ -135,7 +128,6 @@ mimic env add demo
 ### Environment Variables
 
 - **`MIMIC_CONFIG_DIR`**: Custom config directory (default: `~/.mimic`)
-- **`MIMIC_ENV`**: Default environment for MCP server
 - **`MIMIC_CLOUDBEES_PAT`**: CloudBees PAT (fallback if not in keyring)
 - **`MIMIC_GITHUB_PAT`**: GitHub PAT (fallback if not in keyring)
 
@@ -278,41 +270,15 @@ To build the production UI:
 make build-ui
 ```
 
-## MCP Integration
+## AI Agent Integration
 
-Use Mimic with AI assistants via stdio MCP:
+Mimic provides a comprehensive CLI that works seamlessly with AI coding agents. See [LLM.md](LLM.md) for detailed instructions on using Mimic with AI assistants.
 
-### Configuration for Claude Desktop
-
-After installing Mimic system-wide, add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "mimic": {
-      "command": "mimic",
-      "args": ["mcp"],
-      "env": {
-        "MIMIC_ENV": "prod"
-      }
-    }
-  }
-}
-```
-
-The MCP server uses credentials from the OS keyring (configured via `mimic env add` or `mimic setup`).
-
-### Available Tools
-
-- `list_scenarios`: Get available demo scenarios
-- `instantiate_scenario`: Execute a scenario with parameters
-- `cleanup_session`: Clean up resources from a session
-
-### Authentication
-
-The MCP server loads credentials from:
-1. Environment variables (if set): `MIMIC_ENV`, `GITHUB_TOKEN`, `UNIFY_API_KEY`
-2. OS keyring (configured via CLI): `mimic env add`
+The CLI provides all necessary functionality for AI agents to:
+- List and search available scenarios
+- Execute scenarios with parameters
+- Manage cleanup of resources
+- Configure environments and credentials
 
 ## Scenario Packs
 

@@ -82,9 +82,6 @@ node_modules/
 Thumbs.db
 ehthumbs.db
 
-# MCP configuration with potential secrets
-mcp.json
-
 # Test files  
 tests/
 test.md
