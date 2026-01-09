@@ -416,6 +416,66 @@ class CleanupResponse(BaseModel):
 # ==================== Scenario Pack Models ====================
 
 
+class GitHubBranch(BaseModel):
+    """Information about a git branch."""
+
+    name: str
+    sha: str
+    protected: bool
+
+
+class GitHubPullRequest(BaseModel):
+    """Information about a pull request."""
+
+    number: int
+    title: str
+    head_branch: str
+    head_sha: str
+    head_repo_url: str | None = (
+        None  # Fork repository URL (None if PR is from same repo)
+    )
+    author: str
+    state: str  # "open", "closed", "merged"
+    created_at: str
+    updated_at: str
+
+
+class DiscoverRefsRequest(BaseModel):
+    """Request to discover branches and PRs for a GitHub URL."""
+
+    git_url: str
+
+
+class DiscoverRefsResponse(BaseModel):
+    """Response with available branches and PRs."""
+
+    owner: str
+    repo: str
+    default_branch: str
+    branches: list[GitHubBranch]
+    pull_requests: list[GitHubPullRequest]
+    error: str | None = None
+
+
+class SwitchPackRefRequest(BaseModel):
+    """Request to switch a pack to a different branch or PR."""
+
+    branch: str | None = None
+    pr_number: int | None = None
+
+
+class PackRefInfo(BaseModel):
+    """Current reference information for a pack."""
+
+    type: str  # "branch" or "pr"
+    branch: str
+    pr_number: int | None = None
+    pr_title: str | None = None
+    pr_author: str | None = None
+    pr_head_repo_url: str | None = None  # Fork repo URL for PRs from forks
+    last_updated: str | None = None
+
+
 class ScenarioPackInfo(BaseModel):
     """Information about a scenario pack."""
 
@@ -423,6 +483,7 @@ class ScenarioPackInfo(BaseModel):
     git_url: str
     enabled: bool
     scenario_count: int
+    current_ref: PackRefInfo | None = None
 
 
 class ScenarioPackListResponse(BaseModel):
@@ -436,6 +497,11 @@ class AddScenarioPackRequest(BaseModel):
 
     name: str
     git_url: str
+    branch: str = "main"
+    pr_number: int | None = None
+    pr_title: str | None = None
+    pr_author: str | None = None
+    pr_head_repo_url: str | None = None  # Fork repo URL for PRs from forks
 
 
 class UpdatePacksRequest(BaseModel):

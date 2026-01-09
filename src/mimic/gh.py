@@ -1,5 +1,6 @@
 import base64
 import logging
+import re
 from typing import Any
 
 import httpx
@@ -7,6 +8,41 @@ import httpx
 from mimic.exceptions import GitHubError
 
 logger = logging.getLogger(__name__)
+
+
+def parse_github_url(url: str) -> tuple[str, str] | None:
+    """Parse GitHub URL to extract owner and repo name.
+
+    Supports:
+    - https://github.com/owner/repo
+    - https://github.com/owner/repo.git
+    - git@github.com:owner/repo.git
+    - ssh://git@github.com:owner/repo.git
+
+    Args:
+        url: GitHub URL to parse
+
+    Returns:
+        Tuple of (owner, repo) or None if not a valid GitHub URL
+    """
+    # HTTPS pattern: https://github.com/owner/repo[.git]
+    https_match = re.match(r"https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$", url)
+    if https_match:
+        return (https_match.group(1), https_match.group(2))
+
+    # SSH pattern: git@github.com:owner/repo[.git]
+    ssh_match = re.match(r"git@github\.com:([^/]+)/(.+?)(?:\.git)?$", url)
+    if ssh_match:
+        return (ssh_match.group(1), ssh_match.group(2))
+
+    # SSH URL pattern: ssh://git@github.com[:port]/owner/repo[.git]
+    ssh_url_match = re.match(
+        r"ssh://git@github\.com(?::\d+)?/([^/]+)/(.+?)(?:\.git)?$", url
+    )
+    if ssh_url_match:
+        return (ssh_url_match.group(1), ssh_url_match.group(2))
+
+    return None
 
 
 class GitHubClient:
@@ -447,3 +483,79 @@ class GitHubClient:
             raise Exception(
                 f"Failed to delete repository {repo_full_name}: {response.status_code} - {response.text}"
             )
+
+    async def list_branches(self, owner: str, repo: str) -> list[dict[str, Any]]:
+        """List all branches for a repository.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+
+        Returns:
+            List of branch objects with name, sha, protected status.
+            Returns empty list if request fails.
+        """
+        try:
+            response = await self._request("GET", f"/repos/{owner}/{repo}/branches")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(
+                    f"Failed to list branches for {owner}/{repo}: {response.status_code}"
+                )
+                return []
+        except Exception as e:
+            logger.error(f"Error listing branches for {owner}/{repo}: {e}")
+            return []
+
+    async def list_pull_requests(
+        self, owner: str, repo: str, state: str = "open"
+    ) -> list[dict[str, Any]]:
+        """List pull requests for a repository.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+            state: PR state - "open", "closed", "all" (default: "open")
+
+        Returns:
+            List of PR objects with number, title, head branch, user, etc.
+            Returns empty list if request fails.
+        """
+        try:
+            response = await self._request(
+                "GET", f"/repos/{owner}/{repo}/pulls", params={"state": state}
+            )
+            if response.status_code == 200:
+                return response.json()
+            else:
+                logger.warning(
+                    f"Failed to list pull requests for {owner}/{repo}: {response.status_code}"
+                )
+                return []
+        except Exception as e:
+            logger.error(f"Error listing pull requests for {owner}/{repo}: {e}")
+            return []
+
+    async def get_default_branch(self, owner: str, repo: str) -> str | None:
+        """Get the default branch name for a repository.
+
+        Args:
+            owner: Repository owner
+            repo: Repository name
+
+        Returns:
+            Default branch name (e.g., "main" or "master") or None if error
+        """
+        try:
+            response = await self._request("GET", f"/repos/{owner}/{repo}")
+            if response.status_code == 200:
+                return response.json().get("default_branch")
+            else:
+                logger.warning(
+                    f"Failed to get repository info for {owner}/{repo}: {response.status_code}"
+                )
+                return None
+        except Exception as e:
+            logger.error(f"Error getting default branch for {owner}/{repo}: {e}")
+            return None

@@ -330,11 +330,58 @@ export interface CleanupResponse {
 
 // ==================== Scenario Pack Models ====================
 
+export interface GitHubBranch {
+  name: string;
+  sha: string;
+  protected: boolean;
+}
+
+export interface GitHubPullRequest {
+  number: number;
+  title: string;
+  head_branch: string;
+  head_sha: string;
+  head_repo_url?: string | null; // Fork repository URL (null if PR is from same repo)
+  author: string;
+  state: string; // "open", "closed", "merged"
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoverRefsRequest {
+  git_url: string;
+}
+
+export interface DiscoverRefsResponse {
+  owner: string;
+  repo: string;
+  default_branch: string;
+  branches: GitHubBranch[];
+  pull_requests: GitHubPullRequest[];
+  error?: string;
+}
+
+export interface SwitchPackRefRequest {
+  branch?: string;
+  pr_number?: number;
+}
+
+export interface PackRefInfo {
+  type: 'branch' | 'pr';
+  branch: string;
+  pr_number?: number;
+  pr_title?: string;
+  pr_author?: string;
+  pr_head_repo_url?: string | null;
+  last_updated?: string;
+}
+
 export interface ScenarioPackInfo {
   name: string;
   git_url: string;
   enabled: boolean;
   scenario_count: number;
+  current_ref?: PackRefInfo;
 }
 
 export interface ScenarioPackListResponse {
@@ -344,6 +391,11 @@ export interface ScenarioPackListResponse {
 export interface AddScenarioPackRequest {
   name: string;
   git_url: string;
+  branch?: string;
+  pr_number?: number;
+  pr_title?: string;
+  pr_author?: string;
+  pr_head_repo_url?: string | null;
 }
 
 export interface UpdatePacksRequest {

@@ -10,6 +10,8 @@ import type {
   UpdatePacksResponse,
   EnablePackRequest,
   StatusResponse,
+  DiscoverRefsResponse,
+  SwitchPackRefRequest,
 } from '../../types/api';
 
 /**
@@ -49,6 +51,22 @@ export async function togglePack(packName: string, request: EnablePackRequest): 
  */
 export async function updatePacks(request?: UpdatePacksRequest): Promise<UpdatePacksResponse> {
   const response = await apiClient.post<UpdatePacksResponse>('/api/packs/update', request);
+  return response.data;
+}
+
+/**
+ * Discover available branches and PRs for a GitHub repository
+ */
+export async function discoverRefs(git_url: string): Promise<DiscoverRefsResponse> {
+  const response = await apiClient.post<DiscoverRefsResponse>('/api/packs/discover-refs', { git_url });
+  return response.data;
+}
+
+/**
+ * Switch a pack to a different branch or PR
+ */
+export async function switchRef(packName: string, request: SwitchPackRefRequest): Promise<StatusResponse> {
+  const response = await apiClient.post<StatusResponse>(`/api/packs/${packName}/switch-ref`, request);
   return response.data;
 }
 

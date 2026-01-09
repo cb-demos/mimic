@@ -1,6 +1,7 @@
 """Configuration and credential management for Mimic."""
 
 import logging
+from datetime import UTC
 from typing import Any
 
 import keyring
@@ -572,7 +573,15 @@ class ConfigManager:
 
     # Scenario pack management
     def add_scenario_pack(
-        self, name: str, url: str, branch: str = "main", enabled: bool = True
+        self,
+        name: str,
+        url: str,
+        branch: str = "main",
+        enabled: bool = True,
+        pr_number: int | None = None,
+        pr_title: str | None = None,
+        pr_author: str | None = None,
+        pr_head_repo_url: str | None = None,
     ) -> None:
         """Add a scenario pack configuration.
 
@@ -581,17 +590,44 @@ class ConfigManager:
             url: Git URL to clone from.
             branch: Git branch to use (default: main).
             enabled: Whether the pack is enabled (default: True).
+            pr_number: Optional PR number if tracking a pull request.
+            pr_title: Optional PR title (cached for display).
+            pr_author: Optional PR author (cached for display).
+            pr_head_repo_url: Optional fork repository URL for PRs from forks.
         """
+        from datetime import datetime
+
         config = self.load_config()
 
         if "scenario_packs" not in config:
             config["scenario_packs"] = {}
 
-        config["scenario_packs"][name] = {
+        pack_config = {
             "url": url,
             "branch": branch,
             "enabled": enabled,
         }
+
+        # Add PR fields if provided
+        if pr_number is not None:
+            pack_config["pr_number"] = pr_number
+            pack_config["current_ref_type"] = "pr"
+        else:
+            pack_config["current_ref_type"] = "branch"
+
+        if pr_title is not None:
+            pack_config["pr_title"] = pr_title
+
+        if pr_author is not None:
+            pack_config["pr_author"] = pr_author
+
+        if pr_head_repo_url is not None:
+            pack_config["pr_head_repo_url"] = pr_head_repo_url
+
+        # Add last_updated timestamp
+        pack_config["last_updated"] = datetime.now(UTC).isoformat()
+
+        config["scenario_packs"][name] = pack_config
 
         self.save_config(config)
 
@@ -642,6 +678,99 @@ class ConfigManager:
 
         config["scenario_packs"][name]["enabled"] = enabled
         self.save_config(config)
+
+    def update_pack_ref(
+        self,
+        name: str,
+        branch: str | None = None,
+        pr_number: int | None = None,
+        pr_title: str | None = None,
+        pr_author: str | None = None,
+        pr_head_repo_url: str | None = None,
+    ) -> None:
+        """Update pack to track a different branch or PR.
+
+        Args:
+            name: Pack name.
+            branch: Branch name (if switching to branch).
+            pr_number: PR number (if switching to PR).
+            pr_title: PR title (cached for display).
+            pr_author: PR author (cached for display).
+            pr_head_repo_url: Fork repository URL for PRs from forks.
+
+        Raises:
+            ValueError: If pack not found.
+        """
+        from datetime import datetime
+
+        config = self.load_config()
+
+        if "scenario_packs" not in config or name not in config["scenario_packs"]:
+            raise ValueError(f"Scenario pack '{name}' not found")
+
+        pack_config = config["scenario_packs"][name]
+
+        # Update branch
+        if branch is not None:
+            pack_config["branch"] = branch
+
+        # Update PR fields
+        if pr_number is not None:
+            pack_config["pr_number"] = pr_number
+            pack_config["current_ref_type"] = "pr"
+        else:
+            # Remove PR fields if switching to branch
+            pack_config.pop("pr_number", None)
+            pack_config.pop("pr_title", None)
+            pack_config.pop("pr_author", None)
+            pack_config.pop("pr_head_repo_url", None)
+            pack_config["current_ref_type"] = "branch"
+
+        if pr_title is not None:
+            pack_config["pr_title"] = pr_title
+
+        if pr_author is not None:
+            pack_config["pr_author"] = pr_author
+
+        if pr_head_repo_url is not None:
+            pack_config["pr_head_repo_url"] = pr_head_repo_url
+
+        # Update last_updated timestamp
+        pack_config["last_updated"] = datetime.now(UTC).isoformat()
+
+        self.save_config(config)
+
+    def get_pack_current_ref(self, name: str) -> dict[str, Any] | None:
+        """Get current reference info for a pack.
+
+        Args:
+            name: Pack name.
+
+        Returns:
+            Dictionary with current ref info:
+            {
+                "type": "branch" | "pr",
+                "branch": "main",
+                "pr_number": 123,
+                "pr_title": "...",
+                "pr_author": "...",
+                "last_updated": "..."
+            }
+            Returns None if pack not found.
+        """
+        pack_config = self.get_scenario_pack(name)
+        if not pack_config:
+            return None
+
+        return {
+            "type": pack_config.get("current_ref_type", "branch"),
+            "branch": pack_config.get("branch", "main"),
+            "pr_number": pack_config.get("pr_number"),
+            "pr_title": pack_config.get("pr_title"),
+            "pr_author": pack_config.get("pr_author"),
+            "pr_head_repo_url": pack_config.get("pr_head_repo_url"),
+            "last_updated": pack_config.get("last_updated"),
+        }
 
     # Recent values management
     def add_recent_value(self, category: str, value: str, max_items: int = 10) -> None:

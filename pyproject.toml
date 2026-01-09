@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mimic"
-version = "2026.1.9.0"
+version = "2026.1.9.1"
 description = "CloudBees Unify scenario instantiation CLI tool"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -30,7 +30,7 @@ mimic = "mimic.cli:app"
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "pyright>=1.1.404",
+    "pyright>=1.1.408",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pytest-cov>=6.2.1",

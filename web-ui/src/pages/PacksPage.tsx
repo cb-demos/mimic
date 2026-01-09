@@ -25,21 +25,54 @@ import {
   Chip,
   Alert,
   CircularProgress,
+  Autocomplete,
 } from '@mui/material';
-import { Add, Delete, Refresh, Link as LinkIcon } from '@mui/icons-material';
+import { Add, Delete, Refresh, Link as LinkIcon, AccountTree, CallMerge, SwapHoriz } from '@mui/icons-material';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { packsApi } from '../api/endpoints';
-import type { ScenarioPack } from '../types/api';
+import type { ScenarioPack, AddScenarioPackRequest } from '../types/api';
 import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
 import { toErrorInfo } from '../utils/errorUtils';
+import { BranchPRSelector } from '../components/BranchPRSelector';
+
+// Type for Autocomplete options
+type RefOption =
+  | {
+      type: 'branch';
+      label: string;
+      branch: string;
+      group: string;
+      isDefault: boolean;
+      protected: boolean;
+    }
+  | {
+      type: 'pr';
+      label: string;
+      branch: string;
+      prNumber: number;
+      prTitle: string;
+      prAuthor: string;
+      prHeadRepoUrl: string | null;
+      group: string;
+    };
 
 export function PacksPage() {
   const queryClient = useQueryClient();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
+  const [switchDialogOpen, setSwitchDialogOpen] = useState(false);
   const [selectedPack, setSelectedPack] = useState<string | null>(null);
+  const [selectedPackForSwitch, setSelectedPackForSwitch] = useState<ScenarioPack | null>(null);
   const [newPackName, setNewPackName] = useState('');
   const [newPackUrl, setNewPackUrl] = useState('');
+  const [selectedRef, setSelectedRef] = useState<{
+    type: 'branch' | 'pr';
+    branch: string;
+    prNumber?: number;
+    prTitle?: string;
+    prAuthor?: string;
+    prHeadRepoUrl?: string | null;
+  } | null>(null);
   const [error, setError] = useState<ErrorInfo | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -49,9 +82,27 @@ export function PacksPage() {
     queryFn: packsApi.list,
   });
 
+  // Helper to check if URL is a git URL
+  const isGitUrl = (url: string) => {
+    return (
+      url.startsWith('https://') ||
+      url.startsWith('http://') ||
+      url.startsWith('git@') ||
+      url.startsWith('ssh://') ||
+      url.startsWith('git://')
+    );
+  };
+
+  // Fetch refs for Add Pack dialog
+  const { data: refs, isLoading: isLoadingRefs } = useQuery({
+    queryKey: ['discover-refs', newPackUrl],
+    queryFn: () => packsApi.discoverRefs(newPackUrl),
+    enabled: addDialogOpen && isGitUrl(newPackUrl),
+  });
+
   // Add pack mutation
   const addMutation = useMutation({
-    mutationFn: (data: { name: string; git_url: string }) => packsApi.add(data.name, data.git_url),
+    mutationFn: (data: AddScenarioPackRequest) => packsApi.addPack(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['scenario-packs'] });
       queryClient.invalidateQueries({ queryKey: ['scenarios'] });
@@ -59,6 +110,7 @@ export function PacksPage() {
       setAddDialogOpen(false);
       setNewPackName('');
       setNewPackUrl('');
+      setSelectedRef(null);
       setError(null);
     },
     onError: (err: any) => {
@@ -114,6 +166,23 @@ export function PacksPage() {
     },
   });
 
+  // Switch ref mutation
+  const switchRefMutation = useMutation({
+    mutationFn: ({ packName, request }: { packName: string; request: { branch?: string; pr_number?: number } }) =>
+      packsApi.switchRef(packName, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scenario-packs'] });
+      queryClient.invalidateQueries({ queryKey: ['scenarios'] });
+      setSuccess('Successfully switched branch/PR');
+      setSwitchDialogOpen(false);
+      setSelectedPackForSwitch(null);
+      setError(null);
+    },
+    onError: (err: any) => {
+      setError(toErrorInfo(err));
+    },
+  });
+
   const handleRemove = (packName: string) => {
     setSelectedPack(packName);
     setRemoveDialogOpen(true);
@@ -137,14 +206,26 @@ export function PacksPage() {
     updateMutation.mutate(packName);
   };
 
-  const isGitUrl = (url: string) => {
-    return (
-      url.startsWith('https://') ||
-      url.startsWith('http://') ||
-      url.startsWith('git@') ||
-      url.startsWith('ssh://') ||
-      url.startsWith('git://')
-    );
+  const handleSwitchRef = (pack: ScenarioPack) => {
+    setSelectedPackForSwitch(pack);
+    setSwitchDialogOpen(true);
+  };
+
+  const handleConfirmSwitch = (selection: {
+    type: 'branch' | 'pr';
+    branch: string;
+    prNumber?: number;
+  }) => {
+    if (!selectedPackForSwitch) return;
+
+    const request = selection.type === 'branch'
+      ? { branch: selection.branch }
+      : { pr_number: selection.prNumber };
+
+    switchRefMutation.mutate({
+      packName: selectedPackForSwitch.name,
+      request,
+    });
   };
 
   const isLocalPath = (path: string) => {
@@ -243,6 +324,7 @@ export function PacksPage() {
                   <TableCell>Enabled</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>Location</TableCell>
+                  <TableCell>Current Ref</TableCell>
                   <TableCell>Scenarios</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
@@ -289,9 +371,52 @@ export function PacksPage() {
                       </Box>
                     </TableCell>
                     <TableCell>
+                      {getLocationType(pack.git_url) === 'git' && pack.current_ref ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {pack.current_ref.type === 'pr' ? (
+                            <Chip
+                              icon={<CallMerge fontSize="small" />}
+                              label={`PR #${pack.current_ref.pr_number}: ${pack.current_ref.pr_title || 'Untitled'}`}
+                              size="small"
+                              color="secondary"
+                              sx={{
+                                maxWidth: 200,
+                                '& .MuiChip-label': {
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                },
+                              }}
+                            />
+                          ) : (
+                            <Chip
+                              icon={<AccountTree fontSize="small" />}
+                              label={pack.current_ref.branch}
+                              size="small"
+                              variant="outlined"
+                            />
+                          )}
+                        </Box>
+                      ) : (
+                        <Typography variant="body2" color="text.secondary">
+                          N/A
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
                       <Chip label={pack.scenario_count} size="small" color="primary" />
                     </TableCell>
                     <TableCell align="right">
+                      {getLocationType(pack.git_url) === 'git' && (
+                        <Button
+                          size="small"
+                          startIcon={<SwapHoriz />}
+                          onClick={() => handleSwitchRef(pack)}
+                          disabled={switchRefMutation.isPending}
+                          sx={{ mr: 1 }}
+                        >
+                          Switch
+                        </Button>
+                      )}
                       <Button
                         size="small"
                         startIcon={<Refresh />}
@@ -341,7 +466,10 @@ export function PacksPage() {
             fullWidth
             label="Location"
             value={newPackUrl}
-            onChange={(e) => setNewPackUrl(e.target.value)}
+            onChange={(e) => {
+              setNewPackUrl(e.target.value);
+              setSelectedRef(null); // Clear selection when URL changes
+            }}
             placeholder="e.g., https://github.com/user/repo.git or /Users/me/scenarios"
             helperText={
               newPackUrl
@@ -349,7 +477,126 @@ export function PacksPage() {
                 : 'Git URL (https://, ssh://) or local directory path (/, ~/, ./)'
             }
             error={!!newPackUrl && !isValidLocation(newPackUrl)}
+            sx={{ mb: 2 }}
           />
+
+          {/* Branch/PR Selector for GitHub URLs */}
+          {isGitUrl(newPackUrl) && (
+            <Autocomplete<RefOption>
+              options={
+                refs && !refs.error
+                  ? [
+                      ...refs.branches.map(
+                        (b): RefOption => ({
+                          type: 'branch',
+                          label: b.name,
+                          branch: b.name,
+                          group: 'Branches',
+                          isDefault: b.name === refs.default_branch,
+                          protected: b.protected,
+                        })
+                      ),
+                      ...refs.pull_requests.map(
+                        (pr): RefOption => ({
+                          type: 'pr',
+                          label: `#${pr.number}: ${pr.title}`,
+                          branch: pr.head_branch,
+                          prNumber: pr.number,
+                          prTitle: pr.title,
+                          prAuthor: pr.author,
+                          prHeadRepoUrl: pr.head_repo_url ?? null,
+                          group: 'Pull Requests',
+                        })
+                      ),
+                    ]
+                  : []
+              }
+              groupBy={(option) => option.group}
+              getOptionLabel={(option) => option.label}
+              loading={isLoadingRefs}
+              value={
+                selectedRef && refs && !refs.error
+                  ? selectedRef.type === 'pr'
+                    ? ({
+                        type: 'pr',
+                        label: `#${selectedRef.prNumber}: ${selectedRef.prTitle}`,
+                        branch: selectedRef.branch,
+                        prNumber: selectedRef.prNumber!,
+                        prTitle: selectedRef.prTitle!,
+                        prAuthor: selectedRef.prAuthor!,
+                        prHeadRepoUrl: selectedRef.prHeadRepoUrl ?? null,
+                        group: 'Pull Requests',
+                      } satisfies RefOption)
+                    : ({
+                        type: 'branch',
+                        label: selectedRef.branch,
+                        branch: selectedRef.branch,
+                        group: 'Branches',
+                        isDefault: selectedRef.branch === refs.default_branch,
+                        protected: false,
+                      } satisfies RefOption)
+                  : null
+              }
+              onChange={(_, value) => {
+                if (value) {
+                  if (value.type === 'pr') {
+                    setSelectedRef({
+                      type: 'pr',
+                      branch: value.branch,
+                      prNumber: value.prNumber,
+                      prTitle: value.prTitle,
+                      prAuthor: value.prAuthor,
+                      prHeadRepoUrl: value.prHeadRepoUrl,
+                    });
+                  } else {
+                    setSelectedRef({
+                      type: 'branch',
+                      branch: value.branch,
+                    });
+                  }
+                } else {
+                  setSelectedRef(null);
+                }
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Branch or Pull Request"
+                  placeholder="Select a branch or PR (optional)"
+                  helperText={
+                    refs?.error
+                      ? refs.error
+                      : `Default: ${refs?.default_branch || 'main'}`
+                  }
+                  error={!!refs?.error}
+                />
+              )}
+              renderOption={(props, option) => {
+                const { key, ...otherProps } = props as any;
+                return (
+                  <li key={key} {...otherProps}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+                      {option.type === 'pr' ? (
+                        <CallMerge fontSize="small" color="action" />
+                      ) : (
+                        <AccountTree fontSize="small" color="action" />
+                      )}
+                      <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                        {option.label}
+                      </Typography>
+                      {option.type === 'branch' && option.isDefault && (
+                        <Chip label="Default" size="small" color="primary" variant="outlined" />
+                      )}
+                      {option.type === 'branch' && option.protected && (
+                        <Chip label="Protected" size="small" color="warning" variant="outlined" />
+                      )}
+                    </Box>
+                  </li>
+                );
+              }}
+              sx={{ mb: 2 }}
+            />
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>
@@ -361,7 +608,22 @@ export function PacksPage() {
           <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
           <Button
             variant="contained"
-            onClick={() => addMutation.mutate({ name: newPackName, git_url: newPackUrl })}
+            onClick={() => {
+              const request: AddScenarioPackRequest = {
+                name: newPackName,
+                git_url: newPackUrl,
+              };
+              if (selectedRef) {
+                request.branch = selectedRef.branch;
+                if (selectedRef.type === 'pr') {
+                  request.pr_number = selectedRef.prNumber;
+                  request.pr_title = selectedRef.prTitle;
+                  request.pr_author = selectedRef.prAuthor;
+                  request.pr_head_repo_url = selectedRef.prHeadRepoUrl;
+                }
+              }
+              addMutation.mutate(request);
+            }}
             disabled={
               !newPackName ||
               !newPackUrl ||
@@ -396,6 +658,35 @@ export function PacksPage() {
           >
             {removeMutation.isPending ? <CircularProgress size={24} /> : 'Remove'}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Switch Branch Dialog */}
+      <Dialog
+        open={switchDialogOpen}
+        onClose={() => setSwitchDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Switch Branch or Pull Request</DialogTitle>
+        <DialogContent>
+          {selectedPackForSwitch && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Current: <strong>{selectedPackForSwitch.current_ref?.type === 'pr'
+                  ? `PR #${selectedPackForSwitch.current_ref.pr_number}: ${selectedPackForSwitch.current_ref.pr_title}`
+                  : selectedPackForSwitch.current_ref?.branch || 'Unknown'}</strong>
+              </Typography>
+              <BranchPRSelector
+                gitUrl={selectedPackForSwitch.git_url}
+                onSelect={handleConfirmSwitch}
+                defaultBranch={selectedPackForSwitch.current_ref?.branch}
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSwitchDialogOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
     </Container>

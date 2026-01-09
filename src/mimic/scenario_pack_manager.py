@@ -202,7 +202,13 @@ class ScenarioPackManager:
                 shutil.rmtree(pack_path)
             raise ScenarioError(error_msg) from e
 
-    def update_pack(self, name: str) -> None:
+    def update_pack(
+        self,
+        name: str,
+        pr_number: int | None = None,
+        head_branch: str | None = None,
+        head_repo_url: str | None = None,
+    ) -> None:
         """Update a scenario pack by pulling latest changes.
 
         For local packs (symlinks), this operation is a no-op since changes
@@ -210,6 +216,9 @@ class ScenarioPackManager:
 
         Args:
             name: Name of the pack to update.
+            pr_number: Optional PR number if pack is tracking a PR.
+            head_branch: Optional branch name for PR.
+            head_repo_url: Optional fork URL for PRs from forks.
 
         Raises:
             ScenarioError: If pack doesn't exist or git pull fails.
@@ -232,16 +241,56 @@ class ScenarioPackManager:
         logger.info(f"Updating scenario pack '{name}'")
 
         try:
-            # Pull latest changes
-            result = subprocess.run(
-                ["git", "pull"],
-                cwd=pack_path,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-            logger.debug(f"Git pull output: {result.stdout}")
-            logger.info(f"Successfully updated pack '{name}'")
+            # If tracking a PR, fetch from the appropriate source
+            if pr_number and head_branch:
+                if head_repo_url:
+                    # PR from fork - fetch from fork into FETCH_HEAD
+                    logger.info(f"Fetching latest from fork: {head_repo_url}")
+                    subprocess.run(
+                        ["git", "fetch", head_repo_url, head_branch],
+                        cwd=pack_path,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    # Reset current branch to FETCH_HEAD
+                    subprocess.run(
+                        ["git", "reset", "--hard", "FETCH_HEAD"],
+                        cwd=pack_path,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                else:
+                    # PR from same repo - fetch PR ref into FETCH_HEAD
+                    subprocess.run(
+                        ["git", "fetch", "origin", f"pull/{pr_number}/head"],
+                        cwd=pack_path,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    # Reset current branch to FETCH_HEAD
+                    subprocess.run(
+                        ["git", "reset", "--hard", "FETCH_HEAD"],
+                        cwd=pack_path,
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+
+                logger.info(f"Successfully updated pack '{name}' from PR")
+            else:
+                # Regular branch - pull latest changes
+                result = subprocess.run(
+                    ["git", "pull"],
+                    cwd=pack_path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                logger.debug(f"Git pull output: {result.stdout}")
+                logger.info(f"Successfully updated pack '{name}'")
 
         except subprocess.CalledProcessError as e:
             error_msg = f"Failed to update pack '{name}': {e.stderr}"
@@ -303,3 +352,192 @@ class ScenarioPackManager:
             for d in self.packs_dir.iterdir()
             if d.is_dir() and not d.name.startswith(".")
         ]
+
+    def get_current_branch(self, name: str) -> str | None:
+        """Get the current checked out branch for a pack.
+
+        Args:
+            name: Pack name.
+
+        Returns:
+            Current branch name or None if pack doesn't exist or is not a git repo.
+        """
+        pack_path = self.packs_dir / name
+        if not pack_path.exists() or pack_path.is_symlink():
+            return None
+
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                cwd=pack_path,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return None
+
+    def get_current_commit(self, name: str) -> str | None:
+        """Get the current commit SHA for a pack.
+
+        Args:
+            name: Pack name.
+
+        Returns:
+            Current commit SHA or None if pack doesn't exist or is not a git repo.
+        """
+        pack_path = self.packs_dir / name
+        if not pack_path.exists() or pack_path.is_symlink():
+            return None
+
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=pack_path,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            return result.stdout.strip()
+        except subprocess.CalledProcessError:
+            return None
+
+    def switch_branch(self, name: str, branch: str, force: bool = True) -> None:
+        """Switch a pack to a different branch.
+
+        Args:
+            name: Pack name.
+            branch: Target branch name.
+            force: If True, discard local changes (default: True).
+
+        Raises:
+            ScenarioError: If pack doesn't exist, is a symlink, or git operations fail.
+        """
+        pack_path = self.packs_dir / name
+
+        if not pack_path.exists():
+            raise ScenarioError(f"Pack '{name}' not found at {pack_path}")
+
+        if pack_path.is_symlink():
+            raise ScenarioError(
+                f"Pack '{name}' is a local pack (symlink). "
+                "Branch switching is only available for git packs."
+            )
+
+        logger.info(f"Switching pack '{name}' to branch '{branch}'")
+
+        try:
+            # Fetch latest from remote
+            subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=pack_path,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Switch to branch (force if requested)
+            switch_cmd = ["git", "checkout"]
+            if force:
+                switch_cmd.append("-f")
+            switch_cmd.append(branch)
+
+            subprocess.run(
+                switch_cmd,
+                cwd=pack_path,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            # Pull latest changes
+            subprocess.run(
+                ["git", "pull", "origin", branch],
+                cwd=pack_path,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            logger.info(f"Successfully switched pack '{name}' to branch '{branch}'")
+
+        except subprocess.CalledProcessError as e:
+            error_msg = (
+                f"Failed to switch pack '{name}' to branch '{branch}': {e.stderr}"
+            )
+            logger.error(error_msg)
+            raise ScenarioError(error_msg) from e
+
+    def checkout_pr(
+        self,
+        name: str,
+        pr_number: int,
+        head_branch: str,
+        head_repo_url: str | None = None,
+    ) -> None:
+        """Check out a pull request branch for a pack.
+
+        Args:
+            name: Pack name.
+            pr_number: Pull request number.
+            head_branch: PR head branch name.
+            head_repo_url: Optional fork repository URL (for PRs from forks).
+                          If provided, fetches from fork instead of upstream.
+
+        Raises:
+            ScenarioError: If pack doesn't exist, is a symlink, or git operations fail.
+        """
+        pack_path = self.packs_dir / name
+
+        if not pack_path.exists():
+            raise ScenarioError(f"Pack '{name}' not found at {pack_path}")
+
+        if pack_path.is_symlink():
+            raise ScenarioError(
+                f"Pack '{name}' is a local pack (symlink). "
+                "PR checkout is only available for git packs."
+            )
+
+        logger.info(f"Checking out PR #{pr_number} for pack '{name}'")
+
+        try:
+            if head_repo_url:
+                # PR is from a fork - fetch the branch from the fork repository
+                logger.info(
+                    f"Fetching branch '{head_branch}' from fork: {head_repo_url}"
+                )
+                subprocess.run(
+                    ["git", "fetch", head_repo_url, head_branch],
+                    cwd=pack_path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+            else:
+                # PR is from the same repo - use the PR ref
+                subprocess.run(
+                    ["git", "fetch", "origin", f"pull/{pr_number}/head"],
+                    cwd=pack_path,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+
+            # Checkout the PR branch (force create/reset branch to FETCH_HEAD)
+            subprocess.run(
+                ["git", "checkout", "-B", head_branch, "FETCH_HEAD"],
+                cwd=pack_path,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            logger.info(f"Successfully checked out PR #{pr_number} for pack '{name}'")
+
+        except subprocess.CalledProcessError as e:
+            error_msg = (
+                f"Failed to checkout PR #{pr_number} for pack '{name}': {e.stderr}"
+            )
+            logger.error(error_msg)
+            raise ScenarioError(error_msg) from e
