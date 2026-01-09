@@ -1,6 +1,12 @@
+import base64
+import logging
 from typing import Any
 
 import httpx
+
+from mimic.exceptions import GitHubError
+
+logger = logging.getLogger(__name__)
 
 
 class GitHubClient:
@@ -49,6 +55,36 @@ class GitHubClient:
                 **kwargs,
             )
             return response
+
+    def _parse_error_response(
+        self,
+        response: httpx.Response,
+        operation: str,
+        path: str,
+        owner: str,
+        repo: str,
+    ) -> str:
+        """Parse GitHub API error response into a descriptive message.
+
+        Args:
+            response: The HTTP response from GitHub API
+            operation: Operation being performed (e.g., "update", "create", "delete")
+            path: File path in the repository
+            owner: Repository owner
+            repo: Repository name
+
+        Returns:
+            Formatted error message string
+        """
+        error_msg = (
+            f"Failed to {operation} {path} in {owner}/{repo}: {response.status_code}"
+        )
+        try:
+            error_details = response.json().get("message", response.text)
+            error_msg += f" - {error_details}"
+        except Exception:
+            error_msg += f" - {response.text}"
+        return error_msg
 
     async def repo_exists(self, owner: str, repo: str) -> bool:
         """Check if a repository exists."""
@@ -104,16 +140,26 @@ class GitHubClient:
     async def get_file_in_repo(
         self, owner: str, repo: str, path: str
     ) -> dict[str, Any] | None:
-        """Get file contents and metadata from repo."""
-        import base64
+        """Get file contents and metadata from repo.
 
+        Raises:
+            GitHubError: If file cannot be decoded as UTF-8
+        """
         response = await self._request("GET", f"/repos/{owner}/{repo}/contents/{path}")
         if response.status_code == 200:
             data = response.json()
             if "content" in data:
                 # Content is base64 encoded, decode it
-                content_bytes = base64.b64decode(data["content"])
-                data["decoded_content"] = content_bytes.decode("utf-8")
+                try:
+                    content_bytes = base64.b64decode(data["content"])
+                    data["decoded_content"] = content_bytes.decode("utf-8")
+                except UnicodeDecodeError as e:
+                    error_msg = (
+                        f"File {path} in {owner}/{repo} is not UTF-8 encoded. "
+                        f"Mimic requires UTF-8 files for replacements."
+                    )
+                    logger.error(error_msg)
+                    raise GitHubError(error_msg) from e
             return data
         return None
 
@@ -150,14 +196,12 @@ class GitHubClient:
         Returns:
             True if successful, False otherwise
         """
-        import base64
-
         from nacl import encoding, public
 
         # Get the repository's public key
         public_key_data = await self.get_repo_public_key(owner, repo)
         if not public_key_data:
-            print(f"Failed to get public key for {owner}/{repo}")
+            logger.error(f"Failed to get public key for {owner}/{repo}")
             return False
 
         # Encrypt the secret value
@@ -178,7 +222,7 @@ class GitHubClient:
         if response.status_code in [201, 204]:
             return True
         else:
-            print(
+            logger.error(
                 f"Error creating/updating secret: {response.status_code} - {response.text}"
             )
             return False
@@ -192,7 +236,7 @@ class GitHubClient:
         message: str,
         sha: str,
         branch: str | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """
         Replace file contents in a repository.
 
@@ -206,10 +250,11 @@ class GitHubClient:
             branch: Branch to update (optional, defaults to default branch)
 
         Returns:
-            Commit data if successful, None otherwise
-        """
-        import base64
+            Commit data if successful
 
+        Raises:
+            GitHubError: If the API request fails
+        """
         # Encode content to base64
         content_bytes = content.encode("utf-8")
         content_base64 = base64.b64encode(content_bytes).decode("ascii")
@@ -223,11 +268,18 @@ class GitHubClient:
             "PUT", f"/repos/{owner}/{repo}/contents/{path}", json=data
         )
 
-        if response.status_code in [200, 201]:
+        if response.status_code in (200, 201):
             return response.json()
         else:
-            print(f"Error updating file: {response.status_code} - {response.text}")
-            return None
+            error_msg = self._parse_error_response(
+                response, "update", path, owner, repo
+            )
+            logger.error(error_msg)
+            raise GitHubError(
+                error_msg,
+                status_code=response.status_code,
+                response_text=response.text,
+            )
 
     async def create_file(
         self,
@@ -237,7 +289,7 @@ class GitHubClient:
         content: str,
         message: str,
         branch: str | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """
         Create a new file in a repository.
 
@@ -250,10 +302,11 @@ class GitHubClient:
             branch: Branch to create the file on (defaults to default branch)
 
         Returns:
-            API response data or None if failed
-        """
-        import base64
+            API response data
 
+        Raises:
+            GitHubError: If the API request fails
+        """
         # Base64 encode the content
         encoded_content = base64.b64encode(content.encode()).decode()
 
@@ -269,7 +322,18 @@ class GitHubClient:
             "PUT", f"/repos/{owner}/{repo}/contents/{path}", json=data
         )
 
-        return response.json() if response.status_code in (200, 201) else None
+        if response.status_code in (200, 201):
+            return response.json()
+        else:
+            error_msg = self._parse_error_response(
+                response, "create", path, owner, repo
+            )
+            logger.error(error_msg)
+            raise GitHubError(
+                error_msg,
+                status_code=response.status_code,
+                response_text=response.text,
+            )
 
     async def delete_file(
         self,
@@ -279,7 +343,7 @@ class GitHubClient:
         message: str,
         sha: str,
         branch: str | None = None,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any]:
         """
         Delete a file from a repository.
 
@@ -292,7 +356,10 @@ class GitHubClient:
             branch: Branch to delete the file from (defaults to default branch)
 
         Returns:
-            API response data or None if failed
+            API response data
+
+        Raises:
+            GitHubError: If the API request fails
         """
         data = {
             "message": message,
@@ -306,7 +373,18 @@ class GitHubClient:
             "DELETE", f"/repos/{owner}/{repo}/contents/{path}", json=data
         )
 
-        return response.json() if response.status_code == 200 else None
+        if response.status_code == 200:
+            return response.json()
+        else:
+            error_msg = self._parse_error_response(
+                response, "delete", path, owner, repo
+            )
+            logger.error(error_msg)
+            raise GitHubError(
+                error_msg,
+                status_code=response.status_code,
+                response_text=response.text,
+            )
 
     async def check_user_collaboration(
         self, owner: str, repo: str, username: str
@@ -340,7 +418,7 @@ class GitHubClient:
         if response.status_code in [201, 204]:
             return True
         else:
-            print(
+            logger.error(
                 f"Error inviting collaborator: {response.status_code} - {response.text}"
             )
             return False

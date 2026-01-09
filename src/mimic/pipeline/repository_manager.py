@@ -9,6 +9,7 @@ import logging
 from typing import Any
 
 from mimic import settings
+from mimic.exceptions import GitHubError
 from mimic.gh import GitHubClient
 from mimic.pipeline.retry_handler import RetryHandler
 from mimic.unify import UnifyAPIClient
@@ -215,7 +216,11 @@ class RepositoryManager:
     async def _apply_file_replacements(
         self, owner: str, repo: str, file_path: str, replacements: dict[str, str]
     ):
-        """Apply content replacements to a file in the repository."""
+        """Apply content replacements to a file in the repository.
+
+        Raises:
+            GitHubError: If replacement operations fail
+        """
         print(f"     Applying replacements to {file_path}...")
         await self._emit_event(
             "task_progress",
@@ -225,39 +230,57 @@ class RepositoryManager:
             },
         )
 
-        # Get file content from GitHub
-        file_data = await self.github.get_file_in_repo(owner, repo, file_path)
-        if not file_data:
-            print(f"     Warning: File {file_path} not found")
-            return
+        try:
+            # Get file content from GitHub
+            file_data = await self.github.get_file_in_repo(owner, repo, file_path)
+            if not file_data:
+                logger.warning(f"File {file_path} not found in {owner}/{repo}")
+                print(f"     Warning: File {file_path} not found")
+                return
 
-        original_content = file_data.get("decoded_content", "")
+            original_content = file_data.get("decoded_content", "")
 
-        # Apply replacements
-        modified_content = original_content
-        for find_str, replace_str in replacements.items():
-            modified_content = modified_content.replace(find_str, replace_str)
+            # Apply replacements
+            modified_content = original_content
+            for find_str, replace_str in replacements.items():
+                modified_content = modified_content.replace(find_str, replace_str)
 
-        # Only update if content actually changed
-        if modified_content != original_content:
-            await self.github.replace_file(
-                owner=owner,
-                repo=repo,
-                path=file_path,
-                content=modified_content,
-                message=f"Apply scenario replacements to {file_path}",
-                sha=file_data["sha"],
-            )
-            print(f"     ✅ Updated {file_path}")
+            # Only update if content actually changed
+            if modified_content != original_content:
+                await self.github.replace_file(
+                    owner=owner,
+                    repo=repo,
+                    path=file_path,
+                    content=modified_content,
+                    message=f"Apply scenario replacements to {file_path}",
+                    sha=file_data["sha"],
+                )
+                logger.info(f"Successfully updated {file_path} in {owner}/{repo}")
+                print(f"     ✅ Updated {file_path}")
+                await self._emit_event(
+                    "task_progress",
+                    {
+                        "task_id": "repositories",
+                        "message": f"Updated {file_path} in {owner}/{repo}",
+                    },
+                )
+            else:
+                print(f"     No changes needed for {file_path}")
+
+        except GitHubError as e:
+            error_msg = f"Failed to apply replacements to {file_path}: {e}"
+            logger.error(error_msg)
+
             await self._emit_event(
-                "task_progress",
+                "task_error",
                 {
                     "task_id": "repositories",
-                    "message": f"Updated {file_path} in {owner}/{repo}",
+                    "message": error_msg,
                 },
             )
-        else:
-            print(f"     No changes needed for {file_path}")
+
+            # Re-raise to halt execution - don't continue with broken replacements
+            raise
 
     async def _apply_conditional_file_operations(
         self,
@@ -291,34 +314,49 @@ class RepositoryManager:
     async def _move_file_in_repo(
         self, owner: str, repo: str, source_path: str, destination_path: str
     ):
-        """Move a file from source_path to destination_path in the repository."""
+        """Move a file from source_path to destination_path in the repository.
+
+        Raises:
+            GitHubError: If file operations fail
+        """
         print(f"       Moving {source_path} -> {destination_path}...")
 
-        # Get source file content
-        source_file_data = await self.github.get_file_in_repo(owner, repo, source_path)
-        if not source_file_data:
-            print(f"       Warning: Source file {source_path} not found")
-            return
+        try:
+            # Get source file content
+            source_file_data = await self.github.get_file_in_repo(
+                owner, repo, source_path
+            )
+            if not source_file_data:
+                logger.warning(f"Source file {source_path} not found in {owner}/{repo}")
+                print(f"       Warning: Source file {source_path} not found")
+                return
 
-        # Create destination file
-        await self.github.create_file(
-            owner=owner,
-            repo=repo,
-            path=destination_path,
-            content=source_file_data["decoded_content"],
-            message=f"Move {source_path} to {destination_path}",
-        )
+            # Create destination file
+            await self.github.create_file(
+                owner=owner,
+                repo=repo,
+                path=destination_path,
+                content=source_file_data["decoded_content"],
+                message=f"Move {source_path} to {destination_path}",
+            )
 
-        # Delete source file
-        await self.github.delete_file(
-            owner=owner,
-            repo=repo,
-            path=source_path,
-            message=f"Remove {source_path} after move to {destination_path}",
-            sha=source_file_data["sha"],
-        )
+            # Delete source file
+            await self.github.delete_file(
+                owner=owner,
+                repo=repo,
+                path=source_path,
+                message=f"Remove {source_path} after move to {destination_path}",
+                sha=source_file_data["sha"],
+            )
 
-        print(f"       ✅ Moved {source_path} to {destination_path}")
+            logger.info(f"Successfully moved {source_path} to {destination_path}")
+            print(f"       ✅ Moved {source_path} to {destination_path}")
+
+        except GitHubError as e:
+            error_msg = f"Failed to move {source_path} to {destination_path}: {e}"
+            logger.error(error_msg)
+            # Re-raise to halt execution
+            raise
 
     async def _invite_collaborator(self, owner: str, repo: str, username: str):
         """Invite a GitHub user as collaborator to a repository with idempotency."""
