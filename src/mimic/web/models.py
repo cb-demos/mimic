@@ -368,6 +368,9 @@ class Resource(BaseModel):
     name: str
     org_id: str | None = None
     url: str | None = None  # URL to view the resource in its respective UI
+    existed: bool = False  # Found already present when the run started
+    kept_reason: str | None = None  # Why cleanup keeps it; None = cleanup deletes it
+    conditional: bool = False  # Deleted or kept depending on a live check at cleanup
 
 
 class SessionInfo(BaseModel):
@@ -380,7 +383,11 @@ class SessionInfo(BaseModel):
     created_at: datetime
     expires_at: datetime | None
     is_expired: bool
+    status: str = "complete"  # "in_progress" | "failed" | "complete"
     resource_count: int
+    delete_count: int = 0  # Resources cleanup will delete
+    conditional_count: int = 0  # Deleted only if unused (decided at cleanup)
+    keep_count: int = 0  # Resources cleanup will keep (pre-existing, shared, flags)
     resources: list[Resource] = Field(default_factory=list)
 
 
@@ -404,12 +411,19 @@ class CleanupResult(BaseModel):
     resource_name: str
     status: str  # "success", "error", "skipped"
     message: str | None = None
+    already_gone: bool = False  # "success" because it was already removed outside mimic
+    session_id: str | None = None  # Set for bulk (expired) cleanup
 
 
 class CleanupResponse(BaseModel):
     """Response for cleanup operations."""
 
-    cleaned_count: int
+    cleaned_count: int  # Kept for compatibility: deleted + already gone
+    deleted_count: int = 0
+    already_gone_count: int = 0
+    kept_count: int = 0
+    failed_count: int = 0
+    dry_run: bool = False
     results: list[CleanupResult]
 
 

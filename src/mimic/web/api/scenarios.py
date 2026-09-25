@@ -696,6 +696,7 @@ async def _execute_scenario_background(
             )
         else:
             # Real execution
+            instance_repo = InstanceRepository()
             pipeline = CreationPipeline(
                 organization_id=organization_id,
                 endpoint_id=endpoint_id,
@@ -710,15 +711,16 @@ async def _execute_scenario_background(
                 tenant=env_name,
                 expires_at=expires_at,
                 event_callback=emit_event,  # Pass callback for progress events
+                # Save progress after each step so a failed run can still be cleaned up
+                on_checkpoint=instance_repo.save,
             )
 
             summary = await pipeline.execute_scenario(scenario, parameters)
 
-            # Save instance
+            # Save final instance state
             instance = summary.get("instance")
             if instance:
-                repo = InstanceRepository()
-                repo.save(instance)
+                instance_repo.save(instance)
 
             # Enrich instance with CloudBees URLs before sending to frontend
             if instance:

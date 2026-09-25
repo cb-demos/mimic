@@ -4,6 +4,7 @@ Orchestrates the setup of a complete scenario including repos, components, envir
 """
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
@@ -56,7 +57,11 @@ class CreationPipeline:
         use_legacy_flags: bool = False,
         # Optional callback for progress events (used by web UI)
         event_callback: Any | None = None,
+        # Optional callback to persist partial state after each step
+        # (e.g. InstanceRepository().save) so failed runs can be cleaned up.
+        on_checkpoint: Callable[[Instance], None] | None = None,
     ):
+        self.on_checkpoint = on_checkpoint
         self.organization_id = organization_id
         self.endpoint_id = endpoint_id
         self.unify_pat = unify_pat
@@ -188,6 +193,10 @@ class CreationPipeline:
                 )
                 completed_steps = 0
 
+                # Record the run before creating anything so a crash mid-step
+                # still leaves a cleanup-able entry in state.
+                self._checkpoint(resolved_scenario, "in_progress")
+
                 # Step 1: Create repositories
                 self.current_step = "repository_creation"
                 await self._emit_event(
@@ -205,17 +214,35 @@ class CreationPipeline:
                     resolved_scenario.repositories, processed_parameters
                 )
                 completed_steps += 1
+                self._checkpoint(resolved_scenario, "in_progress")
                 progress.update(
                     main_task,
                     completed=completed_steps,
-                    description=f"[green]✓[/green] Created {len(created_repositories)} repositories",
+                    description="[green]✓[/green] "
+                    + self._outcome_message(
+                        len(created_repositories),
+                        sum(
+                            1 for r in created_repositories.values() if r.get("existed")
+                        ),
+                        "repository",
+                        "repositories",
+                    ),
                 )
                 await self._emit_event(
                     "task_complete",
                     {
                         "task_id": "repositories",
                         "success": True,
-                        "message": f"Created {len(created_repositories)} repositories",
+                        **self._outcome_event(
+                            len(created_repositories),
+                            sum(
+                                1
+                                for r in created_repositories.values()
+                                if r.get("existed")
+                            ),
+                            "repository",
+                            "repositories",
+                        ),
                     },
                 )
 
@@ -240,17 +267,29 @@ class CreationPipeline:
                         resolved_scenario.repositories, created_repositories
                     )
                     completed_steps += 1
+                    self._checkpoint(resolved_scenario, "in_progress")
                     progress.update(
                         main_task,
                         completed=completed_steps,
-                        description=f"[green]✓[/green] Created {len(created_components)} components",
+                        description="[green]✓[/green] "
+                        + self._outcome_message(
+                            len(created_components),
+                            len(self.resource_manager.preexisting_components),
+                            "component",
+                            "components",
+                        ),
                     )
                     await self._emit_event(
                         "task_complete",
                         {
                             "task_id": "components",
                             "success": True,
-                            "message": f"Created {len(created_components)} components",
+                            **self._outcome_event(
+                                len(created_components),
+                                len(self.resource_manager.preexisting_components),
+                                "component",
+                                "components",
+                            ),
                         },
                     )
 
@@ -270,17 +309,18 @@ class CreationPipeline:
                     )
                     await self.resource_manager.define_flags(resolved_scenario.flags)
                     completed_steps += 1
+                    self._checkpoint(resolved_scenario, "in_progress")
                     progress.update(
                         main_task,
                         completed=completed_steps,
-                        description=f"[green]✓[/green] Defined {len(self.resource_manager.flag_definitions)} flags",
+                        description="[green]✓[/green] " + self._planned_flags_message(),
                     )
                     await self._emit_event(
                         "task_complete",
                         {
                             "task_id": "flags",
                             "success": True,
-                            "message": f"Defined {len(self.resource_manager.flag_definitions)} flags",
+                            "message": self._planned_flags_message(),
                         },
                     )
 
@@ -304,17 +344,29 @@ class CreationPipeline:
                         )
                     )
                     completed_steps += 1
+                    self._checkpoint(resolved_scenario, "in_progress")
                     progress.update(
                         main_task,
                         completed=completed_steps,
-                        description=f"[green]✓[/green] Created {len(created_environments)} environments",
+                        description="[green]✓[/green] "
+                        + self._outcome_message(
+                            len(created_environments),
+                            len(self.resource_manager.preexisting_environments),
+                            "environment",
+                            "environments",
+                        ),
                     )
                     await self._emit_event(
                         "task_complete",
                         {
                             "task_id": "environments",
                             "success": True,
-                            "message": f"Created {len(created_environments)} environments",
+                            **self._outcome_event(
+                                len(created_environments),
+                                len(self.resource_manager.preexisting_environments),
+                                "environment",
+                                "environments",
+                            ),
                         },
                     )
 
@@ -333,17 +385,29 @@ class CreationPipeline:
                     resolved_scenario.applications
                 )
                 completed_steps += 1
+                self._checkpoint(resolved_scenario, "in_progress")
                 progress.update(
                     main_task,
                     completed=completed_steps,
-                    description=f"[green]✓[/green] Created {len(created_applications)} applications",
+                    description="[green]✓[/green] "
+                    + self._outcome_message(
+                        len(created_applications),
+                        len(self.resource_manager.preexisting_applications),
+                        "application",
+                        "applications",
+                    ),
                 )
                 await self._emit_event(
                     "task_complete",
                     {
                         "task_id": "applications",
                         "success": True,
-                        "message": f"Created {len(created_applications)} applications",
+                        **self._outcome_event(
+                            len(created_applications),
+                            len(self.resource_manager.preexisting_applications),
+                            "application",
+                            "applications",
+                        ),
                     },
                 )
 
@@ -370,6 +434,7 @@ class CreationPipeline:
                         env_to_app_mapping,
                     )
                     completed_steps += 1
+                    self._checkpoint(resolved_scenario, "in_progress")
                     progress.update(
                         main_task,
                         completed=completed_steps,
@@ -394,17 +459,30 @@ class CreationPipeline:
                         resolved_scenario
                     )
                     completed_steps += 1
+                    self._checkpoint(resolved_scenario, "in_progress")
                     progress.update(
                         main_task,
                         completed=completed_steps,
-                        description="[green]✓[/green] Feature flags configured",
+                        description="[green]✓[/green] "
+                        + self._flag_config_event()["message"],
                     )
                     await self._emit_event(
                         "task_complete",
                         {
                             "task_id": "flag_configuration",
                             "success": True,
-                            "message": "Feature flags configured",
+                            **self._flag_config_event(),
+                        },
+                    )
+                    # Flags can only be looked up once applications exist, so the
+                    # "Defining feature flags" step learns here whether its flags
+                    # already existed. Re-emit it so the UI can mark it Pre-existing.
+                    await self._emit_event(
+                        "task_complete",
+                        {
+                            "task_id": "flags",
+                            "success": True,
+                            **self._defined_flags_event(),
                         },
                     )
 
@@ -416,7 +494,7 @@ class CreationPipeline:
                 )
 
                 # Build Instance object with structured resources
-                instance = self._build_instance(resolved_scenario)
+                instance = self._build_instance(resolved_scenario, status="complete")
 
                 summary = self._generate_summary()
                 # Keep Instance object for persistence, will be converted to dict for SSE
@@ -424,6 +502,7 @@ class CreationPipeline:
                 return summary
 
             except (GitHubError, UnifyAPIError) as e:
+                self._checkpoint(resolved_scenario, "failed")
                 logger.error(f"External API error during {self.current_step}: {e}")
                 console.print(
                     f"\n[red]✗ Pipeline failed at {self.current_step}:[/red] {str(e)}"
@@ -443,6 +522,7 @@ class CreationPipeline:
                     {"scenario": scenario.name, "error_type": type(e).__name__},
                 ) from e
             except Exception as e:
+                self._checkpoint(resolved_scenario, "failed")
                 logger.error(f"Unexpected error during {self.current_step}: {e}")
                 console.print(
                     f"\n[red]✗ Unexpected error at {self.current_step}:[/red] {str(e)}"
@@ -461,6 +541,10 @@ class CreationPipeline:
                     self.current_step,
                     {"scenario": scenario.name, "error_type": type(e).__name__},
                 ) from e
+            except BaseException:
+                # KeyboardInterrupt / asyncio.CancelledError: keep what was created
+                self._checkpoint(resolved_scenario, "failed")
+                raise
 
     def _generate_summary(self) -> dict[str, Any]:
         """Generate a summary of what was created."""
@@ -473,21 +557,110 @@ class CreationPipeline:
             "success": True,
         }
 
-    def _build_instance(self, resolved_scenario: Scenario) -> Instance:
+    @staticmethod
+    def _outcome_message(total: int, reused: int, singular: str, plural: str) -> str:
+        """Describe a step's outcome, separating new resources from reused ones.
+
+        Examples: "Created 2 components", "Reused 1 existing repository",
+        "Created 1 environment, reused 1 existing".
+        """
+        created = total - reused
+
+        def noun(n: int) -> str:
+            return singular if n == 1 else plural
+
+        if reused == 0:
+            return f"Created {created} {noun(created)}"
+        if created == 0:
+            return f"Reused {reused} existing {noun(reused)}"
+        return f"Created {created} {noun(created)}, reused {reused} existing"
+
+    @classmethod
+    def _outcome_event(
+        cls, total: int, reused: int, singular: str, plural: str
+    ) -> dict[str, Any]:
+        """task_complete event fields for a create step.
+
+        ``all_preexisting`` is True when the step reused resources and created
+        nothing new; the web UI shows it as "Pre-existing" instead of "Complete".
+        """
+        return {
+            "message": cls._outcome_message(total, reused, singular, plural),
+            "all_preexisting": total > 0 and reused == total,
+        }
+
+    def _planned_flags_message(self) -> str:
+        """Step 3 only plans flags in memory; nothing is created yet."""
+        n = len(self.resource_manager.flag_definitions)
+        noun = "flag" if n == 1 else "flags"
+        return f"Planned {n} {noun} (created or reused in the flag configuration step)"
+
+    def _defined_flags_event(self) -> dict[str, Any]:
+        """Final task_complete fields for the flag-definition step.
+
+        Sent after flag configuration, once it is known which flags existed.
+        """
+        rm = self.resource_manager
+        event = self._outcome_event(
+            len(rm.created_flags), len(rm.preexisting_flags), "flag", "flags"
+        )
+        planned = len(rm.flag_definitions)
+        noun = "flag" if planned == 1 else "flags"
+        outcome = event["message"]
+        event["message"] = (
+            f"Planned {planned} {noun}: {outcome[0].lower()}{outcome[1:]}"
+        )
+        return event
+
+    def _flag_config_event(self) -> dict[str, Any]:
+        """task_complete fields for flag configuration (create/reuse + env settings)."""
+        rm = self.resource_manager
+        event = self._outcome_event(
+            len(rm.created_flags), len(rm.preexisting_flags), "flag", "flags"
+        )
+        updates = rm.flag_environment_updates
+        if updates:
+            noun = "environment setting" if updates == 1 else "environment settings"
+            event["message"] += f"; applied {updates} {noun} (flag set off)"
+        preserved = rm.flag_environment_preserved
+        if preserved:
+            noun = "environment setting" if preserved == 1 else "environment settings"
+            event["message"] += f"; left {preserved} existing {noun} unchanged"
+        return event
+
+    def _checkpoint(self, resolved_scenario: Scenario, status: str) -> None:
+        """Persist the resources created so far via ``on_checkpoint``.
+
+        Never raises: a failure to save state must not abort (or mask the
+        original error of) a run.
+        """
+        if not self.on_checkpoint:
+            return
+        try:
+            self.on_checkpoint(self._build_instance(resolved_scenario, status=status))
+        except Exception as e:
+            logger.error(f"Failed to checkpoint instance {self.session_id}: {e}")
+
+    def _build_instance(
+        self, resolved_scenario: Scenario, status: str = "complete"
+    ) -> Instance:
         """Build an Instance object from created resources.
 
         Args:
             resolved_scenario: The scenario with resolved template variables
+            status: "in_progress", "failed" or "complete"
         """
         # Convert repositories
         repositories = []
         for repo_data in self.repo_manager.created_repositories.values():
+            full_name = repo_data.get("full_name", "")
             repo = GitHubRepository(
-                id=repo_data.get("full_name", ""),
+                id=full_name,
                 name=repo_data.get("name", ""),
-                owner=repo_data.get("owner", {}).get("login", ""),
+                owner=full_name.split("/", 1)[0] if "/" in full_name else "",
                 url=repo_data.get("html_url", ""),
                 created_at=self.created_at,
+                existed=bool(repo_data.get("existed", False)),
             )
             repositories.append(repo)
 
@@ -507,6 +680,7 @@ class CreationPipeline:
                 org_id=self.organization_id,
                 repository_url=repo_url,
                 created_at=self.created_at,
+                existed=name in self.resource_manager.preexisting_components,
             )
             components.append(component)
 
@@ -520,6 +694,7 @@ class CreationPipeline:
                 type=flag_data.get("type", "boolean"),
                 key=flag_data.get("key", name),
                 created_at=self.created_at,
+                existed=name in self.resource_manager.preexisting_flags,
             )
             flags.append(flag)
 
@@ -550,6 +725,7 @@ class CreationPipeline:
                 variables=variables,
                 flag_ids=flag_ids,
                 created_at=self.created_at,
+                existed=name in self.resource_manager.preexisting_environments,
             )
             environments.append(environment)
 
@@ -584,6 +760,7 @@ class CreationPipeline:
                 environment_ids=environment_ids,
                 is_shared=is_shared,
                 created_at=self.created_at,
+                existed=name in self.resource_manager.preexisting_applications,
             )
             applications.append(application)
 
@@ -595,6 +772,7 @@ class CreationPipeline:
             tenant=self.tenant or "unknown",
             created_at=self.created_at,
             expires_at=self.expires_at,
+            status=status,
             repositories=repositories,
             components=components,
             environments=environments,

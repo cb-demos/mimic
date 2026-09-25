@@ -33,10 +33,15 @@ import {
   CircularProgress,
   IconButton,
   Collapse,
+  Tooltip,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import {
   Search,
   Delete,
+  PlaylistRemove,
   ExpandMore,
   ExpandLess,
   Warning,
@@ -44,7 +49,7 @@ import {
 import { ResourceList } from '../components/ResourceList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { cleanupApi, tenantsApi } from '../api/endpoints';
-import type { Session } from '../types/api';
+import type { CleanupResponse, CleanupResult, Session } from '../types/api';
 import { ErrorAlert, type ErrorInfo } from '../components/ErrorAlert';
 import { toErrorInfo } from '../utils/errorUtils';
 
@@ -63,7 +68,7 @@ export function CleanupPage() {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const [bulkCleanupDialogOpen, setBulkCleanupDialogOpen] = useState(false);
   const [error, setError] = useState<ErrorInfo | null>(null);
-  const [cleanupResults, setCleanupResults] = useState<any>(null);
+  const [cleanupResults, setCleanupResults] = useState<CleanupResponse | null>(null);
 
   // Fetch environments for filter
   const { data: environmentsData } = useQuery({
@@ -92,6 +97,11 @@ export function CleanupPage() {
     onError: (err: any) => {
       setError(toErrorInfo(err));
     },
+  });
+
+  // Dry-run preview shown in the confirmation dialog (nothing is deleted)
+  const previewMutation = useMutation({
+    mutationFn: (sessionId: string) => cleanupApi.cleanup(sessionId, { dry_run: true }),
   });
 
   // Bulk cleanup expired
@@ -153,6 +163,13 @@ export function CleanupPage() {
   const handleCleanup = (session: Session) => {
     setSelectedSession(session);
     setCleanupDialogOpen(true);
+    previewMutation.reset();
+    previewMutation.mutate(session.session_id);
+  };
+
+  const handleCloseCleanupDialog = () => {
+    setCleanupDialogOpen(false);
+    previewMutation.reset();
   };
 
   const handleConfirmCleanup = () => {
@@ -174,7 +191,16 @@ export function CleanupPage() {
     return new Date(expiresAt) < new Date();
   };
 
-  const expiredCount = sessions?.sessions.filter((s: Session) => isExpired(s.expires_at || null)).length || 0;
+  const expiredSessions =
+    sessions?.sessions.filter((s: Session) => isExpired(s.expires_at || null)) || [];
+  const expiredCount = expiredSessions.length;
+  const expiredTotals = expiredSessions.reduce(
+    (acc, s) => ({
+      deleteCount: acc.deleteCount + (s.delete_count ?? s.resource_count),
+      keepCount: acc.keepCount + (s.keep_count ?? 0) + (s.conditional_count ?? 0),
+    }),
+    { deleteCount: 0, keepCount: 0 }
+  );
 
   return (
     <Container maxWidth="lg">
@@ -201,10 +227,7 @@ export function CleanupPage() {
       {error && <ErrorAlert error={error} onClose={() => setError(null)} />}
 
       {cleanupResults && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setCleanupResults(null)}>
-          Cleanup complete: {cleanupResults.cleaned_count || cleanupResults.results?.length || 0}{' '}
-          resource(s) deleted
-        </Alert>
+        <CleanupResultBanner results={cleanupResults} onClose={() => setCleanupResults(null)} />
       )}
 
       {/* Filters */}
@@ -326,9 +349,21 @@ export function CleanupPage() {
                         </IconButton>
                       </TableCell>
                       <TableCell>
-                        <Typography variant="body2" fontWeight="medium">
-                          {session.instance_name}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" fontWeight="medium">
+                            {session.instance_name}
+                          </Typography>
+                          {session.status === 'failed' && (
+                            <Tooltip title="This run stopped before finishing. Resources it created before stopping are tracked and can be cleaned up.">
+                              <Chip label="Failed run" size="small" color="error" />
+                            </Tooltip>
+                          )}
+                          {session.status === 'in_progress' && (
+                            <Tooltip title="This run did not finish recording its results (it may still be running, or was interrupted).">
+                              <Chip label="Incomplete" size="small" color="warning" />
+                            </Tooltip>
+                          )}
+                        </Box>
                         <Typography variant="caption" color="text.secondary" fontFamily="monospace">
                           {session.session_id}
                         </Typography>
@@ -359,18 +394,31 @@ export function CleanupPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Chip label={session.resources?.length || 0} size="small" />
+                        <ResourceCountChips session={session} />
                       </TableCell>
                       <TableCell align="right">
-                        <Button
-                          size="small"
-                          color="error"
-                          variant="outlined"
-                          onClick={() => handleCleanup(session)}
-                          startIcon={<Delete />}
-                        >
-                          Clean Up
-                        </Button>
+                        {(session.delete_count ?? session.resource_count) === 0 ? (
+                          <Tooltip title="Nothing to delete: every resource is kept. This only removes the run from the list.">
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              onClick={() => handleCleanup(session)}
+                              startIcon={<PlaylistRemove />}
+                            >
+                              Remove
+                            </Button>
+                          </Tooltip>
+                        ) : (
+                          <Button
+                            size="small"
+                            color="error"
+                            variant="outlined"
+                            onClick={() => handleCleanup(session)}
+                            startIcon={<Delete />}
+                          >
+                            Clean Up
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                     <TableRow>
@@ -380,6 +428,7 @@ export function CleanupPage() {
                             <ResourceList
                               resources={session.resources || []}
                               showHeader={true}
+                              showCleanupOutcome={true}
                             />
                           </Box>
                         </Collapse>
@@ -394,7 +443,7 @@ export function CleanupPage() {
       )}
 
       {/* Cleanup Confirmation Dialog */}
-      <Dialog open={cleanupDialogOpen} onClose={() => setCleanupDialogOpen(false)}>
+      <Dialog open={cleanupDialogOpen} onClose={handleCloseCleanupDialog} maxWidth="sm" fullWidth>
         <DialogTitle>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Warning color="warning" />
@@ -404,27 +453,32 @@ export function CleanupPage() {
         <DialogContent>
           {selectedSession && (
             <>
-              <Typography gutterBottom>
-                Are you sure you want to clean up this session?
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
                 <strong>Run Name:</strong> {selectedSession.instance_name}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Resources:</strong> {selectedSession.resources?.length || 0}
-              </Typography>
+              <CleanupPreview
+                isLoading={previewMutation.isPending}
+                error={previewMutation.error}
+                preview={previewMutation.data}
+              />
             </>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCleanupDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleCloseCleanupDialog}>Cancel</Button>
           <Button
             variant="contained"
             color="error"
             onClick={handleConfirmCleanup}
-            disabled={cleanupMutation.isPending}
+            disabled={cleanupMutation.isPending || previewMutation.isPending}
           >
-            {cleanupMutation.isPending ? <CircularProgress size={24} /> : 'Clean Up'}
+            {cleanupMutation.isPending ? (
+              <CircularProgress size={24} />
+            ) : previewMutation.data && previewMutation.data.deleted_count === 0 ? (
+              'Remove'
+            ) : (
+              'Clean Up'
+            )}
           </Button>
         </DialogActions>
       </Dialog>
@@ -444,6 +498,12 @@ export function CleanupPage() {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
             <strong>Sessions to clean:</strong> {expiredCount}
           </Typography>
+          <Typography variant="body2" color="text.secondary">
+            <strong>Resources to delete:</strong> {expiredTotals.deleteCount}
+            {' · '}
+            <strong>Kept or deleted only if unused</strong> (pre-existing, shared or flags):{' '}
+            {expiredTotals.keepCount}
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setBulkCleanupDialogOpen(false)}>Cancel</Button>
@@ -458,5 +518,155 @@ export function CleanupPage() {
         </DialogActions>
       </Dialog>
     </Container>
+  );
+}
+
+const RESOURCE_TYPE_LABELS: Record<string, string> = {
+  github_repo: 'GitHub repo',
+  cloudbees_component: 'Component',
+  cloudbees_environment: 'Environment',
+  cloudbees_application: 'Application',
+  cloudbees_flag: 'Feature flag',
+  session: 'Session',
+};
+
+function describeResult(r: CleanupResult): string {
+  const type = RESOURCE_TYPE_LABELS[r.resource_type] || r.resource_type;
+  return `${type}: ${r.resource_name || r.resource_id}`;
+}
+
+/** "3 to delete · 2 kept" chips for the Resources column */
+function ResourceCountChips({ session }: { session: Session }) {
+  const deleteCount = session.delete_count ?? session.resource_count;
+  const keepCount = session.keep_count ?? 0;
+  const conditionalCount = session.conditional_count ?? 0;
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+      <Tooltip title="Resources this run created; cleanup deletes them">
+        <Chip label={`${deleteCount} to delete`} size="small" color={deleteCount ? 'error' : 'default'} variant="outlined" />
+      </Tooltip>
+      {conditionalCount > 0 && (
+        <Tooltip title="A shared application this run created (and its flags): deleted only if nothing else is still attached. Open Clean Up to see the live answer.">
+          <Chip label={`${conditionalCount} if unused`} size="small" color="warning" variant="outlined" />
+        </Tooltip>
+      )}
+      {keepCount > 0 && (
+        <Tooltip title="Pre-existing resources, shared applications and feature flags; cleanup keeps them">
+          <Chip label={`${keepCount} kept`} size="small" />
+        </Tooltip>
+      )}
+    </Box>
+  );
+}
+
+/** Dry-run preview listing what cleanup will delete and keep */
+function CleanupPreview({
+  isLoading,
+  error,
+  preview,
+}: {
+  isLoading: boolean;
+  error: unknown;
+  preview?: CleanupResponse;
+}) {
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 2 }}>
+        <CircularProgress size={18} />
+        <Typography variant="body2">Checking what will be deleted...</Typography>
+      </Box>
+    );
+  }
+  if (error) {
+    return (
+      <Alert severity="warning" sx={{ mt: 2 }}>
+        Could not preview this cleanup. Pre-existing, shared and flag resources are still kept,
+        but review the resource list before continuing.
+      </Alert>
+    );
+  }
+  if (!preview) return null;
+
+  const willDelete = preview.results.filter((r) => r.status === 'success');
+  const willKeep = preview.results.filter((r) => r.status === 'skipped');
+  const problems = preview.results.filter((r) => r.status === 'error');
+
+  return (
+    <Box sx={{ mt: 2 }}>
+      {willDelete.length === 0 ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Nothing will be deleted. This run did not create any resources that cleanup removes;
+          cleaning up only removes the run from this list.
+        </Alert>
+      ) : (
+        <>
+          <Typography variant="subtitle2" color="error">
+            Will be deleted ({willDelete.length})
+          </Typography>
+          <List dense disablePadding sx={{ mb: 2 }}>
+            {willDelete.map((r) => (
+              <ListItem key={`del-${r.resource_type}-${r.resource_id}`} sx={{ py: 0 }}>
+                <ListItemText primary={describeResult(r)} secondary={r.message} />
+              </ListItem>
+            ))}
+          </List>
+        </>
+      )}
+      {willKeep.length > 0 && (
+        <>
+          <Typography variant="subtitle2">Will be kept ({willKeep.length})</Typography>
+          <List dense disablePadding>
+            {willKeep.map((r) => (
+              <ListItem key={`keep-${r.resource_type}-${r.resource_id}`} sx={{ py: 0 }}>
+                <ListItemText primary={describeResult(r)} secondary={r.message} />
+              </ListItem>
+            ))}
+          </List>
+        </>
+      )}
+      {problems.length > 0 && (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          {problems.length} resource(s) could not be checked:{' '}
+          {problems.map((r) => describeResult(r)).join(', ')}
+        </Alert>
+      )}
+    </Box>
+  );
+}
+
+/** Accurate post-cleanup summary: deleted / kept / already gone / failed */
+function CleanupResultBanner({
+  results,
+  onClose,
+}: {
+  results: CleanupResponse;
+  onClose: () => void;
+}) {
+  const deleted = results.deleted_count ?? 0;
+  const kept = results.kept_count ?? 0;
+  const alreadyGone = results.already_gone_count ?? 0;
+  const failed = results.failed_count ?? 0;
+  const failures = results.results.filter((r) => r.status === 'error');
+
+  const parts = [`${deleted} deleted`];
+  if (kept) parts.push(`${kept} kept (pre-existing, shared or flags)`);
+  if (alreadyGone) parts.push(`${alreadyGone} already gone`);
+  if (failed) parts.push(`${failed} failed`);
+
+  const severity = failed > 0 ? 'warning' : deleted === 0 ? 'info' : 'success';
+
+  return (
+    <Alert severity={severity} sx={{ mb: 3 }} onClose={onClose}>
+      Cleanup complete: {parts.join(' · ')}
+      {failures.length > 0 && (
+        <Box component="ul" sx={{ m: 0, mt: 1, pl: 2 }}>
+          {failures.map((r) => (
+            <li key={`fail-${r.resource_type}-${r.resource_id}`}>
+              {describeResult(r)}: {r.message}
+            </li>
+          ))}
+        </Box>
+      )}
+    </Alert>
   );
 }

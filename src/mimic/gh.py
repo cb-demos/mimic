@@ -467,7 +467,7 @@ class GitHubClient:
             repo_full_name: Full repository name in format "owner/repo"
 
         Returns:
-            True if deletion was successful, False otherwise
+            True if the repository was deleted, False if it was already gone (404)
 
         Raises:
             Exception: If the API request fails
@@ -477,8 +477,8 @@ class GitHubClient:
         if response.status_code == 204:
             return True
         elif response.status_code == 404:
-            # Repository not found - consider this success for cleanup purposes
-            return True
+            # Already gone - not an error for cleanup, but report it distinctly
+            return False
         else:
             raise Exception(
                 f"Failed to delete repository {repo_full_name}: {response.status_code} - {response.text}"

@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from ..cleanup_manager import CleanupManager
+from ..cleanup_manager import CleanupManager, summarize_results
 from ..config_manager import ConfigManager
 from ..instance_repository import InstanceRepository
 
@@ -309,14 +309,15 @@ def cleanup_run(
         )
 
         # Show summary
+        counts = summarize_results(results)
         console.print()
         if dry_run:
             console.print(
                 Panel(
                     f"[yellow]Dry run completed[/yellow]\n\n"
-                    f"Would clean: {len(results['cleaned'])} resources\n"
-                    f"Would skip: {len(results['skipped'])} resources\n"
-                    f"Errors: {len(results['errors'])} resources",
+                    f"Would delete: {counts['deleted']} resources\n"
+                    f"Would keep: {counts['kept']} resources\n"
+                    f"Errors: {counts['failed']} resources",
                     title="Cleanup Summary (Dry Run)",
                     border_style="yellow",
                 )
@@ -326,9 +327,10 @@ def cleanup_run(
             console.print(
                 Panel(
                     f"[{'green' if success else 'yellow'}]Cleanup {'completed successfully' if success else 'completed with errors'}[/]\n\n"
-                    f"Cleaned: {len(results['cleaned'])} resources\n"
-                    f"Skipped: {len(results['skipped'])} resources\n"
-                    f"Errors: {len(results['errors'])} resources",
+                    f"Deleted: {counts['deleted']} resources\n"
+                    f"Already gone: {counts['already_gone']} resources\n"
+                    f"Kept: {counts['kept']} resources\n"
+                    f"Failed: {counts['failed']} resources",
                     title="Cleanup Summary",
                     border_style="green" if success else "yellow",
                 )

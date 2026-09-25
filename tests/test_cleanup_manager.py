@@ -467,3 +467,153 @@ async def test_cleanup_skips_feature_flags(cleanup_manager, instance_repository)
 
         # Verify instance was still deleted
         assert instance_repository.get_by_id("test-session") is None
+
+
+@pytest.mark.asyncio
+async def test_cleanup_skips_preexisting_resources(
+    cleanup_manager, instance_repository
+):
+    """Resources that existed before the run must never be deleted."""
+    now = datetime.now()
+    instance = Instance(
+        id="preexisting-session",
+        scenario_id="test-scenario",
+        name="test-run",
+        tenant="prod",
+        created_at=now,
+        expires_at=None,
+        repositories=[
+            GitHubRepository(
+                id="owner/old-repo",
+                name="old-repo",
+                owner="owner",
+                url="https://github.com/owner/old-repo",
+                created_at=now,
+                existed=True,
+            ),
+            GitHubRepository(
+                id="owner/new-repo",
+                name="new-repo",
+                owner="owner",
+                url="https://github.com/owner/new-repo",
+                created_at=now,
+            ),
+        ],
+        components=[
+            CloudBeesComponent(
+                id="comp-old",
+                name="old-repo",
+                org_id="org",
+                created_at=now,
+                existed=True,
+            ),
+            CloudBeesComponent(
+                id="comp-new", name="new-repo", org_id="org", created_at=now
+            ),
+        ],
+        environments=[
+            CloudBeesEnvironment(
+                id="env-old", name="prod", org_id="org", created_at=now, existed=True
+            ),
+        ],
+        applications=[
+            CloudBeesApplication(
+                id="app-old", name="app", org_id="org", created_at=now, existed=True
+            ),
+        ],
+    )
+    instance_repository.save(instance)
+
+    with (
+        patch("src.mimic.cleanup_manager.GitHubClient") as mock_github,
+        patch("src.mimic.cleanup_manager.UnifyAPIClient") as mock_unify,
+    ):
+        gh = AsyncMock()
+        gh.delete_repository.return_value = True
+        mock_github.return_value = gh
+        unify = MagicMock()
+        mock_unify.return_value = unify
+
+        results = await cleanup_manager.cleanup_session(
+            "preexisting-session", dry_run=False
+        )
+
+    gh.delete_repository.assert_awaited_once_with("owner/new-repo")
+    unify.delete_component.assert_called_once_with("org", "comp-new")
+    unify.delete_environment.assert_not_called()
+    unify.delete_application.assert_not_called()
+
+    skipped_ids = {s["id"] for s in results["skipped"]}
+    assert {"owner/old-repo", "comp-old", "env-old", "app-old"} <= skipped_ids
+    assert {c["id"] for c in results["cleaned"]} == {"owner/new-repo", "comp-new"}
+    assert results["errors"] == []
+
+
+@pytest.mark.asyncio
+async def test_cleanup_dry_run_reports_preexisting_as_skipped(
+    cleanup_manager, instance_repository
+):
+    """Dry run should show pre-existing resources as skipped, not 'would delete'."""
+    now = datetime.now()
+    instance_repository.save(
+        Instance(
+            id="dry-preexisting",
+            scenario_id="s",
+            name="n",
+            tenant="prod",
+            created_at=now,
+            expires_at=None,
+            repositories=[
+                GitHubRepository(
+                    id="owner/old-repo",
+                    name="old-repo",
+                    owner="owner",
+                    url="https://github.com/owner/old-repo",
+                    created_at=now,
+                    existed=True,
+                )
+            ],
+        )
+    )
+    with patch("src.mimic.cleanup_manager.GitHubClient"):
+        results = await cleanup_manager.cleanup_session("dry-preexisting", dry_run=True)
+    assert results["cleaned"] == []
+    assert results["skipped"][0]["id"] == "owner/old-repo"
+
+
+def test_legacy_state_without_new_fields_loads_with_safe_defaults(
+    instance_repository, temp_state_file
+):
+    """State written by older mimic versions has no existed/status fields."""
+    import json
+
+    now = datetime.now().isoformat()
+    temp_state_file.write_text(
+        json.dumps(
+            {
+                "instances": {
+                    "legacy": {
+                        "id": "legacy",
+                        "scenario_id": "s",
+                        "name": "n",
+                        "tenant": "prod",
+                        "created_at": now,
+                        "expires_at": None,
+                        "repositories": [
+                            {
+                                "id": "o/r",
+                                "name": "r",
+                                "owner": "o",
+                                "url": "https://github.com/o/r",
+                                "created_at": now,
+                            }
+                        ],
+                    }
+                }
+            }
+        )
+    )
+    instance = instance_repository.get_by_id("legacy")
+    assert instance is not None
+    assert instance.status == "complete"
+    assert instance.repositories[0].existed is False

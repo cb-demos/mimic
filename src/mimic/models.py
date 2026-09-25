@@ -50,6 +50,7 @@ class GitHubRepository(BaseModel):
     owner: str  # GitHub org/user
     url: str  # Full HTTPS URL
     created_at: datetime
+    existed: bool = False  # True if found already present; cleanup must not delete it
 
     # Future extensions (commented for now):
     # secrets: list[str] = Field(default_factory=list)  # Secret names that were added
@@ -88,6 +89,7 @@ class CloudBeesComponent(BaseModel):
     org_id: str
     repository_url: str | None = None  # Link to GitHub repo
     created_at: datetime
+    existed: bool = False  # True if found already present; cleanup must not delete it
 
     def get_url(self, base_url: str, org_slug: str) -> str:
         """Get the URL to view this component in CloudBees UI.
@@ -131,6 +133,7 @@ class CloudBeesEnvironment(BaseModel):
     )  # Env vars/secrets
     flag_ids: list[str] = Field(default_factory=list)  # Associated feature flags
     created_at: datetime
+    existed: bool = False  # True if found already present; cleanup must not delete it
 
     def get_url(self, base_url: str, org_slug: str) -> str:
         """Get the URL to view this environment in CloudBees UI.
@@ -174,6 +177,7 @@ class CloudBeesFlag(BaseModel):
     type: str  # "boolean", "string", "number"
     key: str  # The flag key used in code
     created_at: datetime
+    existed: bool = False  # True if found already present; cleanup must not delete it
 
     # Future extensions (commented for now):
     # default_value: Any
@@ -223,6 +227,7 @@ class CloudBeesApplication(BaseModel):
     )  # References to environments
     is_shared: bool = False  # If True, reuse existing app; don't delete on cleanup
     created_at: datetime
+    existed: bool = False  # True if found already present; cleanup must not delete it
 
     def get_url(self, base_url: str, org_slug: str) -> str:
         """Get the URL to view this application in CloudBees UI.
@@ -276,6 +281,9 @@ class Instance(BaseModel):
     tenant: str  # Which CloudBees tenant (prod/preprod/demo/custom)
     created_at: datetime
     expires_at: datetime | None  # None = never expires
+    # "in_progress" while a run is executing, "failed" if it stopped partway,
+    # "complete" when finished. Older state files default to "complete".
+    status: str = "complete"
 
     # Structured resources (not flat list!)
     repositories: list[GitHubRepository] = Field(default_factory=list)

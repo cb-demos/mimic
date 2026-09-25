@@ -5,6 +5,9 @@ from typing import Any
 from rich.console import Console
 from rich.panel import Panel
 
+# Marks resources that already existed and were reused (cleanup keeps them)
+EXISTING_TAG = " [dim](existing)[/dim]"
+
 
 def display_success_summary(
     console: Console,
@@ -25,12 +28,19 @@ def display_success_summary(
     lines.append(f"Tenant: [cyan]{tenant}[/cyan]")
     lines.append(f"Expires: [yellow]{expiration_label}[/yellow]\n")
 
+    rm = pipeline.resource_manager
+
+    def _tag(name: str, preexisting: set[str]) -> str:
+        return EXISTING_TAG if name in preexisting else ""
+
     # Display repositories
     repositories = summary.get("repositories", [])
     if repositories:
         lines.append(f"[bold]GitHub Repositories ({len(repositories)}):[/bold]")
         for repo in repositories:
-            repo_name = repo.get("name", "Unknown")
+            repo_name = repo.get("name", "Unknown") + (
+                EXISTING_TAG if repo.get("existed") else ""
+            )
             repo_url = repo.get("html_url", "")
             if repo_url:
                 lines.append(
@@ -46,7 +56,8 @@ def display_success_summary(
             f"[bold]CloudBees Components ({len(pipeline.created_components)}):[/bold]"
         )
         for comp_name in pipeline.created_components.keys():
-            lines.append(f"  • {comp_name}")
+            tag = _tag(comp_name, rm.preexisting_components)
+            lines.append(f"  • {comp_name}{tag}")
         lines.append("")
 
     # Display environments
@@ -55,7 +66,8 @@ def display_success_summary(
             f"[bold]CloudBees Environments ({len(pipeline.created_environments)}):[/bold]"
         )
         for env_name in pipeline.created_environments.keys():
-            lines.append(f"  • {env_name}")
+            tag = _tag(env_name, rm.preexisting_environments)
+            lines.append(f"  • {env_name}{tag}")
         lines.append("")
 
     # Display applications
@@ -64,14 +76,16 @@ def display_success_summary(
             f"[bold]CloudBees Applications ({len(pipeline.created_applications)}):[/bold]"
         )
         for app_name in pipeline.created_applications.keys():
-            lines.append(f"  • {app_name}")
+            tag = _tag(app_name, rm.preexisting_applications)
+            lines.append(f"  • {app_name}{tag}")
         lines.append("")
 
     # Display feature flags (grouped by application)
     if pipeline.created_flags:
         lines.append(f"[bold]Feature Flags ({len(pipeline.created_flags)}):[/bold]")
         for flag_name in pipeline.created_flags.keys():
-            lines.append(f"  • {flag_name}")
+            tag = _tag(flag_name, rm.preexisting_flags)
+            lines.append(f"  • {flag_name}{tag}")
         lines.append("")
 
     # Remove trailing empty line if present

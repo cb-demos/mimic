@@ -180,6 +180,7 @@ export function RunScenarioPage() {
               id: repo.id,
               name: repo.name,
               url: repo.url,
+              existed: repo.existed,
             });
           }
         });
@@ -195,6 +196,7 @@ export function RunScenarioPage() {
               name: component.name,
               org_id: component.org_id,
               url: (component as any).url, // URL added by backend enrichment
+              existed: component.existed,
             });
           }
         });
@@ -210,6 +212,7 @@ export function RunScenarioPage() {
               name: env.name,
               org_id: env.org_id,
               url: (env as any).url, // URL added by backend enrichment
+              existed: env.existed,
             });
           }
         });
@@ -225,6 +228,7 @@ export function RunScenarioPage() {
               name: flag.name,
               org_id: flag.org_id,
               url: (flag as any).url, // URL added by backend enrichment
+              existed: flag.existed,
             });
           }
         });
@@ -240,6 +244,7 @@ export function RunScenarioPage() {
               name: app.name,
               org_id: app.org_id,
               url: (app as any).url, // URL added by backend enrichment
+              existed: app.existed,
             });
           }
         });
@@ -251,6 +256,10 @@ export function RunScenarioPage() {
       return [];
     }
   }, [completionData]);
+
+  // Split resources into newly created vs reused (already existed before the run)
+  const reusedCount = createdResources.filter((r) => r.existed).length;
+  const newCount = createdResources.length - reusedCount;
 
   // Sync progress error to error state for display
   useEffect(() => {
@@ -726,9 +735,21 @@ export function RunScenarioPage() {
 
             <ProgressDisplay sessionId={sessionId} />
 
-            {isComplete && (
+            {isComplete && reusedCount === 0 && (
               <Alert severity="success" sx={{ mt: 2 }}>
                 Scenario execution completed successfully!
+              </Alert>
+            )}
+            {isComplete && reusedCount > 0 && newCount === 0 && (
+              <Alert severity="info" sx={{ mt: 2 }}>
+                Scenario completed, but nothing new was created: all {reusedCount} resource(s)
+                already existed and were reused. Cleaning up this run will not delete them.
+              </Alert>
+            )}
+            {isComplete && reusedCount > 0 && newCount > 0 && (
+              <Alert severity="success" sx={{ mt: 2 }}>
+                Scenario completed: created {newCount} new resource(s) and reused {reusedCount}{' '}
+                existing. Cleaning up this run will only delete the new ones.
               </Alert>
             )}
           </Paper>
@@ -737,7 +758,7 @@ export function RunScenarioPage() {
             <Card sx={{ mb: 3 }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
-                  Resources Created
+                  Resources
                 </Typography>
                 <ResourceList resources={createdResources} showHeader={false} />
               </CardContent>

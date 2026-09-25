@@ -178,13 +178,20 @@ if STATIC_DIR.exists() and (STATIC_DIR / "index.html").exists():
         Serve the React SPA for all non-API routes.
         This enables client-side routing to work correctly.
         """
-        # If the path points to a file that exists, serve it
-        file_path = STATIC_DIR / full_path
-        if file_path.is_file():
+        # If the path points to a file inside STATIC_DIR, serve it.
+        # resolve() + is_relative_to() blocks "../" path traversal.
+        static_root = STATIC_DIR.resolve()
+        file_path = (STATIC_DIR / full_path).resolve()
+        if file_path.is_relative_to(static_root) and file_path.is_file():
             return FileResponse(file_path)
 
-        # Otherwise, serve index.html for SPA routing
-        return FileResponse(STATIC_DIR / "index.html")
+        # Otherwise, serve index.html for SPA routing. "no-cache" makes the
+        # browser revalidate it on every load, so after an upgrade it picks up
+        # the new index.html (and its new hashed /assets bundle) instead of
+        # silently running the old UI.
+        return FileResponse(
+            STATIC_DIR / "index.html", headers={"Cache-Control": "no-cache"}
+        )
 
 else:
     logger.warning(
