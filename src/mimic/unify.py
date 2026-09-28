@@ -529,39 +529,42 @@ class UnifyAPIClient:
         return None
 
     # Delete/Cleanup Methods
-    def delete_component(self, org_id: str, component_id: str) -> None:
+    def delete_component(self, org_id: str, component_id: str) -> bool:
         """Delete a CloudBees component using the component UUID directly"""
         try:
             # Components are deleted using the direct resource UUID
             self._make_request("DELETE", f"/v1/resources/{component_id}", json={})
+            return True
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
-                # Component not found - consider this success for cleanup purposes
-                return
+                # Component not found - already gone; not an error for cleanup
+                return False
             raise
 
-    def delete_environment(self, org_id: str, env_id: str) -> None:
+    def delete_environment(self, org_id: str, env_id: str) -> bool:
         """Delete a CloudBees environment"""
         try:
             # Environments are deleted via the resources/endpoints pattern
             self._make_request(
                 "DELETE", f"/v1/resources/{org_id}/endpoints/{env_id}", json={}
             )
+            return True
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
-                # Environment not found - consider this success for cleanup purposes
-                return
+                # Environment not found - already gone; not an error for cleanup
+                return False
             raise
 
-    def delete_application(self, org_id: str, app_id: str) -> None:
+    def delete_application(self, org_id: str, app_id: str) -> bool:
         """Delete a CloudBees application (which is a service)"""
         try:
             # Applications are deleted as services - use existing delete_service method
             self.delete_service(org_id, app_id)
+            return True
         except Exception as e:
             if "404" in str(e) or "not found" in str(e).lower():
-                # Application not found - consider this success for cleanup purposes
-                return
+                # Application not found - already gone; not an error for cleanup
+                return False
             raise
 
 

@@ -293,6 +293,9 @@ export interface Resource {
   name: string;
   org_id?: string;
   url?: string;
+  existed?: boolean; // Found already present when the run started
+  kept_reason?: string | null; // Why cleanup keeps it; null/undefined = cleanup deletes it
+  conditional?: boolean; // Deleted or kept depending on a live check at cleanup
 }
 
 export interface SessionInfo {
@@ -303,7 +306,11 @@ export interface SessionInfo {
   created_at: string; // ISO datetime string
   expires_at?: string; // ISO datetime string
   is_expired: boolean;
+  status?: 'in_progress' | 'failed' | 'complete';
   resource_count: number;
+  delete_count?: number; // Resources cleanup will delete
+  conditional_count?: number; // Deleted only if unused (checked at cleanup)
+  keep_count?: number; // Resources cleanup will keep
   resources?: Resource[]; // Optional - may be populated in detailed views
 }
 
@@ -321,10 +328,17 @@ export interface CleanupResult {
   resource_name: string;
   status: 'success' | 'error' | 'skipped';
   message?: string;
+  already_gone?: boolean; // success because it was already removed outside mimic
+  session_id?: string; // Set for bulk (expired) cleanup
 }
 
 export interface CleanupResponse {
-  cleaned_count: number;
+  cleaned_count: number; // deleted + already gone (kept for compatibility)
+  deleted_count: number;
+  already_gone_count: number;
+  kept_count: number;
+  failed_count: number;
+  dry_run: boolean;
   results: CleanupResult[];
 }
 
@@ -462,6 +476,7 @@ export interface TaskCompleteData {
   task_id: string;
   success: boolean;
   message: string;
+  all_preexisting?: boolean; // Step reused existing resources and created nothing new
 }
 
 export interface TaskErrorData {
@@ -477,6 +492,7 @@ export interface GitHubRepository {
   owner: string;
   url: string;
   created_at: string; // ISO datetime
+  existed?: boolean; // Found already present when the run started
 }
 
 export interface EnvironmentVariable {
@@ -492,6 +508,7 @@ export interface CloudBeesComponent {
   repository_url?: string;
   url?: string; // CloudBees UI URL (added by backend enrichment)
   created_at: string; // ISO datetime
+  existed?: boolean; // Found already present when the run started
 }
 
 export interface CloudBeesEnvironment {
@@ -502,6 +519,7 @@ export interface CloudBeesEnvironment {
   flag_ids: string[];
   url?: string; // CloudBees UI URL (added by backend enrichment)
   created_at: string; // ISO datetime
+  existed?: boolean; // Found already present when the run started
 }
 
 export interface CloudBeesFlag {
@@ -512,6 +530,7 @@ export interface CloudBeesFlag {
   key: string;
   url?: string; // CloudBees UI URL (added by backend enrichment)
   created_at: string; // ISO datetime
+  existed?: boolean; // Found already present when the run started
 }
 
 export interface CloudBeesApplication {
@@ -524,6 +543,7 @@ export interface CloudBeesApplication {
   environment_ids: string[];
   is_shared: boolean;
   created_at: string; // ISO datetime
+  existed?: boolean; // Found already present when the run started
 }
 
 export interface Instance {
@@ -538,6 +558,7 @@ export interface Instance {
   environments: CloudBeesEnvironment[];
   flags: CloudBeesFlag[];
   applications: CloudBeesApplication[];
+  status?: 'in_progress' | 'failed' | 'complete';
   metadata: Record<string, any>;
 }
 

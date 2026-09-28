@@ -12,6 +12,8 @@ import {
   Link,
   Paper,
   Divider,
+  Chip,
+  Tooltip,
 } from '@mui/material';
 import { OpenInNew } from '@mui/icons-material';
 import type { Resource } from '../types/api';
@@ -19,6 +21,8 @@ import type { Resource } from '../types/api';
 interface ResourceListProps {
   resources: Resource[];
   showHeader?: boolean;
+  /** Show whether cleanup will delete or keep each resource (needs kept_reason from the API) */
+  showCleanupOutcome?: boolean;
 }
 
 /**
@@ -49,12 +53,16 @@ function formatResourceType(type: string): string {
 /**
  * Displays a list of created resources grouped by type
  */
-export function ResourceList({ resources, showHeader = true }: ResourceListProps) {
+export function ResourceList({
+  resources,
+  showHeader = true,
+  showCleanupOutcome = false,
+}: ResourceListProps) {
   if (!resources || resources.length === 0) {
     return (
       <Box sx={{ p: 2 }}>
         <Typography variant="body2" color="text.secondary">
-          No resources created
+          No resources tracked
         </Typography>
       </Box>
     );
@@ -67,7 +75,7 @@ export function ResourceList({ resources, showHeader = true }: ResourceListProps
     <Box>
       {showHeader && (
         <Typography variant="subtitle2" gutterBottom sx={{ mb: 2 }}>
-          Resources Created ({resources.length})
+          Resources ({resources.length})
         </Typography>
       )}
 
@@ -90,46 +98,79 @@ export function ResourceList({ resources, showHeader = true }: ResourceListProps
                   <Box key={`${resource.type}-${resource.id}`}>
                     <ListItem sx={{ py: 1.5 }}>
                       <ListItemText
+                        disableTypography
                         primary={
-                          resource.url ? (
-                            <Link
-                              href={resource.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              underline="hover"
-                              sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.5,
-                                fontFamily: 'monospace',
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                              }}
-                            >
-                              {resource.name}
-                              <OpenInNew sx={{ fontSize: '0.875rem' }} />
-                            </Link>
-                          ) : (
-                            <Typography
-                              component="span"
-                              sx={{
-                                fontFamily: 'monospace',
-                                fontSize: '0.875rem',
-                                fontWeight: 500,
-                              }}
-                            >
-                              {resource.name}
-                            </Typography>
-                          )
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                            {resource.url ? (
+                              <Link
+                                href={resource.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                underline="hover"
+                                sx={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 0.5,
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.875rem',
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {resource.name}
+                                <OpenInNew sx={{ fontSize: '0.875rem' }} />
+                              </Link>
+                            ) : (
+                              <Typography
+                                component="span"
+                                sx={{
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.875rem',
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {resource.name}
+                              </Typography>
+                            )}
+                            {resource.existed && (
+                              <Tooltip title="Found already present when this run started; this run did not create it">
+                                <Chip label="Existing" size="small" variant="outlined" />
+                              </Tooltip>
+                            )}
+                            {showCleanupOutcome &&
+                              (resource.conditional ? (
+                                <Tooltip title={resource.kept_reason || ''}>
+                                  <Chip
+                                    label="Deleted if unused"
+                                    size="small"
+                                    color="warning"
+                                    variant="outlined"
+                                  />
+                                </Tooltip>
+                              ) : resource.kept_reason ? (
+                                <Tooltip title={resource.kept_reason}>
+                                  <Chip label="Kept on cleanup" size="small" />
+                                </Tooltip>
+                              ) : (
+                                <Chip
+                                  label="Deleted on cleanup"
+                                  size="small"
+                                  color="error"
+                                  variant="outlined"
+                                />
+                              ))}
+                          </Box>
                         }
                         secondary={
                           <Typography
-                            component="span"
+                            component="div"
                             variant="caption"
                             color="text.secondary"
                           >
                             ID: {resource.id}
                             {resource.org_id && ` • Org: ${resource.org_id}`}
+                            {showCleanupOutcome &&
+                              resource.kept_reason &&
+                              ` • ${resource.conditional ? '' : 'Kept: '}${resource.kept_reason}`}
                           </Typography>
                         }
                       />

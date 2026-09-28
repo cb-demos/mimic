@@ -20,6 +20,7 @@ import {
   Error,
   HourglassEmpty,
   PlayArrow,
+  RemoveCircle,
 } from '@mui/icons-material';
 import { useProgress, type TaskProgress } from '../hooks/useProgress';
 
@@ -102,6 +103,8 @@ function TaskItem({ task }: { task: TaskProgress }) {
     switch (task.status) {
       case 'complete':
         return <CheckCircle color="success" />;
+      case 'preexisting':
+        return <RemoveCircle color="info" />;
       case 'error':
         return <Error color="error" />;
       case 'running':
@@ -115,6 +118,8 @@ function TaskItem({ task }: { task: TaskProgress }) {
     switch (task.status) {
       case 'complete':
         return <Chip label="Complete" color="success" size="small" />;
+      case 'preexisting':
+        return <Chip label="Pre-existing" color="info" size="small" />;
       case 'error':
         return <Chip label="Error" color="error" size="small" />;
       case 'running':

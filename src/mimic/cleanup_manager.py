@@ -10,6 +10,93 @@ from .instance_repository import InstanceRepository
 from .models import Instance
 from .unify import UnifyAPIClient
 
+# Reasons a tracked resource is kept (never deleted) by cleanup.
+KEEP_REASON_FLAG = "Flags are not safe to auto-cleanup (shared across environments)"
+KEEP_REASON_PREEXISTING = "Existed before this run"
+KEEP_REASON_SHARED_APP = "Application is marked as shared and won't be deleted"
+KEEP_REASON_SHARED_APP_IN_USE = (
+    "Shared application is still used by other environments or components"
+)
+
+# Conditional outcomes: decided at cleanup time by a live check (see
+# CleanupManager._cleanup_shared_application). Listed as "kept" until then.
+CONDITIONAL_SHARED_APP = (
+    "Shared application created by this run: deleted only if nothing else "
+    "is still attached (checked at cleanup)"
+)
+CONDITIONAL_FLAG = "Removed with its application if that application is deleted"
+CONDITIONAL_REASONS = frozenset({CONDITIONAL_SHARED_APP, CONDITIONAL_FLAG})
+
+REMOVED_WITH_APPLICATION = "Removed with its application"
+
+
+def _flag_parent_application(instance: Instance | None) -> Any:
+    """The application a run's flags belong to, when it is unambiguous.
+
+    mimic tracks flags by name without their application, so flags are tied
+    to an application only when the run has exactly one.
+    """
+    if instance is not None and len(instance.applications) == 1:
+        return instance.applications[0]
+    return None
+
+
+def keep_reason(
+    resource_type: str, resource: Any, instance: Instance | None = None
+) -> str | None:
+    """Return why cleanup keeps this resource, or None if cleanup deletes it.
+
+    This is the single source of truth used by cleanup itself and by the UI
+    (instance list and cleanup preview), so what is shown matches what happens.
+    Reasons in CONDITIONAL_REASONS mean "decided by a live check at cleanup".
+
+    Args:
+        resource_type: One of "github_repo", "cloudbees_component",
+            "cloudbees_environment", "cloudbees_application", "cloudbees_flag"
+        resource: The resource model from an Instance
+        instance: The owning Instance (needed to classify flags)
+    """
+    if getattr(resource, "existed", False):
+        return KEEP_REASON_PREEXISTING
+    if resource_type == "cloudbees_flag":
+        parent = _flag_parent_application(instance)
+        if parent is None:
+            return KEEP_REASON_FLAG
+        parent_reason = keep_reason("cloudbees_application", parent)
+        if parent_reason is None:
+            return None  # the application is deleted, and its flags with it
+        if parent_reason == CONDITIONAL_SHARED_APP:
+            return CONDITIONAL_FLAG
+        return KEEP_REASON_FLAG
+    if resource_type == "cloudbees_application" and getattr(
+        resource, "is_shared", False
+    ):
+        # Not pre-existing, so this run created it
+        return CONDITIONAL_SHARED_APP
+    return None
+
+
+def is_conditional(reason: str | None) -> bool:
+    """True if the outcome is decided by a live check at cleanup time."""
+    return reason in CONDITIONAL_REASONS
+
+
+def summarize_results(results: dict[str, Any]) -> dict[str, int]:
+    """Count the outcomes of a ``cleanup_session`` result.
+
+    Returns:
+        {"deleted", "already_gone", "kept", "failed"}. On a dry run "deleted"
+        means "would delete".
+    """
+    cleaned = results.get("cleaned", [])
+    already_gone = sum(1 for c in cleaned if c.get("already_gone"))
+    return {
+        "deleted": len(cleaned) - already_gone,
+        "already_gone": already_gone,
+        "kept": len(results.get("skipped", [])),
+        "failed": len(results.get("errors", [])),
+    }
+
 
 class CleanupManager:
     """Manages cleanup of resources for Mimic instances."""
@@ -68,7 +155,8 @@ class CleanupManager:
             dry_run: If True, only show what would be cleaned up without doing it
 
         Returns:
-            Dictionary with cleanup results
+            Dictionary with cleanup results. "cleaned" items that were already
+            removed outside mimic carry ``already_gone: True``.
 
         Raises:
             ValueError: If instance not found
@@ -111,36 +199,66 @@ class CleanupManager:
             else None
         )
 
-        # Clean up resources in reverse order (to handle dependencies)
-        # Skip flags - they're not safe to auto-cleanup
-        for flag in instance.flags:
-            results["skipped"].append(
-                {
-                    "type": "cloudbees_flag",
-                    "id": flag.id,
-                    "reason": "Flags are not safe to auto-cleanup",
-                }
-            )
+        # Clean up resources in reverse order (to handle dependencies).
+        # Pre-existing resources are kept. Shared applications this run created
+        # are handled last, once this run's environments/components are gone.
+        deferred_shared_apps = []
+        removed_app_ids: set[str] = set()
 
-        # Clean up applications
         for application in instance.applications:
-            await self._cleanup_application(
+            reason = keep_reason("cloudbees_application", application, instance)
+            if reason == CONDITIONAL_SHARED_APP:
+                deferred_shared_apps.append(application)
+                continue
+            if self._skip_if_kept(application, "cloudbees_application", results):
+                continue
+            if await self._cleanup_application(
                 application, cloudbees_client, results, dry_run
-            )
+            ):
+                removed_app_ids.add(application.id)
 
-        # Clean up environments
         for environment in instance.environments:
+            if self._skip_if_kept(environment, "cloudbees_environment", results):
+                continue
             await self._cleanup_environment(
                 environment, cloudbees_client, results, dry_run
             )
 
-        # Clean up components
         for component in instance.components:
+            if self._skip_if_kept(component, "cloudbees_component", results):
+                continue
             await self._cleanup_component(component, cloudbees_client, results, dry_run)
 
-        # Clean up GitHub repositories
         for repository in instance.repositories:
+            if self._skip_if_kept(repository, "github_repo", results):
+                continue
             await self._cleanup_github_repo(repository, github_client, results, dry_run)
+
+        for application in deferred_shared_apps:
+            if await self._cleanup_shared_application(
+                application, instance, cloudbees_client, results, dry_run
+            ):
+                removed_app_ids.add(application.id)
+
+        # Flags have no delete call; they are removed with their application.
+        parent = _flag_parent_application(instance)
+        for flag in instance.flags:
+            reason = keep_reason("cloudbees_flag", flag, instance)
+            if reason is None or is_conditional(reason):
+                if parent is not None and parent.id in removed_app_ids:
+                    self._record_removed_with_application(results, flag, dry_run)
+                    continue
+                # The application was kept (in use, failed, or no credentials)
+                reason = KEEP_REASON_FLAG
+            self.console.print(f"  [dim]⏭️  Keeping cloudbees_flag:[/dim] {flag.name}")
+            results["skipped"].append(
+                {
+                    "type": "cloudbees_flag",
+                    "id": flag.id,
+                    "name": flag.name,
+                    "reason": reason,
+                }
+            )
 
         # Delete instance from repository if not dry run
         if not dry_run:
@@ -153,190 +271,299 @@ class CleanupManager:
 
         return results
 
+    def _skip_if_kept(
+        self, resource: Any, resource_type: str, results: dict[str, Any]
+    ) -> bool:
+        """Record and skip a resource that cleanup must keep.
+
+        Returns:
+            True if the resource was skipped.
+        """
+        reason = keep_reason(resource_type, resource)
+        if reason is None:
+            return False
+        label = getattr(resource, "name", None) or resource.id
+        if reason == KEEP_REASON_PREEXISTING:
+            self.console.print(
+                f"  [dim]⏭️  Skipping pre-existing {resource_type}:[/dim] {label}"
+            )
+        else:
+            self.console.print(f"  [dim]⏭️  Keeping {resource_type}:[/dim] {label}")
+        results["skipped"].append(
+            {
+                "type": resource_type,
+                "id": resource.id,
+                "name": getattr(resource, "name", ""),
+                "reason": reason,
+            }
+        )
+        return True
+
+    def _record_removed_with_application(
+        self, results: dict[str, Any], flag: Any, dry_run: bool
+    ) -> None:
+        verb = "Would be removed" if dry_run else "Removed"
+        self.console.print(
+            f"  [dim]{verb} with its application:[/dim] flag {flag.name}"
+        )
+        item = {
+            "type": "cloudbees_flag",
+            "id": flag.id,
+            "name": flag.name,
+            "message": REMOVED_WITH_APPLICATION,
+        }
+        if dry_run:
+            item["dry_run"] = True
+        results["cleaned"].append(item)
+
+    async def _cleanup_shared_application(
+        self,
+        resource: Any,
+        instance: Instance,
+        cloudbees_client: Any,
+        results: dict[str, Any],
+        dry_run: bool,
+    ) -> bool:
+        """Delete a shared application this run created, but only if unused.
+
+        Live-checks the application's linked environments and components. If
+        anything other than this run's own environments/components is still
+        attached (for example another SE's run), the application is kept.
+
+        Returns:
+            True if the application was deleted (or would be, on a dry run),
+            or was already gone.
+        """
+        if not cloudbees_client:
+            self._record_no_credentials(
+                results, "cloudbees_application", resource, "CloudBees"
+            )
+            return False
+
+        def keep(reason: str) -> bool:
+            self.console.print(
+                f"  [dim]⏭️  Keeping cloudbees_application:[/dim] {resource.name}"
+            )
+            results["skipped"].append(
+                {
+                    "type": "cloudbees_application",
+                    "id": resource.id,
+                    "name": resource.name,
+                    "reason": reason,
+                }
+            )
+            return False
+
+        try:
+            apps = cloudbees_client.list_applications(resource.org_id).get(
+                "service", []
+            )
+        except Exception as e:
+            return keep(
+                f"Could not check whether the shared application is still in use: {e}"
+            )
+
+        current = next((a for a in apps if a.get("id") == resource.id), None)
+        label = f"application: {resource.name}"
+        if current is None:
+            self._record_deleted(
+                results, "cloudbees_application", resource, label, deleted=False
+            )
+            return True
+
+        own_ids = {e.id for e in instance.environments} | {
+            c.id for c in instance.components
+        }
+        linked = list(current.get("linkedEnvironmentIds") or []) + list(
+            current.get("linkedComponentIds") or []
+        )
+        others = [x for x in linked if x not in own_ids]
+        if others:
+            return keep(f"{KEEP_REASON_SHARED_APP_IN_USE} ({len(others)} attached)")
+
+        return await self._delete_application(
+            resource, cloudbees_client, results, dry_run
+        )
+
+    def _record_deleted(
+        self,
+        results: dict[str, Any],
+        resource_type: str,
+        resource: Any,
+        label: str,
+        deleted: bool | None,
+    ) -> None:
+        """Record a completed delete. ``deleted is False`` means it was already gone."""
+        already_gone = deleted is False
+        if already_gone:
+            self.console.print(
+                f"  [dim]–  Already gone (removed outside mimic):[/dim] {label}"
+            )
+        else:
+            self.console.print(f"  [green]✓[/green] Deleted {label}")
+        item = {"type": resource_type, "id": resource.id, "name": resource.name}
+        if already_gone:
+            item["already_gone"] = True
+        results["cleaned"].append(item)
+
+    def _record_dry_run(
+        self, results: dict[str, Any], resource_type: str, resource: Any, label: str
+    ) -> None:
+        self.console.print(f"  [dim]Would delete {label}[/dim]")
+        results["cleaned"].append(
+            {
+                "type": resource_type,
+                "id": resource.id,
+                "name": resource.name,
+                "dry_run": True,
+            }
+        )
+
+    def _record_error(
+        self,
+        results: dict[str, Any],
+        resource_type: str,
+        resource: Any,
+        label: str,
+        error: str,
+    ) -> None:
+        self.console.print(f"  [red]✗[/red] Failed to delete {label}: {error}")
+        results["errors"].append(
+            {
+                "type": resource_type,
+                "id": resource.id,
+                "name": resource.name,
+                "error": error,
+            }
+        )
+
+    def _record_no_credentials(
+        self, results: dict[str, Any], resource_type: str, resource: Any, which: str
+    ) -> None:
+        results["skipped"].append(
+            {
+                "type": resource_type,
+                "id": resource.id,
+                "name": resource.name,
+                "reason": f"No {which} credentials configured",
+            }
+        )
+
     async def _cleanup_github_repo(
         self, resource, github_client, results, dry_run: bool
     ):
         """Clean up a GitHub repository."""
         repo_name = resource.id  # Full repo name like "owner/repo"
+        label = f"GitHub repo: {repo_name}"
 
         if not github_client:
-            results["skipped"].append(
-                {
-                    "type": "github_repo",
-                    "id": resource.id,
-                    "reason": "No GitHub credentials configured",
-                }
-            )
+            self._record_no_credentials(results, "github_repo", resource, "GitHub")
             return
 
         try:
             if dry_run:
-                self.console.print(
-                    f"  [dim]Would delete GitHub repo:[/dim] {repo_name}"
-                )
-                results["cleaned"].append(
-                    {"type": "github_repo", "id": resource.id, "dry_run": True}
-                )
+                self._record_dry_run(results, "github_repo", resource, label)
             else:
-                success = await github_client.delete_repository(repo_name)
-                if success:
-                    self.console.print(
-                        f"  [green]✓[/green] Deleted GitHub repo: {repo_name}"
-                    )
-                    results["cleaned"].append(
-                        {"type": "github_repo", "id": resource.id}
-                    )
-                else:
-                    results["errors"].append(
-                        {
-                            "type": "github_repo",
-                            "id": resource.id,
-                            "error": "Deletion failed",
-                        }
-                    )
+                deleted = await github_client.delete_repository(repo_name)
+                self._record_deleted(results, "github_repo", resource, label, deleted)
         except Exception as e:
-            self.console.print(
-                f"  [red]✗[/red] Failed to delete GitHub repo {repo_name}: {e}"
-            )
-            results["errors"].append(
-                {"type": "github_repo", "id": resource.id, "error": str(e)}
-            )
+            self._record_error(results, "github_repo", resource, label, str(e))
 
     async def _cleanup_component(
         self, resource, cloudbees_client, results, dry_run: bool
     ):
         """Clean up a CloudBees component."""
+        label = f"component: {resource.name}"
+
         if not cloudbees_client:
-            results["skipped"].append(
-                {
-                    "type": "cloudbees_component",
-                    "id": resource.id,
-                    "reason": "No CloudBees credentials configured",
-                }
+            self._record_no_credentials(
+                results, "cloudbees_component", resource, "CloudBees"
             )
             return
 
         try:
             if dry_run:
-                self.console.print(
-                    f"  [dim]Would delete component:[/dim] {resource.name} ({resource.id})"
-                )
-                results["cleaned"].append(
-                    {"type": "cloudbees_component", "id": resource.id, "dry_run": True}
-                )
+                self._record_dry_run(results, "cloudbees_component", resource, label)
             else:
-                cloudbees_client.delete_component(resource.org_id, resource.id)
-                self.console.print(
-                    f"  [green]✓[/green] Deleted component: {resource.name}"
+                deleted = cloudbees_client.delete_component(
+                    resource.org_id, resource.id
                 )
-                results["cleaned"].append(
-                    {"type": "cloudbees_component", "id": resource.id}
+                self._record_deleted(
+                    results, "cloudbees_component", resource, label, deleted
                 )
         except Exception as e:
-            self.console.print(
-                f"  [red]✗[/red] Failed to delete component {resource.name}: {e}"
-            )
-            results["errors"].append(
-                {"type": "cloudbees_component", "id": resource.id, "error": str(e)}
-            )
+            self._record_error(results, "cloudbees_component", resource, label, str(e))
 
     async def _cleanup_environment(
         self, resource, cloudbees_client, results, dry_run: bool
     ):
         """Clean up a CloudBees environment."""
+        label = f"environment: {resource.name}"
+
         if not cloudbees_client:
-            results["skipped"].append(
-                {
-                    "type": "cloudbees_environment",
-                    "id": resource.id,
-                    "reason": "No CloudBees credentials configured",
-                }
+            self._record_no_credentials(
+                results, "cloudbees_environment", resource, "CloudBees"
             )
             return
 
         try:
             if dry_run:
-                self.console.print(
-                    f"  [dim]Would delete environment:[/dim] {resource.name} ({resource.id})"
-                )
-                results["cleaned"].append(
-                    {
-                        "type": "cloudbees_environment",
-                        "id": resource.id,
-                        "dry_run": True,
-                    }
-                )
+                self._record_dry_run(results, "cloudbees_environment", resource, label)
             else:
-                cloudbees_client.delete_environment(resource.org_id, resource.id)
-                self.console.print(
-                    f"  [green]✓[/green] Deleted environment: {resource.name}"
+                deleted = cloudbees_client.delete_environment(
+                    resource.org_id, resource.id
                 )
-                results["cleaned"].append(
-                    {"type": "cloudbees_environment", "id": resource.id}
+                self._record_deleted(
+                    results, "cloudbees_environment", resource, label, deleted
                 )
         except Exception as e:
-            self.console.print(
-                f"  [red]✗[/red] Failed to delete environment {resource.name}: {e}"
-            )
-            results["errors"].append(
-                {"type": "cloudbees_environment", "id": resource.id, "error": str(e)}
+            self._record_error(
+                results, "cloudbees_environment", resource, label, str(e)
             )
 
     async def _cleanup_application(
         self, resource, cloudbees_client, results, dry_run: bool
-    ):
-        """Clean up a CloudBees application (and its feature flags)."""
+    ) -> bool:
+        """Clean up a (non-shared) CloudBees application.
+
+        Returns:
+            True if deleted, would be deleted (dry run) or already gone.
+        """
         if not cloudbees_client:
-            results["skipped"].append(
-                {
-                    "type": "cloudbees_application",
-                    "id": resource.id,
-                    "reason": "No CloudBees credentials configured",
-                }
+            self._record_no_credentials(
+                results, "cloudbees_application", resource, "CloudBees"
             )
-            return
+            return False
 
-        # Skip deletion of shared applications
+        # Defensive: shared applications go through _cleanup_shared_application
         if resource.is_shared:
-            self.console.print(
-                f"  [dim]⏭️  Skipping shared application:[/dim] {resource.name}"
-            )
-            results["skipped"].append(
-                {
-                    "type": "cloudbees_application",
-                    "id": resource.id,
-                    "reason": "Application is marked as shared and won't be deleted",
-                }
-            )
-            return
+            self._skip_if_kept(resource, "cloudbees_application", results)
+            return False
 
+        return await self._delete_application(
+            resource, cloudbees_client, results, dry_run
+        )
+
+    async def _delete_application(
+        self, resource, cloudbees_client, results, dry_run: bool
+    ) -> bool:
+        label = f"application: {resource.name}"
         try:
             if dry_run:
-                self.console.print(
-                    f"  [dim]Would delete application:[/dim] {resource.name} ({resource.id})"
-                )
-                results["cleaned"].append(
-                    {
-                        "type": "cloudbees_application",
-                        "id": resource.id,
-                        "dry_run": True,
-                    }
-                )
+                self._record_dry_run(results, "cloudbees_application", resource, label)
             else:
-                cloudbees_client.delete_application(resource.org_id, resource.id)
-                self.console.print(
-                    f"  [green]✓[/green] Deleted application: {resource.name}"
+                deleted = cloudbees_client.delete_application(
+                    resource.org_id, resource.id
                 )
-                results["cleaned"].append(
-                    {"type": "cloudbees_application", "id": resource.id}
+                self._record_deleted(
+                    results, "cloudbees_application", resource, label, deleted
                 )
+            return True
         except Exception as e:
-            self.console.print(
-                f"  [red]✗[/red] Failed to delete application {resource.name}: {e}"
+            self._record_error(
+                results, "cloudbees_application", resource, label, str(e)
             )
-            results["errors"].append(
-                {"type": "cloudbees_application", "id": resource.id, "error": str(e)}
-            )
+            return False
 
     async def cleanup_expired_sessions(
         self, dry_run: bool = False, auto_confirm: bool = False

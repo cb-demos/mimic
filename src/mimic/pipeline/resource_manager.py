@@ -47,6 +47,17 @@ class ResourceManager:
         self.flag_definitions: dict[str, Any] = {}
         self.created_flags: dict[str, dict[str, Any]] = {}
 
+        # Names of resources that already existed before this run. They are
+        # tracked for linking/summary but must never be deleted by cleanup.
+        self.preexisting_components: set[str] = set()
+        self.preexisting_environments: set[str] = set()
+        self.preexisting_applications: set[str] = set()
+        self.preexisting_flags: set[str] = set()
+        # Number of flag/environment settings written in configure step
+        self.flag_environment_updates = 0
+        # Settings left untouched (flag and environment both pre-existing)
+        self.flag_environment_preserved = 0
+
     async def create_components(
         self, repositories: list, created_repositories: dict[str, dict]
     ) -> dict[str, dict[str, Any]]:
@@ -84,6 +95,7 @@ class ResourceManager:
                         f"   ⏭️  Component {repo_name} already exists, skipping creation"
                     )
                     self.created_components[repo_name] = existing_component
+                    self.preexisting_components.add(repo_name)
                 else:
                     print(f"   Creating component for {repo_name}...")
 
@@ -134,6 +146,7 @@ class ResourceManager:
                         f"   ⏭️  Environment {env_name} already exists, skipping creation"
                     )
                     self.created_environments[env_name] = existing_environment
+                    self.preexisting_environments.add(env_name)
                 else:
                     print(f"   Creating environment: {env_name}...")
 
@@ -199,6 +212,7 @@ class ResourceManager:
                 )
 
                 if existing_application:
+                    self.preexisting_applications.add(app_name)
                     if is_shared:
                         # Shared app exists - add new environments to it
                         print(
@@ -515,6 +529,7 @@ class ResourceManager:
                         flag_id = existing_flag["id"]
                         # Store the existing flag data
                         self.created_flags[flag_name] = existing_flag
+                        self.preexisting_flags.add(flag_name)
                     else:
                         print(f"     Creating flag: {flag_name}")
 
@@ -529,14 +544,27 @@ class ResourceManager:
                         created_flag_data = flag_result.get("flag", {})
                         self.created_flags[flag_name] = created_flag_data
 
-                    # Configure flag in each environment mentioned in the scenario
-                    # (Always do this to refresh configuration, even if flag existed)
+                    # Set the flag's initial state (off) in each scenario environment.
+                    # If both the flag and the environment already existed, leave
+                    # the current setting alone: an SE may have changed it for a
+                    # demo, and a re-run must not silently reset it.
                     for env_config in resolved_scenario.environments:
                         if flag_name in env_config.flags:
                             env_name = env_config.name
                             if env_name in self.created_environments:
+                                if (
+                                    existing_flag
+                                    and env_name in self.preexisting_environments
+                                ):
+                                    print(
+                                        f"       Leaving existing setting in environment: {env_name}"
+                                    )
+                                    self.flag_environment_preserved += 1
+                                    continue
                                 env_id = self.created_environments[env_name]["id"]
-                                print(f"       Enabling in environment: {env_name}")
+                                print(
+                                    f"       Setting flag off in environment: {env_name}"
+                                )
 
                                 # Enable flag in this environment (set to false initially)
                                 client.enable_flag_in_environment(
@@ -545,6 +573,7 @@ class ResourceManager:
                                     env_id=env_id,
                                     enabled=False,
                                 )
+                                self.flag_environment_updates += 1
 
         print("   Flags configured across environments")
 

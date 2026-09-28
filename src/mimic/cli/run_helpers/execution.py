@@ -79,6 +79,8 @@ def execute_scenario(
     # Check if tenant uses legacy flags API
     use_legacy_flags = config_manager.get_tenant_uses_legacy_flags(current_env)
 
+    instance_repo = InstanceRepository()
+
     pipeline = CreationPipeline(
         organization_id=organization_id,
         endpoint_id=endpoint_id,
@@ -94,16 +96,24 @@ def execute_scenario(
         tenant=current_env,
         expires_at=expires_at,
         use_legacy_flags=use_legacy_flags,
+        # Save progress after each step so a failed run can still be cleaned up
+        on_checkpoint=instance_repo.save,
     )
 
     # Execute scenario
-    summary = asyncio.run(pipeline.execute_scenario(scenario, parameters))
+    try:
+        summary = asyncio.run(pipeline.execute_scenario(scenario, parameters))
+    except BaseException:
+        console.print(
+            f"\n[yellow]Resources created before the failure were recorded. "
+            f"Remove them with:[/yellow] mimic cleanup run {session_id}"
+        )
+        raise
 
-    # Save Instance to repository
+    # Save final Instance state
     instance = summary.get("instance")
     if instance:
-        repo = InstanceRepository()
-        repo.save(instance)
+        instance_repo.save(instance)
 
     # Build success message with resource details
     console.print()

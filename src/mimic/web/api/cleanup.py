@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from mimic.cleanup_manager import CleanupManager
+from mimic.cleanup_manager import CleanupManager, is_conditional, keep_reason
 from mimic.instance_repository import InstanceRepository
 
 from ..dependencies import ConfigDep
@@ -21,6 +21,68 @@ from ..models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cleanup", tags=["cleanup"])
+
+
+def _to_cleanup_results(
+    result: dict, session_id: str | None = None
+) -> list[CleanupResult]:
+    """Convert a CleanupManager.cleanup_session result into API results."""
+    out: list[CleanupResult] = []
+    for item in result.get("cleaned", []):
+        already_gone = bool(item.get("already_gone"))
+        out.append(
+            CleanupResult(
+                resource_type=item.get("type", "unknown"),
+                resource_id=item.get("id", ""),
+                resource_name=item.get("name", ""),
+                status="success",
+                message="Already gone (removed outside mimic)"
+                if already_gone
+                else item.get("message"),
+                already_gone=already_gone,
+                session_id=session_id,
+            )
+        )
+    for item in result.get("errors", []):
+        out.append(
+            CleanupResult(
+                resource_type=item.get("type", "unknown"),
+                resource_id=item.get("id", ""),
+                resource_name=item.get("name", ""),
+                status="error",
+                message=item.get("error"),
+                session_id=session_id,
+            )
+        )
+    for item in result.get("skipped", []):
+        out.append(
+            CleanupResult(
+                resource_type=item.get("type", "unknown"),
+                resource_id=item.get("id", ""),
+                resource_name=item.get("name", ""),
+                status="skipped",
+                message=item.get("reason"),
+                session_id=session_id,
+            )
+        )
+    return out
+
+
+def _to_cleanup_response(
+    results: list[CleanupResult], dry_run: bool
+) -> CleanupResponse:
+    """Build a CleanupResponse with accurate outcome counts."""
+    success = [r for r in results if r.status == "success"]
+    already_gone = sum(1 for r in success if r.already_gone)
+    return CleanupResponse(
+        cleaned_count=len(success),
+        deleted_count=len(success) - already_gone,
+        already_gone_count=already_gone,
+        kept_count=sum(1 for r in results if r.status == "skipped"),
+        failed_count=sum(1 for r in results if r.status == "error"),
+        dry_run=dry_run,
+        results=results,
+    )
 
 
 @router.get("/sessions", response_model=SessionListResponse)
@@ -84,6 +146,8 @@ async def list_sessions(
                     name=repo.name,
                     org_id=None,
                     url=repo.get_url(),
+                    existed=repo.existed,
+                    kept_reason=keep_reason("github_repo", repo),
                 )
             )
 
@@ -98,6 +162,8 @@ async def list_sessions(
                     url=comp.get_url(base_url, org_slug)
                     if (base_url and org_slug)
                     else None,
+                    existed=comp.existed,
+                    kept_reason=keep_reason("cloudbees_component", comp),
                 )
             )
 
@@ -112,6 +178,8 @@ async def list_sessions(
                     url=env.get_url(base_url, org_slug)
                     if (base_url and org_slug)
                     else None,
+                    existed=env.existed,
+                    kept_reason=keep_reason("cloudbees_environment", env),
                 )
             )
 
@@ -126,6 +194,7 @@ async def list_sessions(
                     url=flag.get_url(base_url, org_slug)
                     if (base_url and org_slug)
                     else None,
+                    kept_reason=keep_reason("cloudbees_flag", flag, instance),
                 )
             )
 
@@ -140,8 +209,13 @@ async def list_sessions(
                     url=app.get_url(base_url, org_slug)
                     if (base_url and org_slug)
                     else None,
+                    existed=app.existed,
+                    kept_reason=keep_reason("cloudbees_application", app),
                 )
             )
+
+        for r in resources:
+            r.conditional = is_conditional(r.kept_reason)
 
         sessions.append(
             SessionInfo(
@@ -152,7 +226,17 @@ async def list_sessions(
                 created_at=instance.created_at,
                 expires_at=instance.expires_at,
                 is_expired=is_expired,
+                status=instance.status,
                 resource_count=len(resources),
+                delete_count=sum(1 for r in resources if r.kept_reason is None),
+                conditional_count=sum(
+                    1 for r in resources if is_conditional(r.kept_reason)
+                ),
+                keep_count=sum(
+                    1
+                    for r in resources
+                    if r.kept_reason is not None and not is_conditional(r.kept_reason)
+                ),
                 resources=resources,
             )
         )
@@ -187,45 +271,7 @@ async def cleanup_session(
             dry_run=request.dry_run,
         )
 
-        # Convert to API response format
-        cleanup_results = []
-
-        for item in result.get("cleaned", []):
-            cleanup_results.append(
-                CleanupResult(
-                    resource_type=item.get("type", "unknown"),
-                    resource_id=item.get("id", ""),
-                    resource_name=item.get("name", ""),
-                    status="success",
-                    message=item.get("message"),
-                )
-            )
-
-        for item in result.get("errors", []):
-            cleanup_results.append(
-                CleanupResult(
-                    resource_type=item.get("type", "unknown"),
-                    resource_id=item.get("id", ""),
-                    resource_name=item.get("name", ""),
-                    status="error",
-                    message=item.get("error"),
-                )
-            )
-
-        for item in result.get("skipped", []):
-            cleanup_results.append(
-                CleanupResult(
-                    resource_type=item.get("type", "unknown"),
-                    resource_id=item.get("id", ""),
-                    resource_name=item.get("name", ""),
-                    status="skipped",
-                    message=item.get("reason"),
-                )
-            )
-
-        cleaned_count = len(result.get("cleaned", []))
-
-        return CleanupResponse(cleaned_count=cleaned_count, results=cleanup_results)
+        return _to_cleanup_response(_to_cleanup_results(result), request.dry_run)
 
     except ValueError as e:
         raise HTTPException(
@@ -256,8 +302,7 @@ async def cleanup_expired(request: CleanupSessionRequest, config: ConfigDep):
 
     expired_instances = repo.find_expired()
 
-    all_results = []
-    total_cleaned = 0
+    all_results: list[CleanupResult] = []
 
     for instance in expired_instances:
         try:
@@ -265,31 +310,7 @@ async def cleanup_expired(request: CleanupSessionRequest, config: ConfigDep):
                 session_id=instance.id,
                 dry_run=request.dry_run,
             )
-
-            # Convert to API response format
-            for item in result.get("cleaned", []):
-                all_results.append(
-                    CleanupResult(
-                        resource_type=item.get("type", "unknown"),
-                        resource_id=item.get("id", ""),
-                        resource_name=item.get("name", ""),
-                        status="success",
-                        message=f"[{instance.id}] {item.get('message')}",
-                    )
-                )
-                total_cleaned += 1
-
-            for item in result.get("errors", []):
-                all_results.append(
-                    CleanupResult(
-                        resource_type=item.get("type", "unknown"),
-                        resource_id=item.get("id", ""),
-                        resource_name=item.get("name", ""),
-                        status="error",
-                        message=f"[{instance.id}] {item.get('error')}",
-                    )
-                )
-
+            all_results.extend(_to_cleanup_results(result, session_id=instance.id))
         except Exception as e:
             logger.error(
                 f"Error cleaning up expired session {instance.id}: {e}", exc_info=True
@@ -301,10 +322,11 @@ async def cleanup_expired(request: CleanupSessionRequest, config: ConfigDep):
                     resource_name=instance.name,
                     status="error",
                     message=str(e),
+                    session_id=instance.id,
                 )
             )
 
-    return CleanupResponse(cleaned_count=total_cleaned, results=all_results)
+    return _to_cleanup_response(all_results, request.dry_run)
 
 
 @router.delete("/sessions/{session_id}", response_model=CleanupResponse)

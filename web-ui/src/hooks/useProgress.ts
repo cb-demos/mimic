@@ -26,7 +26,7 @@ export interface TaskProgress {
   description: string;
   current: number;
   total: number;
-  status: 'running' | 'complete' | 'error';
+  status: 'running' | 'complete' | 'preexisting' | 'error';
   message?: string;
   error?: string;
 }
@@ -102,7 +102,11 @@ export function useProgress(sessionId: string | null) {
             if (task) {
               newState.tasks.set(data.task_id, {
                 ...task,
-                status: data.success ? 'complete' : 'error',
+                status: !data.success
+                  ? 'error'
+                  : data.all_preexisting
+                    ? 'preexisting'
+                    : 'complete',
                 message: data.message,
                 current: task.total, // Set to 100%
               });
